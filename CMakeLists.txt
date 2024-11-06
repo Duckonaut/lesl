@@ -15,6 +15,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
 
 option(ENABLE_EXAMPLES "Enable examples" ON)
+option(ENABLE_LESLC "Enable the LESL compiler" ON)
 
 cmake_policy(SET CMP0135 NEW)
 
@@ -84,6 +85,7 @@ endfunction()
 add_subdirectory(lesl)
 
 if (ENABLE_LESLC)
+    add_subdirectory(external/SPIRV-Headers)
     add_subdirectory(leslc)
 
     set(LESLC ${CMAKE_BINARY_DIR}/leslc)
