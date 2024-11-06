@@ -11,14 +11,18 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE INTERNAL "")
 # Declare the project
 project(lesl VERSION 0.1.0 LANGUAGES C CXX)
 
-# Set the name of the executable
-set(EXECUTABLE_NAME ${PROJECT_NAME})
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
+
+option(ENABLE_EXAMPLES "Enable examples" ON)
 
 cmake_policy(SET CMP0135 NEW)
 
 execute_process(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT_HASH OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+set(BUILT_TARGETS)
+
+set(LESL_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
 function(define_executable_target target_name)
     add_executable(${target_name})
@@ -51,54 +55,45 @@ function(define_executable_target target_name)
         target_link_libraries(${target_name} PRIVATE pthread dl)
     endif()
 
+    target_include_directories(${target_name} PUBLIC ${LESL_ROOT}/common/include)
+    target_sources(${target_name} PRIVATE ${LESL_ROOT}/common/src/log.cpp)
 
+    list(APPEND BUILT_TARGETS ${target_name})
 endfunction()
-
-define_executable_target(${EXECUTABLE_NAME})
-
-target_compile_options(${EXECUTABLE_NAME} PRIVATE -Wno-unused-parameter -Wno-missing-field-initializers)
-
-target_sources(${EXECUTABLE_NAME}
-PRIVATE
-    src/main.cpp
-    src/log.cpp
-)
-
-target_include_directories(${EXECUTABLE_NAME} PUBLIC include)
-
-set(SDL_SHARED TRUE "Build a SDL shared library (if available)")
-set(SDL_STATIC FALSE "Build a SDL static library (if available)")
-
-include(FetchContent)
 
 # fetch dependencies
 
-FetchContent_Declare(
-    glm
-    GIT_REPOSITORY https://github.com/g-truc/glm.git
-    GIT_TAG bf71a834948186f4097caa076cd2663c69a10e1e #refs/tags/1.0.1
-)
-FetchContent_MakeAvailable(glm)
+if (ENABLE_EXAMPLES)
+    set(SDL_SHARED TRUE "Build a SDL shared library (if available)")
+    set(SDL_STATIC FALSE "Build a SDL static library (if available)")
 
-FetchContent_Declare(
-    SDL
-    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-    GIT_TAG main  # Replace this with a particular git tag or git hash
-    GIT_SHALLOW TRUE
-    GIT_PROGRESS TRUE
-)
-FetchContent_MakeAvailable(SDL)
+    include(FetchContent)
 
-set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
+    FetchContent_Declare(
+        glm
+        GIT_REPOSITORY https://github.com/g-truc/glm.git
+        GIT_TAG bf71a834948186f4097caa076cd2663c69a10e1e #refs/tags/1.0.1
+    )
+    FetchContent_MakeAvailable(glm)
 
-target_link_libraries(${EXECUTABLE_NAME} PUBLIC
-    glm::glm
-    SDL3::SDL3
-)
+    FetchContent_Declare(
+        SDL
+        GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+        GIT_TAG main
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+    )
+    FetchContent_MakeAvailable(SDL)
 
-target_compile_definitions(${EXECUTABLE_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)
+    set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
+
+    add_subdirectory(examples)
+endif()
+
+add_subdirectory(lesl)
+add_subdirectory(leslc)
 
 # on Visual Studio, set our app as the default project
-set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT "${EXECUTABLE_NAME}")
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT "${leslc}")
 
-install(TARGETS ${EXECUTABLE_NAME} BUNDLE DESTINATION ./install)
+install(TARGETS ${BUILT_TARGETS} DESTINATION ./install)

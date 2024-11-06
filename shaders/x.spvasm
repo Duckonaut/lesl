@@ -1,0 +1,36 @@
+; Magic:     0x07230203 (SPIR-V)
+; Version:   0x00010000 (Version: 1.0.0)
+; Generator: 0x00080001 (Khronos Glslang Reference Front End; 1)
+; Bound:     63
+; Schema:    0
+
+               OpCapability Shader
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Fragment %4 "main" %iColor %oColor
+               OpExecutionMode %4 OriginUpperLeft
+
+; Annotations (non-debug)
+               OpDecorate %iColor Location 0
+               OpDecorate %oColor Location 0
+
+; All types, variables, and constants
+          %2 = OpTypeVoid
+          %3 = OpTypeFunction %2                      ; void ()
+          %float = OpTypeFloat 32                     ; 32-bit float
+          %7 = OpTypeVector %float 4                  ; vec4
+          %inVec4 = OpTypePointer Input %7
+          %outVec4 = OpTypePointer Output %7
+          %iColor = OpVariable %inVec4 Input
+          %oColor = OpVariable %outVec4 Output
+          %factor = OpConstant %float 0.5
+          %vfactor = OpConstantComposite %7 %factor %factor %factor %factor
+
+; All functions
+          %4 = OpFunction %2 None %3                  ; main()
+          %5 = OpLabel
+          %temp = OpLoad %7 %iColor
+          %temp2 = OpFMul %7 %temp %vfactor
+               OpStore %oColor %temp2
+               OpReturn
+               OpFunctionEnd
