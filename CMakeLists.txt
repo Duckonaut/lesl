@@ -61,7 +61,43 @@ function(define_executable_target target_name)
     list(APPEND BUILT_TARGETS ${target_name})
 endfunction()
 
-# fetch dependencies
+function(build_spirv_shader shader_name)
+    add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/shaders/spirv/${shader_name}.spv
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
+        COMMAND spirv-as -o ${CMAKE_BINARY_DIR}/shaders/spirv/${shader_name}.spv ${CMAKE_CURRENT_SOURCE_DIR}/shaders/spirv/${shader_name}.spvasm --target-env vulkan1.0
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/spirv/${shader_name}.spvasm
+        COMMENT "Building SPIR-V shader ${shader_name}"
+    )
+endfunction()
+
+function(build_glsl_shader shader_name)
+    add_custom_command(
+        OUTPUT ${CMAKE_BINARY_DIR}/shaders/glsl/${shader_name}.spv
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
+        COMMAND glslangValidator -V ${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl/${shader_name} -o ${CMAKE_BINARY_DIR}/shaders/glsl/${shader_name}.spv
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/glsl/${shader_name}
+        COMMENT "Building GLSL shader ${shader_name}"
+    )
+endfunction()
+
+add_subdirectory(lesl)
+
+if (ENABLE_LESLC)
+    add_subdirectory(leslc)
+
+    set(LESLC ${CMAKE_BINARY_DIR}/leslc)
+
+    function(build_lesl_shader shader_name)
+        add_custom_command(
+            OUTPUT ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_name}.spv
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
+            COMMAND ${LESLC} ${CMAKE_CURRENT_SOURCE_DIR}/shaders/lesl/${shader_name}.lesl -o ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_name}.spv
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/lesl/${shader_name}.lesl ${LESLC}
+            COMMENT "Building LESL shader ${shader_name}"
+        )
+    endfunction()
+endif()
 
 if (ENABLE_EXAMPLES)
     set(SDL_SHARED TRUE "Build a SDL shared library (if available)")
@@ -89,9 +125,6 @@ if (ENABLE_EXAMPLES)
 
     add_subdirectory(examples)
 endif()
-
-add_subdirectory(lesl)
-add_subdirectory(leslc)
 
 # on Visual Studio, set our app as the default project
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT "${leslc}")

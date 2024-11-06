@@ -14,3 +14,11 @@ class Example {
 };
 
 Example* createExample();
+
+struct FileData {
+    void* data;
+    size_t size;
+};
+
+FileData readFile(const char* path);
+void freeFileData(FileData data);

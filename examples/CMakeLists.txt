@@ -17,3 +17,9 @@ function(define_sdl3_example example-name)
 endfunction()
 
 define_sdl3_example(triangle)
+
+build_spirv_shader(unified_basic)
+
+target_sources(sdl3-triangle PRIVATE
+    ${CMAKE_BINARY_DIR}/shaders/spirv/unified_basic.spv
+)

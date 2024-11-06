@@ -1,0 +1,54 @@
+; Magic:     0x07230203 (SPIR-V)
+; Version:   0x00010000 (Version: 1.0.0)
+; Generator: 0x00080001 (Khronos Glslang Reference Front End; 1)
+; Bound:     63
+; Schema:    0
+
+OpCapability Shader
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Fragment %frag "frag" %fiColor %foColor
+               OpEntryPoint Vertex %vert "vert" %Position %viPos %viColor %voColor
+               OpExecutionMode %frag OriginUpperLeft
+
+; Annotations (non-debug)
+               OpDecorate %fiColor Location 0
+               OpDecorate %foColor Location 0
+               OpDecorate %viPos Location 0
+               OpDecorate %viColor Location 1
+               OpDecorate %voColor Location 0
+               OpDecorate %Position BuiltIn Position
+
+; All types, variables, and constants
+          %2 = OpTypeVoid
+          %3 = OpTypeFunction %2                      ; void ()
+          %float = OpTypeFloat 32                     ; 32-bit float
+          %vec4 = OpTypeVector %float 4                  ; vec4
+          %inVec4 = OpTypePointer Input %vec4
+          %outVec4 = OpTypePointer Output %vec4
+          %fiColor = OpVariable %inVec4 Input
+          %foColor = OpVariable %outVec4 Output
+          %viColor = OpVariable %inVec4 Input
+          %voColor = OpVariable %outVec4 Output
+          %viPos = OpVariable %inVec4 Input
+          %Position = OpVariable %outVec4 Output
+
+          %factor = OpConstant %float 0.5
+          %vfactor = OpConstantComposite %vec4 %factor %factor %factor %factor
+
+; All functions
+          %frag = OpFunction %2 None %3                  ; main()
+          %fl = OpLabel
+          %temp = OpLoad %vec4 %fiColor
+          %temp2 = OpFMul %vec4 %temp %vfactor
+               OpStore %foColor %temp2
+               OpReturn
+               OpFunctionEnd
+          %vert = OpFunction %2 None %3
+          %vl = OpLabel
+            %ip = OpLoad %vec4 %viPos
+            OpStore %Position %ip
+            %ct = OpLoad %vec4 %viColor
+            OpStore %voColor %ct
+              OpReturn
+              OpFunctionEnd

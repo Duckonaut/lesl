@@ -6,6 +6,7 @@
 #include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_main.h>
 #include <cstddef>
+#include <string>
 
 #ifdef RELEASE
 #define WINDOW_TITLE PROJECT_NAME
@@ -116,3 +117,27 @@ void SDL_AppQuit(void* appstate, SDL_AppResult result) {
     Log::shutdown();
 }
 
+FileData readFile(const char *path) {
+    const char* base_path = SDL_GetBasePath();
+
+    if (!base_path) {
+        Log::error("failed to get base path");
+        return { nullptr, 0 };
+    }
+
+    std::string full_path = std::string(base_path) + path;
+
+    size_t size;
+    void* data = SDL_LoadFile(full_path.c_str(), &size);
+
+    if (!data) {
+        Log::error("failed to read file %s", full_path.c_str());
+        return { nullptr, 0 };
+    }
+
+    return { data, size };
+}
+
+void freeFileData(FileData data) {
+    SDL_free(data.data);
+}

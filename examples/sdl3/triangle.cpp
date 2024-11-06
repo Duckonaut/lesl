@@ -20,18 +20,12 @@ static Vertex vertices[] = {
 class Triangle : public Example {
   public:
     void init(SDL_GPUDevice* device) override {
-        size_t vertex_shader_code_size = 0;
-        const Uint8* vertex_shader_code =
-            (const Uint8*)SDL_LoadFile("shaders/simple.vert.spv", &vertex_shader_code_size);
-
-        size_t fragment_shader_code_size = 0;
-        const Uint8* fragment_shader_code =
-            (const Uint8*)SDL_LoadFile("shaders/x.spv", &fragment_shader_code_size);
+        FileData unified_shader = readFile("../shaders/spirv/unified_basic.spv");
 
         SDL_GPUShaderCreateInfo shaderCreateInfo = {
-            .code_size = vertex_shader_code_size,
-            .code = vertex_shader_code,
-            .entrypoint = "main",
+            .code_size = unified_shader.size,
+            .code = (Uint8*)unified_shader.data,
+            .entrypoint = "vert",
             .format = SDL_GPU_SHADERFORMAT_SPIRV,
             .stage = SDL_GPU_SHADERSTAGE_VERTEX,
             .num_samplers = 0,
@@ -43,8 +37,7 @@ class Triangle : public Example {
 
         SDL_GPUShader* vertex_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
 
-        shaderCreateInfo.code_size = fragment_shader_code_size;
-        shaderCreateInfo.code = fragment_shader_code;
+        shaderCreateInfo.entrypoint = "frag";
         shaderCreateInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
 
         SDL_GPUShader* fragment_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
@@ -101,8 +94,7 @@ class Triangle : public Example {
         SDL_ReleaseGPUShader(device, vertex_shader);
         SDL_ReleaseGPUShader(device, fragment_shader);
 
-        SDL_free((void*)vertex_shader_code);
-        SDL_free((void*)fragment_shader_code);
+        freeFileData(unified_shader);
 
         SDL_GPUBufferCreateInfo buffer_create_info = {
             .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
