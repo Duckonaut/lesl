@@ -1,6 +1,8 @@
 #include "spirv/1.0/spirv.hpp"
 #include "spirv/1.0/GLSL.std.450.h"
 
+#include <spirv_binary_container.hpp>
+
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
@@ -12,257 +14,116 @@
 #include <fcntl.h>
 #endif
 
-typedef uint32_t SpvWord;
-
-class SpirvBlob {
-  public:
-    SpirvBlob() = default;
-    void push(SpvWord word) {
-        words.push_back(word);
+void flush_spv_binary(const spv_binary::BinaryContainer& bc, std::ostream& out) {
+    for (uint i = 0; i < bc.words.size(); i++) {
+        out.write(reinterpret_cast<const char*>(&bc.words[i]), sizeof(uint32_t));
     }
-
-    void push_float(float f) {
-        push(*reinterpret_cast<SpvWord*>(&f));
-    }
-
-    void opcode(spv::Op op, uint32_t wordCount) {
-        push(static_cast<SpvWord>(op) | (wordCount << 16));
-    }
-
-    void flush(std::ostream& os) {
-        for (auto word : words) {
-            os.write(reinterpret_cast<const char*>(&word), sizeof(SpvWord));
-        }
-    }
-
-  private:
-    std::vector<SpvWord> words;
-};
+}
 
 int main(int argc, char* argv[]) {
-    SpirvBlob blob;
+    spv_binary::BinaryContainer container;
 
-    // header
-    blob.push(spv::MagicNumber);
-    blob.push(spv::Version);
+    container.Capability(spv::CapabilityShader);
+    container.MemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
 
-    // generator
-    blob.push(0);
-    // bound
-    blob.push(23);
-    // schema
-    blob.push(0);
+    uint32_t frag_binds[] = {2, 3};
+    uint32_t frag_bind_count = sizeof(frag_binds) / sizeof(frag_binds[0]);
 
-    // instruction stream: each op followed by its operands and then WordCount - 1
+    container.EntryPoint(spv::ExecutionModelFragment, 1, "frag", frag_binds, frag_bind_count);
 
-    blob.opcode(spv::OpCapability, 2);
-    blob.push(spv::CapabilityShader);
+    uint32_t vert_binds[] = {5, 6, 7, 8};
+    uint32_t vert_bind_count = sizeof(vert_binds) / sizeof(vert_binds[0]);
 
-    blob.opcode(spv::OpMemoryModel, 3);
-    blob.push(spv::AddressingModelLogical);
-    blob.push(spv::MemoryModelGLSL450);
+    container.EntryPoint(spv::ExecutionModelVertex, 4, "vert", vert_binds, vert_bind_count);
 
-    blob.opcode(spv::OpEntryPoint, 7);
-    blob.push(spv::ExecutionModelFragment);
-    blob.push(1); // entry point id
+    container.ExecutionMode(1, spv::ExecutionModeOriginUpperLeft);
 
-    const char* fragmentEntryPoint = "frag";
-    SpvWord fragmentEntryPointEncoded = *(reinterpret_cast<const SpvWord*>(fragmentEntryPoint));
-    blob.push(fragmentEntryPointEncoded);
-    blob.push(0); // null terminator
+    uint32_t locs[] = {0, 1};
+    container.Decorate(2, spv::DecorationLocation, &locs[0], 1);
 
-    blob.push(2); // iColor
-    blob.push(3); // oColor
+    container.Decorate(3, spv::DecorationLocation, &locs[0], 1);
 
-    blob.opcode(spv::OpEntryPoint, 9);
-    blob.push(spv::ExecutionModelVertex);
-    blob.push(4); // entry point id
+    uint32_t builtins[] = {spv::BuiltInPosition};
+    container.Decorate(5, spv::DecorationBuiltIn, &builtins[0], 1);
 
-    const char* vertexEntryPoint = "vert";
-    SpvWord vertexEntryPointEncoded = *(reinterpret_cast<const SpvWord*>(vertexEntryPoint));
-    blob.push(vertexEntryPointEncoded);
-    blob.push(0); // null terminator
+    container.Decorate(6, spv::DecorationLocation, &locs[0], 1);
 
-    blob.push(5); // gl_Position
-    blob.push(6); // iPos
-    blob.push(7); // iColor
-    blob.push(8); // oColor
+    container.Decorate(7, spv::DecorationLocation, &locs[1], 1);
 
-    blob.opcode(spv::OpExecutionMode, 3);
-    blob.push(1); // entry point id
-    blob.push(spv::ExecutionModeOriginUpperLeft);
+    container.Decorate(8, spv::DecorationLocation, &locs[0], 1);
 
-    blob.opcode(spv::OpDecorate, 4);
-    blob.push(2); // iColor
-    blob.push(spv::DecorationLocation);
-    blob.push(0);
+    container.TypeVoid(9);
 
-    blob.opcode(spv::OpDecorate, 4);
-    blob.push(3); // oColor
-    blob.push(spv::DecorationLocation);
-    blob.push(0);
+    container.TypeFunction(10, 9, nullptr, 0);
 
-    blob.opcode(spv::OpDecorate, 4);
-    blob.push(5); // gl_Position
-    blob.push(spv::DecorationBuiltIn);
-    blob.push(spv::BuiltInPosition);
+    container.TypeFloat(11, 32);
 
-    blob.opcode(spv::OpDecorate, 4);
-    blob.push(6); // iPos
-    blob.push(spv::DecorationLocation);
-    blob.push(0);
+    container.TypeVector(12, 11, 4);
 
-    blob.opcode(spv::OpDecorate, 4);
-    blob.push(7); // iColor
-    blob.push(spv::DecorationLocation);
-    blob.push(1);
+    container.TypePointer(13, spv::StorageClassOutput, 12);
 
-    blob.opcode(spv::OpDecorate, 4);
-    blob.push(8); // oColor
-    blob.push(spv::DecorationLocation);
-    blob.push(0);
-
-    blob.opcode(spv::OpTypeVoid, 2);
-    blob.push(9); // void type id
-
-    blob.opcode(spv::OpTypeFunction, 3);
-    blob.push(10); // function type id
-    blob.push(9);  // void type id
-
-    blob.opcode(spv::OpTypeFloat, 3);
-    blob.push(11); // float type id
-    blob.push(32); // 32-bit float
-
-    blob.opcode(spv::OpTypeVector, 4);
-    blob.push(12); // vec4 type id
-    blob.push(11); // float type id
-    blob.push(4);  // 4 components
-
-    blob.opcode(spv::OpTypePointer, 4);
-    blob.push(13); // vec4 pointer type id
-    blob.push(spv::StorageClassOutput);
-    blob.push(12); // vec4 type id
-
-    blob.opcode(spv::OpTypePointer, 4);
-    blob.push(14); // vec4 pointer type id
-    blob.push(spv::StorageClassInput);
-    blob.push(12); // vec4 type id
+    container.TypePointer(14, spv::StorageClassInput, 12);
 
     // fragment shader
+    container.Variable(14, 2, spv::StorageClassInput);
 
-    blob.opcode(spv::OpVariable, 4);
-    blob.push(14); // vec4 input type id
-    blob.push(2);  // iColor
-    blob.push(spv::StorageClassInput);
+    container.Variable(13, 3, spv::StorageClassOutput);
 
-    blob.opcode(spv::OpVariable, 4);
-    blob.push(13); // vec4 input type id
-    blob.push(3);  // oColor
-    blob.push(spv::StorageClassOutput);
+    // vertex shader
+    container.Variable(13, 5, spv::StorageClassOutput);
+
+    container.Variable(14, 6, spv::StorageClassInput);
+
+    container.Variable(14, 7, spv::StorageClassInput);
+
+    container.Variable(13, 8, spv::StorageClassOutput);
+
+    float f = 0.5f;
+    container.Constant(11, 15, *reinterpret_cast<uint32_t*>(&f));
+
+    uint32_t vec4[] = {15, 15, 15, 15};
+
+    container.ConstantComposite(12, 16, vec4, 4);
+
+    container.Function(9, 1, spv::FunctionControlMaskNone, 10);
+
+    container.Label(17);
+
+    container.Load(12, 18, 2, spv::MemoryAccessMaskNone);
+
+    container.FMul(12, 19, 18, 16);
+
+    container.Store(3, 19, spv::MemoryAccessMaskNone);
+
+    container.Return();
+
+    container.FunctionEnd();
 
     // vertex shader
 
-    blob.opcode(spv::OpVariable, 4);
-    blob.push(13); // vec4 input type id
-    blob.push(5);  // gl_Position
-    blob.push(spv::StorageClassOutput);
+    container.Function(9, 4, spv::FunctionControlMaskNone, 10);
 
-    blob.opcode(spv::OpVariable, 4);
-    blob.push(14); // vec4 input type id
-    blob.push(6);  // iPos
-    blob.push(spv::StorageClassInput);
+    container.Label(20);
 
-    blob.opcode(spv::OpVariable, 4);
-    blob.push(14); // vec4 input type id
-    blob.push(7);  // iColor
-    blob.push(spv::StorageClassInput);
+    container.Load(12, 21, 6, spv::MemoryAccessMaskNone);
 
-    blob.opcode(spv::OpVariable, 4);
-    blob.push(13); // vec4 input type id
-    blob.push(8);  // oColor
-    blob.push(spv::StorageClassOutput);
+    container.Store(5, 21, spv::MemoryAccessMaskNone);
 
-    // constants
+    container.Load(12, 22, 7, spv::MemoryAccessMaskNone);
 
-    blob.opcode(spv::OpConstant, 4);
-    blob.push(11); // float type id
-    blob.push(15); // float constant id
-    blob.push_float(0.5f);
+    container.Store(8, 22, spv::MemoryAccessMaskNone);
 
-    blob.opcode(spv::OpConstantComposite, 7);
-    blob.push(12); // vec4 type id
-    blob.push(16); // vec4 constant id
-    blob.push(15); // float constant id
-    blob.push(15); // float constant id
-    blob.push(15); // float constant id
-    blob.push(15); // float constant id
+    container.Return();
 
-    // fragment shader
-    blob.opcode(spv::OpFunction, 5);
-    blob.push(9); // void type id
-    blob.push(1); // fragment function id
-    blob.push(spv::FunctionControlMaskNone);
-    blob.push(10); // function type id
+    container.FunctionEnd();
 
-    blob.opcode(spv::OpLabel, 2);
-    blob.push(17); // fragment entry label id
-
-    blob.opcode(spv::OpLoad, 4);
-    blob.push(12); // vec4 type id
-    blob.push(18); // vec4 variable id
-    blob.push(2);  // iColor
-
-    blob.opcode(spv::OpFMul, 5);
-    blob.push(12); // vec4 type id
-    blob.push(19); // vec4 result id
-    blob.push(18); // vec4 variable id
-    blob.push(16); // vec4 constant id
-
-    blob.opcode(spv::OpStore, 3);
-    blob.push(3);  // oColor
-    blob.push(19); // vec4 result id
-
-    blob.opcode(spv::OpReturn, 1);
-
-    blob.opcode(spv::OpFunctionEnd, 1);
-
-    // vertex shader
-    blob.opcode(spv::OpFunction, 5);
-    blob.push(9); // void type id
-    blob.push(4); // vertex function id
-    blob.push(spv::FunctionControlMaskNone);
-    blob.push(10); // function type id
-
-    blob.opcode(spv::OpLabel, 2);
-    blob.push(20); // vertex entry label id
-
-    blob.opcode(spv::OpLoad, 4);
-    blob.push(12); // vec4 type id
-    blob.push(21); // vec4 variable id
-    blob.push(6);  // iPos
-
-    blob.opcode(spv::OpStore, 3);
-    blob.push(5);  // oColor
-    blob.push(21); // vec4 result id
-
-    blob.opcode(spv::OpLoad, 4);
-    blob.push(12); // vec4 type id
-    blob.push(22); // vec4 variable id
-    blob.push(7);  // iColor
-
-    blob.opcode(spv::OpStore, 3);
-    blob.push(8);  // oColor
-    blob.push(22); // vec4 result id
-
-    blob.opcode(spv::OpReturn, 1);
-
-    blob.opcode(spv::OpFunctionEnd, 1);
+    container.update_bound(23);
 
 #ifdef _WIN32
     // switch to binary mode on Windows
     _setmode(_fileno(stdout), _O_BINARY);
 #endif
-    blob.flush(std::cout);
+    flush_spv_binary(container, std::cout);
 
     return 0;
 }
