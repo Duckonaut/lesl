@@ -2,9 +2,15 @@
 #include "spirv/1.0/GLSL.std.450.h"
 
 #include <cstdint>
+#include <cstdio>
 #include <iostream>
 #include <ostream>
 #include <vector>
+
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#endif
 
 typedef uint32_t SpvWord;
 
@@ -252,6 +258,10 @@ int main(int argc, char* argv[]) {
 
     blob.opcode(spv::OpFunctionEnd, 1);
 
+#ifdef _WIN32
+    // switch to binary mode on Windows
+    _setmode(_fileno(stdout), _O_BINARY);
+#endif
     blob.flush(std::cout);
 
     return 0;
