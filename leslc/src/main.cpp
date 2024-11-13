@@ -35,47 +35,33 @@ int main(int argc, char* argv[]) {
     uint32_t vert_bind_count = sizeof(vert_binds) / sizeof(vert_binds[0]);
 
     container.EntryPoint(spv::ExecutionModelVertex, 4, "vert", vert_binds, vert_bind_count);
-
     container.ExecutionMode(1, spv::ExecutionModeOriginUpperLeft);
 
     uint32_t locs[] = {0, 1};
     container.Decorate(2, spv::DecorationLocation, &locs[0], 1);
-
     container.Decorate(3, spv::DecorationLocation, &locs[0], 1);
 
     uint32_t builtins[] = {spv::BuiltInPosition};
     container.Decorate(5, spv::DecorationBuiltIn, &builtins[0], 1);
-
     container.Decorate(6, spv::DecorationLocation, &locs[0], 1);
-
     container.Decorate(7, spv::DecorationLocation, &locs[1], 1);
-
     container.Decorate(8, spv::DecorationLocation, &locs[0], 1);
 
     container.TypeVoid(9);
-
     container.TypeFunction(10, 9, nullptr, 0);
-
     container.TypeFloat(11, 32);
-
     container.TypeVector(12, 11, 4);
-
     container.TypePointer(13, spv::StorageClassOutput, 12);
-
     container.TypePointer(14, spv::StorageClassInput, 12);
 
     // fragment shader
     container.Variable(14, 2, spv::StorageClassInput);
-
     container.Variable(13, 3, spv::StorageClassOutput);
 
     // vertex shader
     container.Variable(13, 5, spv::StorageClassOutput);
-
     container.Variable(14, 6, spv::StorageClassInput);
-
     container.Variable(14, 7, spv::StorageClassInput);
-
     container.Variable(13, 8, spv::StorageClassOutput);
 
     float f = 0.5f;
@@ -85,36 +71,23 @@ int main(int argc, char* argv[]) {
 
     container.ConstantComposite(12, 16, vec4, 4);
 
+    // fragment shader
     container.Function(9, 1, spv::FunctionControlMaskNone, 10);
-
     container.Label(17);
-
     container.Load(12, 18, 2, spv::MemoryAccessMaskNone);
-
     container.FMul(12, 19, 18, 16);
-
     container.Store(3, 19, spv::MemoryAccessMaskNone);
-
     container.Return();
-
     container.FunctionEnd();
 
     // vertex shader
-
     container.Function(9, 4, spv::FunctionControlMaskNone, 10);
-
     container.Label(20);
-
     container.Load(12, 21, 6, spv::MemoryAccessMaskNone);
-
     container.Store(5, 21, spv::MemoryAccessMaskNone);
-
     container.Load(12, 22, 7, spv::MemoryAccessMaskNone);
-
     container.Store(8, 22, spv::MemoryAccessMaskNone);
-
     container.Return();
-
     container.FunctionEnd();
 
     container.update_bound(23);
