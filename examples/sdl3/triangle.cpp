@@ -7,14 +7,14 @@
 #include <cstddef>
 
 struct Vertex {
-    float pos[2];
+    float pos[4];
     float color[4];
 };
 
 static Vertex vertices[] = {
-    { { 0.0f, 0.5f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-    { { 0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-    { { -0.5f, -0.5f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
+    { { 0.0f, 0.5f, 0.0f, -1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+    { { 0.5f, -0.5f, 0.0f, -1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+    { { -0.5f, -0.5f, 0.0f, -1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
 };
 
 class Triangle : public Example {
@@ -52,7 +52,7 @@ class Triangle : public Example {
         SDL_GPUVertexAttribute vertex_attributes[] = {
             {
                 .location = 0,
-                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
                 .offset = offsetof(Vertex, pos),
             },
             {
@@ -81,6 +81,9 @@ class Triangle : public Example {
                 .num_vertex_attributes = 2,
             },
             .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+            .rasterizer_state = {
+                .cull_mode = SDL_GPU_CULLMODE_NONE,
+            },
             .target_info = {
                 .color_target_descriptions = &color_target_description,
                 .num_color_targets = 1,

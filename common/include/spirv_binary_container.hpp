@@ -14,6 +14,7 @@ namespace spv_binary {
 class BinaryContainer {
 public:
     std::vector<uint32_t> words;
+    uint32_t id_bound = 1;
     BinaryContainer() {
         words.reserve(1024);
         words.push_back(spv::MagicNumber);
@@ -25,8 +26,9 @@ public:
     uint32_t* data() { return words.data(); }
     size_t size() { return words.size(); }
     void clear() { words.clear(); }
+    uint32_t get_id() { return id_bound++; }
     void push(uint32_t word) { words.push_back(word); }
-    void update_bound(uint32_t bound) { words[3] = bound; }
+    void update_bound() { words[3] = id_bound; }
     void Nop() {
         uint32_t op = 0;
         uint32_t operand_count = 1;
@@ -41,6 +43,17 @@ public:
         push(op);
         push(id_result_type);
         push(id_result);
+    }
+
+    uint32_t UndefNew(uint32_t id_result_type) {
+        uint32_t op = 1;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        return result_id;
     }
 
     void SourceContinued(const char* continued_source) {
@@ -177,6 +190,27 @@ public:
         }
     }
 
+    uint32_t StringNew(const char* string) {
+        uint32_t op = 7;
+        uint32_t operand_count = 2;
+        operand_count += 1 + (uint32_t)strlen(string) / 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        uint32_t len = (uint32_t)strlen(string);
+        uint32_t word_len = 1 + len / 4;
+        for (uint32_t i = 0; i < word_len; i++) {
+            uint32_t word = 0;
+            for (uint32_t j = 0; j < 4; j++) {
+                uint8_t b = i * 4 + j < len ? string[i * 4 + j] : 0;
+                word |= b << (j * 8);
+            }
+            push(word);
+        }
+        return result_id;
+    }
+
     void Line(uint32_t file, uint32_t line, uint32_t column) {
         uint32_t op = 8;
         uint32_t operand_count = 4;
@@ -224,6 +258,27 @@ public:
         }
     }
 
+    uint32_t ExtInstImportNew(const char* name) {
+        uint32_t op = 11;
+        uint32_t operand_count = 2;
+        operand_count += 1 + (uint32_t)strlen(name) / 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        uint32_t len = (uint32_t)strlen(name);
+        uint32_t word_len = 1 + len / 4;
+        for (uint32_t i = 0; i < word_len; i++) {
+            uint32_t word = 0;
+            for (uint32_t j = 0; j < 4; j++) {
+                uint8_t b = i * 4 + j < len ? name[i * 4 + j] : 0;
+                word |= b << (j * 8);
+            }
+            push(word);
+        }
+        return result_id;
+    }
+
     void ExtInst(uint32_t id_result_type, uint32_t id_result, uint32_t set, uint32_t instruction, uint32_t* operands, uint32_t count) {
         uint32_t op = 12;
         uint32_t operand_count = 5;
@@ -237,6 +292,23 @@ public:
         for (uint32_t i = 0; i < count; i++) {
             push(operands[i]);
         }
+    }
+
+    uint32_t ExtInstNew(uint32_t id_result_type, uint32_t set, uint32_t instruction, uint32_t* operands, uint32_t count) {
+        uint32_t op = 12;
+        uint32_t operand_count = 5;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(set);
+        push(instruction);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
     }
 
     void MemoryModel(uint32_t addressing_model, uint32_t memory_model) {
@@ -297,12 +369,32 @@ public:
         push(id_result);
     }
 
+    uint32_t TypeVoidNew() {
+        uint32_t op = 19;
+        uint32_t operand_count = 2;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        return result_id;
+    }
+
     void TypeBool(uint32_t id_result) {
         uint32_t op = 20;
         uint32_t operand_count = 2;
         op |= operand_count << 16;
         push(op);
         push(id_result);
+    }
+
+    uint32_t TypeBoolNew() {
+        uint32_t op = 20;
+        uint32_t operand_count = 2;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        return result_id;
     }
 
     void TypeInt(uint32_t id_result, uint32_t width, uint32_t signedness) {
@@ -315,6 +407,18 @@ public:
         push(signedness);
     }
 
+    uint32_t TypeIntNew(uint32_t width, uint32_t signedness) {
+        uint32_t op = 21;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(width);
+        push(signedness);
+        return result_id;
+    }
+
     void TypeFloat(uint32_t id_result, uint32_t width) {
         uint32_t op = 22;
         uint32_t operand_count = 3;
@@ -322,6 +426,17 @@ public:
         push(op);
         push(id_result);
         push(width);
+    }
+
+    uint32_t TypeFloatNew(uint32_t width) {
+        uint32_t op = 22;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(width);
+        return result_id;
     }
 
     void TypeVector(uint32_t id_result, uint32_t component_type, uint32_t component_count) {
@@ -334,6 +449,18 @@ public:
         push(component_count);
     }
 
+    uint32_t TypeVectorNew(uint32_t component_type, uint32_t component_count) {
+        uint32_t op = 23;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(component_type);
+        push(component_count);
+        return result_id;
+    }
+
     void TypeMatrix(uint32_t id_result, uint32_t column_type, uint32_t column_count) {
         uint32_t op = 24;
         uint32_t operand_count = 4;
@@ -342,6 +469,18 @@ public:
         push(id_result);
         push(column_type);
         push(column_count);
+    }
+
+    uint32_t TypeMatrixNew(uint32_t column_type, uint32_t column_count) {
+        uint32_t op = 24;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(column_type);
+        push(column_count);
+        return result_id;
     }
 
     void TypeImage(uint32_t id_result, uint32_t sampled_type, uint32_t dim, uint32_t depth, uint32_t arrayed, uint32_t ms, uint32_t sampled, uint32_t image_format, uint32_t access_qualifier) {
@@ -360,6 +499,24 @@ public:
         push(access_qualifier);
     }
 
+    uint32_t TypeImageNew(uint32_t sampled_type, uint32_t dim, uint32_t depth, uint32_t arrayed, uint32_t ms, uint32_t sampled, uint32_t image_format, uint32_t access_qualifier) {
+        uint32_t op = 25;
+        uint32_t operand_count = 10;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(sampled_type);
+        push(dim);
+        push(depth);
+        push(arrayed);
+        push(ms);
+        push(sampled);
+        push(image_format);
+        push(access_qualifier);
+        return result_id;
+    }
+
     void TypeImage(uint32_t id_result, uint32_t sampled_type, uint32_t dim, uint32_t depth, uint32_t arrayed, uint32_t ms, uint32_t sampled, uint32_t image_format) {
         uint32_t op = 25;
         uint32_t operand_count = 9;
@@ -375,12 +532,39 @@ public:
         push(image_format);
     }
 
+    uint32_t TypeImageNew(uint32_t sampled_type, uint32_t dim, uint32_t depth, uint32_t arrayed, uint32_t ms, uint32_t sampled, uint32_t image_format) {
+        uint32_t op = 25;
+        uint32_t operand_count = 9;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(sampled_type);
+        push(dim);
+        push(depth);
+        push(arrayed);
+        push(ms);
+        push(sampled);
+        push(image_format);
+        return result_id;
+    }
+
     void TypeSampler(uint32_t id_result) {
         uint32_t op = 26;
         uint32_t operand_count = 2;
         op |= operand_count << 16;
         push(op);
         push(id_result);
+    }
+
+    uint32_t TypeSamplerNew() {
+        uint32_t op = 26;
+        uint32_t operand_count = 2;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        return result_id;
     }
 
     void TypeSampledImage(uint32_t id_result, uint32_t image_type) {
@@ -390,6 +574,17 @@ public:
         push(op);
         push(id_result);
         push(image_type);
+    }
+
+    uint32_t TypeSampledImageNew(uint32_t image_type) {
+        uint32_t op = 27;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(image_type);
+        return result_id;
     }
 
     void TypeArray(uint32_t id_result, uint32_t element_type, uint32_t length) {
@@ -402,6 +597,18 @@ public:
         push(length);
     }
 
+    uint32_t TypeArrayNew(uint32_t element_type, uint32_t length) {
+        uint32_t op = 28;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(element_type);
+        push(length);
+        return result_id;
+    }
+
     void TypeRuntimeArray(uint32_t id_result, uint32_t element_type) {
         uint32_t op = 29;
         uint32_t operand_count = 3;
@@ -409,6 +616,17 @@ public:
         push(op);
         push(id_result);
         push(element_type);
+    }
+
+    uint32_t TypeRuntimeArrayNew(uint32_t element_type) {
+        uint32_t op = 29;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(element_type);
+        return result_id;
     }
 
     void TypeStruct(uint32_t id_result, uint32_t* operands, uint32_t count) {
@@ -421,6 +639,20 @@ public:
         for (uint32_t i = 0; i < count; i++) {
             push(operands[i]);
         }
+    }
+
+    uint32_t TypeStructNew(uint32_t* operands, uint32_t count) {
+        uint32_t op = 30;
+        uint32_t operand_count = 2;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
     }
 
     void TypeOpaque(uint32_t id_result, const char* the_name_of_the_opaque_type) {
@@ -442,6 +674,27 @@ public:
         }
     }
 
+    uint32_t TypeOpaqueNew(const char* the_name_of_the_opaque_type) {
+        uint32_t op = 31;
+        uint32_t operand_count = 2;
+        operand_count += 1 + (uint32_t)strlen(the_name_of_the_opaque_type) / 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        uint32_t len = (uint32_t)strlen(the_name_of_the_opaque_type);
+        uint32_t word_len = 1 + len / 4;
+        for (uint32_t i = 0; i < word_len; i++) {
+            uint32_t word = 0;
+            for (uint32_t j = 0; j < 4; j++) {
+                uint8_t b = i * 4 + j < len ? the_name_of_the_opaque_type[i * 4 + j] : 0;
+                word |= b << (j * 8);
+            }
+            push(word);
+        }
+        return result_id;
+    }
+
     void TypePointer(uint32_t id_result, uint32_t storage_class, uint32_t type) {
         uint32_t op = 32;
         uint32_t operand_count = 4;
@@ -450,6 +703,18 @@ public:
         push(id_result);
         push(storage_class);
         push(type);
+    }
+
+    uint32_t TypePointerNew(uint32_t storage_class, uint32_t type) {
+        uint32_t op = 32;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(storage_class);
+        push(type);
+        return result_id;
     }
 
     void TypeFunction(uint32_t id_result, uint32_t return_type, uint32_t* operands, uint32_t count) {
@@ -465,12 +730,37 @@ public:
         }
     }
 
+    uint32_t TypeFunctionNew(uint32_t return_type, uint32_t* operands, uint32_t count) {
+        uint32_t op = 33;
+        uint32_t operand_count = 3;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(return_type);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
+    }
+
     void TypeEvent(uint32_t id_result) {
         uint32_t op = 34;
         uint32_t operand_count = 2;
         op |= operand_count << 16;
         push(op);
         push(id_result);
+    }
+
+    uint32_t TypeEventNew() {
+        uint32_t op = 34;
+        uint32_t operand_count = 2;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        return result_id;
     }
 
     void TypeDeviceEvent(uint32_t id_result) {
@@ -481,12 +771,32 @@ public:
         push(id_result);
     }
 
+    uint32_t TypeDeviceEventNew() {
+        uint32_t op = 35;
+        uint32_t operand_count = 2;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        return result_id;
+    }
+
     void TypeReserveId(uint32_t id_result) {
         uint32_t op = 36;
         uint32_t operand_count = 2;
         op |= operand_count << 16;
         push(op);
         push(id_result);
+    }
+
+    uint32_t TypeReserveIdNew() {
+        uint32_t op = 36;
+        uint32_t operand_count = 2;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        return result_id;
     }
 
     void TypeQueue(uint32_t id_result) {
@@ -497,6 +807,16 @@ public:
         push(id_result);
     }
 
+    uint32_t TypeQueueNew() {
+        uint32_t op = 37;
+        uint32_t operand_count = 2;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        return result_id;
+    }
+
     void TypePipe(uint32_t id_result, uint32_t qualifier) {
         uint32_t op = 38;
         uint32_t operand_count = 3;
@@ -504,6 +824,17 @@ public:
         push(op);
         push(id_result);
         push(qualifier);
+    }
+
+    uint32_t TypePipeNew(uint32_t qualifier) {
+        uint32_t op = 38;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        push(qualifier);
+        return result_id;
     }
 
     void TypeForwardPointer(uint32_t pointer_type, uint32_t storage_class) {
@@ -524,6 +855,17 @@ public:
         push(id_result);
     }
 
+    uint32_t ConstantTrueNew(uint32_t id_result_type) {
+        uint32_t op = 41;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        return result_id;
+    }
+
     void ConstantFalse(uint32_t id_result_type, uint32_t id_result) {
         uint32_t op = 42;
         uint32_t operand_count = 3;
@@ -531,6 +873,17 @@ public:
         push(op);
         push(id_result_type);
         push(id_result);
+    }
+
+    uint32_t ConstantFalseNew(uint32_t id_result_type) {
+        uint32_t op = 42;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        return result_id;
     }
 
     void Constant(uint32_t id_result_type, uint32_t id_result, uint32_t value) {
@@ -541,6 +894,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(value);
+    }
+
+    uint32_t ConstantNew(uint32_t id_result_type, uint32_t value) {
+        uint32_t op = 43;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(value);
+        return result_id;
     }
 
     void ConstantComposite(uint32_t id_result_type, uint32_t id_result, uint32_t* operands, uint32_t count) {
@@ -556,6 +921,21 @@ public:
         }
     }
 
+    uint32_t ConstantCompositeNew(uint32_t id_result_type, uint32_t* operands, uint32_t count) {
+        uint32_t op = 44;
+        uint32_t operand_count = 3;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
+    }
+
     void ConstantSampler(uint32_t id_result_type, uint32_t id_result, uint32_t sampler_addressing_mode, uint32_t param, uint32_t sampler_filter_mode) {
         uint32_t op = 45;
         uint32_t operand_count = 6;
@@ -568,6 +948,20 @@ public:
         push(sampler_filter_mode);
     }
 
+    uint32_t ConstantSamplerNew(uint32_t id_result_type, uint32_t sampler_addressing_mode, uint32_t param, uint32_t sampler_filter_mode) {
+        uint32_t op = 45;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampler_addressing_mode);
+        push(param);
+        push(sampler_filter_mode);
+        return result_id;
+    }
+
     void ConstantNull(uint32_t id_result_type, uint32_t id_result) {
         uint32_t op = 46;
         uint32_t operand_count = 3;
@@ -575,6 +969,17 @@ public:
         push(op);
         push(id_result_type);
         push(id_result);
+    }
+
+    uint32_t ConstantNullNew(uint32_t id_result_type) {
+        uint32_t op = 46;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        return result_id;
     }
 
     void SpecConstantTrue(uint32_t id_result_type, uint32_t id_result) {
@@ -586,6 +991,17 @@ public:
         push(id_result);
     }
 
+    uint32_t SpecConstantTrueNew(uint32_t id_result_type) {
+        uint32_t op = 48;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        return result_id;
+    }
+
     void SpecConstantFalse(uint32_t id_result_type, uint32_t id_result) {
         uint32_t op = 49;
         uint32_t operand_count = 3;
@@ -593,6 +1009,17 @@ public:
         push(op);
         push(id_result_type);
         push(id_result);
+    }
+
+    uint32_t SpecConstantFalseNew(uint32_t id_result_type) {
+        uint32_t op = 49;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        return result_id;
     }
 
     void SpecConstant(uint32_t id_result_type, uint32_t id_result, uint32_t value) {
@@ -603,6 +1030,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(value);
+    }
+
+    uint32_t SpecConstantNew(uint32_t id_result_type, uint32_t value) {
+        uint32_t op = 50;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(value);
+        return result_id;
     }
 
     void SpecConstantComposite(uint32_t id_result_type, uint32_t id_result, uint32_t* operands, uint32_t count) {
@@ -618,6 +1057,21 @@ public:
         }
     }
 
+    uint32_t SpecConstantCompositeNew(uint32_t id_result_type, uint32_t* operands, uint32_t count) {
+        uint32_t op = 51;
+        uint32_t operand_count = 3;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
+    }
+
     void SpecConstantOp(uint32_t id_result_type, uint32_t id_result, uint32_t opcode) {
         uint32_t op = 52;
         uint32_t operand_count = 4;
@@ -626,6 +1080,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(opcode);
+    }
+
+    uint32_t SpecConstantOpNew(uint32_t id_result_type, uint32_t opcode) {
+        uint32_t op = 52;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(opcode);
+        return result_id;
     }
 
     void Function(uint32_t id_result_type, uint32_t id_result, uint32_t function_control, uint32_t function_type) {
@@ -639,6 +1105,19 @@ public:
         push(function_type);
     }
 
+    uint32_t FunctionNew(uint32_t id_result_type, uint32_t function_control, uint32_t function_type) {
+        uint32_t op = 54;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(function_control);
+        push(function_type);
+        return result_id;
+    }
+
     void FunctionParameter(uint32_t id_result_type, uint32_t id_result) {
         uint32_t op = 55;
         uint32_t operand_count = 3;
@@ -646,6 +1125,17 @@ public:
         push(op);
         push(id_result_type);
         push(id_result);
+    }
+
+    uint32_t FunctionParameterNew(uint32_t id_result_type) {
+        uint32_t op = 55;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        return result_id;
     }
 
     void FunctionEnd() {
@@ -669,6 +1159,22 @@ public:
         }
     }
 
+    uint32_t FunctionCallNew(uint32_t id_result_type, uint32_t function, uint32_t* operands, uint32_t count) {
+        uint32_t op = 57;
+        uint32_t operand_count = 4;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(function);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
+    }
+
     void Variable(uint32_t id_result_type, uint32_t id_result, uint32_t storage_class, uint32_t initializer) {
         uint32_t op = 59;
         uint32_t operand_count = 5;
@@ -680,6 +1186,19 @@ public:
         push(initializer);
     }
 
+    uint32_t VariableNew(uint32_t id_result_type, uint32_t storage_class, uint32_t initializer) {
+        uint32_t op = 59;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(storage_class);
+        push(initializer);
+        return result_id;
+    }
+
     void Variable(uint32_t id_result_type, uint32_t id_result, uint32_t storage_class) {
         uint32_t op = 59;
         uint32_t operand_count = 4;
@@ -688,6 +1207,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(storage_class);
+    }
+
+    uint32_t VariableNew(uint32_t id_result_type, uint32_t storage_class) {
+        uint32_t op = 59;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(storage_class);
+        return result_id;
     }
 
     void ImageTexelPointer(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate, uint32_t sample) {
@@ -702,6 +1233,20 @@ public:
         push(sample);
     }
 
+    uint32_t ImageTexelPointerNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate, uint32_t sample) {
+        uint32_t op = 60;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        push(sample);
+        return result_id;
+    }
+
     void Load(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t memory_access) {
         uint32_t op = 61;
         uint32_t operand_count = 5;
@@ -713,6 +1258,19 @@ public:
         push(memory_access);
     }
 
+    uint32_t LoadNew(uint32_t id_result_type, uint32_t pointer, uint32_t memory_access) {
+        uint32_t op = 61;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(memory_access);
+        return result_id;
+    }
+
     void Load(uint32_t id_result_type, uint32_t id_result, uint32_t pointer) {
         uint32_t op = 61;
         uint32_t operand_count = 4;
@@ -721,6 +1279,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(pointer);
+    }
+
+    uint32_t LoadNew(uint32_t id_result_type, uint32_t pointer) {
+        uint32_t op = 61;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        return result_id;
     }
 
     void Store(uint32_t pointer, uint32_t object, uint32_t memory_access) {
@@ -796,6 +1366,22 @@ public:
         }
     }
 
+    uint32_t AccessChainNew(uint32_t id_result_type, uint32_t base, uint32_t* operands, uint32_t count) {
+        uint32_t op = 65;
+        uint32_t operand_count = 4;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
+    }
+
     void InBoundsAccessChain(uint32_t id_result_type, uint32_t id_result, uint32_t base, uint32_t* operands, uint32_t count) {
         uint32_t op = 66;
         uint32_t operand_count = 4;
@@ -808,6 +1394,22 @@ public:
         for (uint32_t i = 0; i < count; i++) {
             push(operands[i]);
         }
+    }
+
+    uint32_t InBoundsAccessChainNew(uint32_t id_result_type, uint32_t base, uint32_t* operands, uint32_t count) {
+        uint32_t op = 66;
+        uint32_t operand_count = 4;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
     }
 
     void PtrAccessChain(uint32_t id_result_type, uint32_t id_result, uint32_t base, uint32_t element, uint32_t* operands, uint32_t count) {
@@ -825,6 +1427,23 @@ public:
         }
     }
 
+    uint32_t PtrAccessChainNew(uint32_t id_result_type, uint32_t base, uint32_t element, uint32_t* operands, uint32_t count) {
+        uint32_t op = 67;
+        uint32_t operand_count = 5;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        push(element);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
+    }
+
     void ArrayLength(uint32_t id_result_type, uint32_t id_result, uint32_t structure, uint32_t array_member) {
         uint32_t op = 68;
         uint32_t operand_count = 5;
@@ -836,6 +1455,19 @@ public:
         push(array_member);
     }
 
+    uint32_t ArrayLengthNew(uint32_t id_result_type, uint32_t structure, uint32_t array_member) {
+        uint32_t op = 68;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(structure);
+        push(array_member);
+        return result_id;
+    }
+
     void GenericPtrMemSemantics(uint32_t id_result_type, uint32_t id_result, uint32_t pointer) {
         uint32_t op = 69;
         uint32_t operand_count = 4;
@@ -844,6 +1476,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(pointer);
+    }
+
+    uint32_t GenericPtrMemSemanticsNew(uint32_t id_result_type, uint32_t pointer) {
+        uint32_t op = 69;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        return result_id;
     }
 
     void InBoundsPtrAccessChain(uint32_t id_result_type, uint32_t id_result, uint32_t base, uint32_t element, uint32_t* operands, uint32_t count) {
@@ -859,6 +1503,23 @@ public:
         for (uint32_t i = 0; i < count; i++) {
             push(operands[i]);
         }
+    }
+
+    uint32_t InBoundsPtrAccessChainNew(uint32_t id_result_type, uint32_t base, uint32_t element, uint32_t* operands, uint32_t count) {
+        uint32_t op = 70;
+        uint32_t operand_count = 5;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        push(element);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
     }
 
     void Decorate(uint32_t target, spv::Decoration decoration, uint32_t* parameters, uint32_t parameter_count) {
@@ -896,6 +1557,16 @@ public:
         push(id_result);
     }
 
+    uint32_t DecorationGroupNew() {
+        uint32_t op = 73;
+        uint32_t operand_count = 2;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        return result_id;
+    }
+
     void GroupDecorate(uint32_t decoration_group, uint32_t* operands, uint32_t count) {
         uint32_t op = 74;
         uint32_t operand_count = 2;
@@ -931,6 +1602,19 @@ public:
         push(index);
     }
 
+    uint32_t VectorExtractDynamicNew(uint32_t id_result_type, uint32_t vector, uint32_t index) {
+        uint32_t op = 77;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(vector);
+        push(index);
+        return result_id;
+    }
+
     void VectorInsertDynamic(uint32_t id_result_type, uint32_t id_result, uint32_t vector, uint32_t component, uint32_t index) {
         uint32_t op = 78;
         uint32_t operand_count = 6;
@@ -941,6 +1625,20 @@ public:
         push(vector);
         push(component);
         push(index);
+    }
+
+    uint32_t VectorInsertDynamicNew(uint32_t id_result_type, uint32_t vector, uint32_t component, uint32_t index) {
+        uint32_t op = 78;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(vector);
+        push(component);
+        push(index);
+        return result_id;
     }
 
     void VectorShuffle(uint32_t id_result_type, uint32_t id_result, uint32_t vector_1, uint32_t vector_2, uint32_t* operands, uint32_t count) {
@@ -958,6 +1656,23 @@ public:
         }
     }
 
+    uint32_t VectorShuffleNew(uint32_t id_result_type, uint32_t vector_1, uint32_t vector_2, uint32_t* operands, uint32_t count) {
+        uint32_t op = 79;
+        uint32_t operand_count = 5;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(vector_1);
+        push(vector_2);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
+    }
+
     void CompositeConstruct(uint32_t id_result_type, uint32_t id_result, uint32_t* operands, uint32_t count) {
         uint32_t op = 80;
         uint32_t operand_count = 3;
@@ -969,6 +1684,21 @@ public:
         for (uint32_t i = 0; i < count; i++) {
             push(operands[i]);
         }
+    }
+
+    uint32_t CompositeConstructNew(uint32_t id_result_type, uint32_t* operands, uint32_t count) {
+        uint32_t op = 80;
+        uint32_t operand_count = 3;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
     }
 
     void CompositeExtract(uint32_t id_result_type, uint32_t id_result, uint32_t composite, uint32_t* operands, uint32_t count) {
@@ -983,6 +1713,22 @@ public:
         for (uint32_t i = 0; i < count; i++) {
             push(operands[i]);
         }
+    }
+
+    uint32_t CompositeExtractNew(uint32_t id_result_type, uint32_t composite, uint32_t* operands, uint32_t count) {
+        uint32_t op = 81;
+        uint32_t operand_count = 4;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(composite);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
     }
 
     void CompositeInsert(uint32_t id_result_type, uint32_t id_result, uint32_t object, uint32_t composite, uint32_t* operands, uint32_t count) {
@@ -1000,6 +1746,23 @@ public:
         }
     }
 
+    uint32_t CompositeInsertNew(uint32_t id_result_type, uint32_t object, uint32_t composite, uint32_t* operands, uint32_t count) {
+        uint32_t op = 82;
+        uint32_t operand_count = 5;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(object);
+        push(composite);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
+    }
+
     void CopyObject(uint32_t id_result_type, uint32_t id_result, uint32_t operand) {
         uint32_t op = 83;
         uint32_t operand_count = 4;
@@ -1008,6 +1771,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(operand);
+    }
+
+    uint32_t CopyObjectNew(uint32_t id_result_type, uint32_t operand) {
+        uint32_t op = 83;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand);
+        return result_id;
     }
 
     void Transpose(uint32_t id_result_type, uint32_t id_result, uint32_t matrix) {
@@ -1020,6 +1795,18 @@ public:
         push(matrix);
     }
 
+    uint32_t TransposeNew(uint32_t id_result_type, uint32_t matrix) {
+        uint32_t op = 84;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(matrix);
+        return result_id;
+    }
+
     void SampledImage(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t sampler) {
         uint32_t op = 86;
         uint32_t operand_count = 5;
@@ -1029,6 +1816,19 @@ public:
         push(id_result);
         push(image);
         push(sampler);
+    }
+
+    uint32_t SampledImageNew(uint32_t id_result_type, uint32_t image, uint32_t sampler) {
+        uint32_t op = 86;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(sampler);
+        return result_id;
     }
 
     void ImageSampleImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
@@ -1043,6 +1843,20 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSampleImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 87;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSampleImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate) {
         uint32_t op = 87;
         uint32_t operand_count = 5;
@@ -1052,6 +1866,19 @@ public:
         push(id_result);
         push(sampled_image);
         push(coordinate);
+    }
+
+    uint32_t ImageSampleImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate) {
+        uint32_t op = 87;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        return result_id;
     }
 
     void ImageSampleExplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
@@ -1064,6 +1891,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(image_operands);
+    }
+
+    uint32_t ImageSampleExplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 88;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
     }
 
     void ImageSampleDrefImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -1079,6 +1920,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSampleDrefImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 89;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSampleDrefImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
         uint32_t op = 89;
         uint32_t operand_count = 6;
@@ -1089,6 +1945,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(dref);
+    }
+
+    uint32_t ImageSampleDrefImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
+        uint32_t op = 89;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        return result_id;
     }
 
     void ImageSampleDrefExplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -1104,6 +1974,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSampleDrefExplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 90;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSampleProjImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
         uint32_t op = 91;
         uint32_t operand_count = 6;
@@ -1114,6 +1999,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(image_operands);
+    }
+
+    uint32_t ImageSampleProjImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 91;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
     }
 
     void ImageSampleProjImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate) {
@@ -1127,6 +2026,19 @@ public:
         push(coordinate);
     }
 
+    uint32_t ImageSampleProjImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate) {
+        uint32_t op = 91;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        return result_id;
+    }
+
     void ImageSampleProjExplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
         uint32_t op = 92;
         uint32_t operand_count = 6;
@@ -1137,6 +2049,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(image_operands);
+    }
+
+    uint32_t ImageSampleProjExplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 92;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
     }
 
     void ImageSampleProjDrefImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -1152,6 +2078,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSampleProjDrefImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 93;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSampleProjDrefImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
         uint32_t op = 93;
         uint32_t operand_count = 6;
@@ -1162,6 +2103,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(dref);
+    }
+
+    uint32_t ImageSampleProjDrefImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
+        uint32_t op = 93;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        return result_id;
     }
 
     void ImageSampleProjDrefExplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -1177,6 +2132,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSampleProjDrefExplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 94;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageFetch(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate, uint32_t image_operands) {
         uint32_t op = 95;
         uint32_t operand_count = 6;
@@ -1189,6 +2159,20 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageFetchNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 95;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageFetch(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate) {
         uint32_t op = 95;
         uint32_t operand_count = 5;
@@ -1198,6 +2182,19 @@ public:
         push(id_result);
         push(image);
         push(coordinate);
+    }
+
+    uint32_t ImageFetchNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate) {
+        uint32_t op = 95;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        return result_id;
     }
 
     void ImageGather(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t component, uint32_t image_operands) {
@@ -1213,6 +2210,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageGatherNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t component, uint32_t image_operands) {
+        uint32_t op = 96;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(component);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageGather(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t component) {
         uint32_t op = 96;
         uint32_t operand_count = 6;
@@ -1223,6 +2235,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(component);
+    }
+
+    uint32_t ImageGatherNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t component) {
+        uint32_t op = 96;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(component);
+        return result_id;
     }
 
     void ImageDrefGather(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -1238,6 +2264,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageDrefGatherNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 97;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageDrefGather(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
         uint32_t op = 97;
         uint32_t operand_count = 6;
@@ -1248,6 +2289,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(dref);
+    }
+
+    uint32_t ImageDrefGatherNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
+        uint32_t op = 97;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        return result_id;
     }
 
     void ImageRead(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate, uint32_t image_operands) {
@@ -1262,6 +2317,20 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageReadNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 98;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageRead(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate) {
         uint32_t op = 98;
         uint32_t operand_count = 5;
@@ -1271,6 +2340,19 @@ public:
         push(id_result);
         push(image);
         push(coordinate);
+    }
+
+    uint32_t ImageReadNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate) {
+        uint32_t op = 98;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        return result_id;
     }
 
     void ImageWrite(uint32_t image, uint32_t coordinate, uint32_t texel, uint32_t image_operands) {
@@ -1304,6 +2386,18 @@ public:
         push(sampled_image);
     }
 
+    uint32_t ImageNew(uint32_t id_result_type, uint32_t sampled_image) {
+        uint32_t op = 100;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        return result_id;
+    }
+
     void ImageQueryFormat(uint32_t id_result_type, uint32_t id_result, uint32_t image) {
         uint32_t op = 101;
         uint32_t operand_count = 4;
@@ -1314,6 +2408,18 @@ public:
         push(image);
     }
 
+    uint32_t ImageQueryFormatNew(uint32_t id_result_type, uint32_t image) {
+        uint32_t op = 101;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        return result_id;
+    }
+
     void ImageQueryOrder(uint32_t id_result_type, uint32_t id_result, uint32_t image) {
         uint32_t op = 102;
         uint32_t operand_count = 4;
@@ -1322,6 +2428,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(image);
+    }
+
+    uint32_t ImageQueryOrderNew(uint32_t id_result_type, uint32_t image) {
+        uint32_t op = 102;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        return result_id;
     }
 
     void ImageQuerySizeLod(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t level_of_detail) {
@@ -1335,6 +2453,19 @@ public:
         push(level_of_detail);
     }
 
+    uint32_t ImageQuerySizeLodNew(uint32_t id_result_type, uint32_t image, uint32_t level_of_detail) {
+        uint32_t op = 103;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(level_of_detail);
+        return result_id;
+    }
+
     void ImageQuerySize(uint32_t id_result_type, uint32_t id_result, uint32_t image) {
         uint32_t op = 104;
         uint32_t operand_count = 4;
@@ -1343,6 +2474,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(image);
+    }
+
+    uint32_t ImageQuerySizeNew(uint32_t id_result_type, uint32_t image) {
+        uint32_t op = 104;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        return result_id;
     }
 
     void ImageQueryLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate) {
@@ -1356,6 +2499,19 @@ public:
         push(coordinate);
     }
 
+    uint32_t ImageQueryLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate) {
+        uint32_t op = 105;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        return result_id;
+    }
+
     void ImageQueryLevels(uint32_t id_result_type, uint32_t id_result, uint32_t image) {
         uint32_t op = 106;
         uint32_t operand_count = 4;
@@ -1364,6 +2520,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(image);
+    }
+
+    uint32_t ImageQueryLevelsNew(uint32_t id_result_type, uint32_t image) {
+        uint32_t op = 106;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        return result_id;
     }
 
     void ImageQuerySamples(uint32_t id_result_type, uint32_t id_result, uint32_t image) {
@@ -1376,6 +2544,18 @@ public:
         push(image);
     }
 
+    uint32_t ImageQuerySamplesNew(uint32_t id_result_type, uint32_t image) {
+        uint32_t op = 107;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        return result_id;
+    }
+
     void ConvertFToU(uint32_t id_result_type, uint32_t id_result, uint32_t float_value) {
         uint32_t op = 109;
         uint32_t operand_count = 4;
@@ -1384,6 +2564,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(float_value);
+    }
+
+    uint32_t ConvertFToUNew(uint32_t id_result_type, uint32_t float_value) {
+        uint32_t op = 109;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(float_value);
+        return result_id;
     }
 
     void ConvertFToS(uint32_t id_result_type, uint32_t id_result, uint32_t float_value) {
@@ -1396,6 +2588,18 @@ public:
         push(float_value);
     }
 
+    uint32_t ConvertFToSNew(uint32_t id_result_type, uint32_t float_value) {
+        uint32_t op = 110;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(float_value);
+        return result_id;
+    }
+
     void ConvertSToF(uint32_t id_result_type, uint32_t id_result, uint32_t signed_value) {
         uint32_t op = 111;
         uint32_t operand_count = 4;
@@ -1404,6 +2608,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(signed_value);
+    }
+
+    uint32_t ConvertSToFNew(uint32_t id_result_type, uint32_t signed_value) {
+        uint32_t op = 111;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(signed_value);
+        return result_id;
     }
 
     void ConvertUToF(uint32_t id_result_type, uint32_t id_result, uint32_t unsigned_value) {
@@ -1416,6 +2632,18 @@ public:
         push(unsigned_value);
     }
 
+    uint32_t ConvertUToFNew(uint32_t id_result_type, uint32_t unsigned_value) {
+        uint32_t op = 112;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(unsigned_value);
+        return result_id;
+    }
+
     void UConvert(uint32_t id_result_type, uint32_t id_result, uint32_t unsigned_value) {
         uint32_t op = 113;
         uint32_t operand_count = 4;
@@ -1424,6 +2652,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(unsigned_value);
+    }
+
+    uint32_t UConvertNew(uint32_t id_result_type, uint32_t unsigned_value) {
+        uint32_t op = 113;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(unsigned_value);
+        return result_id;
     }
 
     void SConvert(uint32_t id_result_type, uint32_t id_result, uint32_t signed_value) {
@@ -1436,6 +2676,18 @@ public:
         push(signed_value);
     }
 
+    uint32_t SConvertNew(uint32_t id_result_type, uint32_t signed_value) {
+        uint32_t op = 114;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(signed_value);
+        return result_id;
+    }
+
     void FConvert(uint32_t id_result_type, uint32_t id_result, uint32_t float_value) {
         uint32_t op = 115;
         uint32_t operand_count = 4;
@@ -1444,6 +2696,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(float_value);
+    }
+
+    uint32_t FConvertNew(uint32_t id_result_type, uint32_t float_value) {
+        uint32_t op = 115;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(float_value);
+        return result_id;
     }
 
     void QuantizeToF16(uint32_t id_result_type, uint32_t id_result, uint32_t value) {
@@ -1456,6 +2720,18 @@ public:
         push(value);
     }
 
+    uint32_t QuantizeToF16New(uint32_t id_result_type, uint32_t value) {
+        uint32_t op = 116;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(value);
+        return result_id;
+    }
+
     void ConvertPtrToU(uint32_t id_result_type, uint32_t id_result, uint32_t pointer) {
         uint32_t op = 117;
         uint32_t operand_count = 4;
@@ -1464,6 +2740,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(pointer);
+    }
+
+    uint32_t ConvertPtrToUNew(uint32_t id_result_type, uint32_t pointer) {
+        uint32_t op = 117;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        return result_id;
     }
 
     void SatConvertSToU(uint32_t id_result_type, uint32_t id_result, uint32_t signed_value) {
@@ -1476,6 +2764,18 @@ public:
         push(signed_value);
     }
 
+    uint32_t SatConvertSToUNew(uint32_t id_result_type, uint32_t signed_value) {
+        uint32_t op = 118;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(signed_value);
+        return result_id;
+    }
+
     void SatConvertUToS(uint32_t id_result_type, uint32_t id_result, uint32_t unsigned_value) {
         uint32_t op = 119;
         uint32_t operand_count = 4;
@@ -1484,6 +2784,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(unsigned_value);
+    }
+
+    uint32_t SatConvertUToSNew(uint32_t id_result_type, uint32_t unsigned_value) {
+        uint32_t op = 119;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(unsigned_value);
+        return result_id;
     }
 
     void ConvertUToPtr(uint32_t id_result_type, uint32_t id_result, uint32_t integer_value) {
@@ -1496,6 +2808,18 @@ public:
         push(integer_value);
     }
 
+    uint32_t ConvertUToPtrNew(uint32_t id_result_type, uint32_t integer_value) {
+        uint32_t op = 120;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(integer_value);
+        return result_id;
+    }
+
     void PtrCastToGeneric(uint32_t id_result_type, uint32_t id_result, uint32_t pointer) {
         uint32_t op = 121;
         uint32_t operand_count = 4;
@@ -1506,6 +2830,18 @@ public:
         push(pointer);
     }
 
+    uint32_t PtrCastToGenericNew(uint32_t id_result_type, uint32_t pointer) {
+        uint32_t op = 121;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        return result_id;
+    }
+
     void GenericCastToPtr(uint32_t id_result_type, uint32_t id_result, uint32_t pointer) {
         uint32_t op = 122;
         uint32_t operand_count = 4;
@@ -1514,6 +2850,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(pointer);
+    }
+
+    uint32_t GenericCastToPtrNew(uint32_t id_result_type, uint32_t pointer) {
+        uint32_t op = 122;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        return result_id;
     }
 
     void GenericCastToPtrExplicit(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t storage) {
@@ -1527,6 +2875,19 @@ public:
         push(storage);
     }
 
+    uint32_t GenericCastToPtrExplicitNew(uint32_t id_result_type, uint32_t pointer, uint32_t storage) {
+        uint32_t op = 123;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(storage);
+        return result_id;
+    }
+
     void Bitcast(uint32_t id_result_type, uint32_t id_result, uint32_t operand) {
         uint32_t op = 124;
         uint32_t operand_count = 4;
@@ -1535,6 +2896,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(operand);
+    }
+
+    uint32_t BitcastNew(uint32_t id_result_type, uint32_t operand) {
+        uint32_t op = 124;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand);
+        return result_id;
     }
 
     void SNegate(uint32_t id_result_type, uint32_t id_result, uint32_t operand) {
@@ -1547,6 +2920,18 @@ public:
         push(operand);
     }
 
+    uint32_t SNegateNew(uint32_t id_result_type, uint32_t operand) {
+        uint32_t op = 126;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand);
+        return result_id;
+    }
+
     void FNegate(uint32_t id_result_type, uint32_t id_result, uint32_t operand) {
         uint32_t op = 127;
         uint32_t operand_count = 4;
@@ -1555,6 +2940,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(operand);
+    }
+
+    uint32_t FNegateNew(uint32_t id_result_type, uint32_t operand) {
+        uint32_t op = 127;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand);
+        return result_id;
     }
 
     void IAdd(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1568,6 +2965,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t IAddNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 128;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FAdd(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 129;
         uint32_t operand_count = 5;
@@ -1577,6 +2987,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FAddNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 129;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void ISub(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1590,6 +3013,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t ISubNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 130;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FSub(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 131;
         uint32_t operand_count = 5;
@@ -1599,6 +3035,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FSubNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 131;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void IMul(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1612,6 +3061,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t IMulNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 132;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FMul(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 133;
         uint32_t operand_count = 5;
@@ -1621,6 +3083,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FMulNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 133;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void UDiv(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1634,6 +3109,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t UDivNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 134;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void SDiv(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 135;
         uint32_t operand_count = 5;
@@ -1643,6 +3131,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t SDivNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 135;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void FDiv(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1656,6 +3157,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t FDivNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 136;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void UMod(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 137;
         uint32_t operand_count = 5;
@@ -1665,6 +3179,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t UModNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 137;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void SRem(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1678,6 +3205,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t SRemNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 138;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void SMod(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 139;
         uint32_t operand_count = 5;
@@ -1687,6 +3227,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t SModNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 139;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void FRem(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1700,6 +3253,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t FRemNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 140;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FMod(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 141;
         uint32_t operand_count = 5;
@@ -1709,6 +3275,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FModNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 141;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void VectorTimesScalar(uint32_t id_result_type, uint32_t id_result, uint32_t vector, uint32_t scalar) {
@@ -1722,6 +3301,19 @@ public:
         push(scalar);
     }
 
+    uint32_t VectorTimesScalarNew(uint32_t id_result_type, uint32_t vector, uint32_t scalar) {
+        uint32_t op = 142;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(vector);
+        push(scalar);
+        return result_id;
+    }
+
     void MatrixTimesScalar(uint32_t id_result_type, uint32_t id_result, uint32_t matrix, uint32_t scalar) {
         uint32_t op = 143;
         uint32_t operand_count = 5;
@@ -1731,6 +3323,19 @@ public:
         push(id_result);
         push(matrix);
         push(scalar);
+    }
+
+    uint32_t MatrixTimesScalarNew(uint32_t id_result_type, uint32_t matrix, uint32_t scalar) {
+        uint32_t op = 143;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(matrix);
+        push(scalar);
+        return result_id;
     }
 
     void VectorTimesMatrix(uint32_t id_result_type, uint32_t id_result, uint32_t vector, uint32_t matrix) {
@@ -1744,6 +3349,19 @@ public:
         push(matrix);
     }
 
+    uint32_t VectorTimesMatrixNew(uint32_t id_result_type, uint32_t vector, uint32_t matrix) {
+        uint32_t op = 144;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(vector);
+        push(matrix);
+        return result_id;
+    }
+
     void MatrixTimesVector(uint32_t id_result_type, uint32_t id_result, uint32_t matrix, uint32_t vector) {
         uint32_t op = 145;
         uint32_t operand_count = 5;
@@ -1753,6 +3371,19 @@ public:
         push(id_result);
         push(matrix);
         push(vector);
+    }
+
+    uint32_t MatrixTimesVectorNew(uint32_t id_result_type, uint32_t matrix, uint32_t vector) {
+        uint32_t op = 145;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(matrix);
+        push(vector);
+        return result_id;
     }
 
     void MatrixTimesMatrix(uint32_t id_result_type, uint32_t id_result, uint32_t left_matrix, uint32_t right_matrix) {
@@ -1766,6 +3397,19 @@ public:
         push(right_matrix);
     }
 
+    uint32_t MatrixTimesMatrixNew(uint32_t id_result_type, uint32_t left_matrix, uint32_t right_matrix) {
+        uint32_t op = 146;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(left_matrix);
+        push(right_matrix);
+        return result_id;
+    }
+
     void OuterProduct(uint32_t id_result_type, uint32_t id_result, uint32_t vector_1, uint32_t vector_2) {
         uint32_t op = 147;
         uint32_t operand_count = 5;
@@ -1775,6 +3419,19 @@ public:
         push(id_result);
         push(vector_1);
         push(vector_2);
+    }
+
+    uint32_t OuterProductNew(uint32_t id_result_type, uint32_t vector_1, uint32_t vector_2) {
+        uint32_t op = 147;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(vector_1);
+        push(vector_2);
+        return result_id;
     }
 
     void Dot(uint32_t id_result_type, uint32_t id_result, uint32_t vector_1, uint32_t vector_2) {
@@ -1788,6 +3445,19 @@ public:
         push(vector_2);
     }
 
+    uint32_t DotNew(uint32_t id_result_type, uint32_t vector_1, uint32_t vector_2) {
+        uint32_t op = 148;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(vector_1);
+        push(vector_2);
+        return result_id;
+    }
+
     void IAddCarry(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 149;
         uint32_t operand_count = 5;
@@ -1797,6 +3467,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t IAddCarryNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 149;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void ISubBorrow(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1810,6 +3493,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t ISubBorrowNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 150;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void UMulExtended(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 151;
         uint32_t operand_count = 5;
@@ -1819,6 +3515,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t UMulExtendedNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 151;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void SMulExtended(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1832,6 +3541,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t SMulExtendedNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 152;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void Any(uint32_t id_result_type, uint32_t id_result, uint32_t vector) {
         uint32_t op = 154;
         uint32_t operand_count = 4;
@@ -1840,6 +3562,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(vector);
+    }
+
+    uint32_t AnyNew(uint32_t id_result_type, uint32_t vector) {
+        uint32_t op = 154;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(vector);
+        return result_id;
     }
 
     void All(uint32_t id_result_type, uint32_t id_result, uint32_t vector) {
@@ -1852,6 +3586,18 @@ public:
         push(vector);
     }
 
+    uint32_t AllNew(uint32_t id_result_type, uint32_t vector) {
+        uint32_t op = 155;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(vector);
+        return result_id;
+    }
+
     void IsNan(uint32_t id_result_type, uint32_t id_result, uint32_t x) {
         uint32_t op = 156;
         uint32_t operand_count = 4;
@@ -1860,6 +3606,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(x);
+    }
+
+    uint32_t IsNanNew(uint32_t id_result_type, uint32_t x) {
+        uint32_t op = 156;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(x);
+        return result_id;
     }
 
     void IsInf(uint32_t id_result_type, uint32_t id_result, uint32_t x) {
@@ -1872,6 +3630,18 @@ public:
         push(x);
     }
 
+    uint32_t IsInfNew(uint32_t id_result_type, uint32_t x) {
+        uint32_t op = 157;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(x);
+        return result_id;
+    }
+
     void IsFinite(uint32_t id_result_type, uint32_t id_result, uint32_t x) {
         uint32_t op = 158;
         uint32_t operand_count = 4;
@@ -1880,6 +3650,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(x);
+    }
+
+    uint32_t IsFiniteNew(uint32_t id_result_type, uint32_t x) {
+        uint32_t op = 158;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(x);
+        return result_id;
     }
 
     void IsNormal(uint32_t id_result_type, uint32_t id_result, uint32_t x) {
@@ -1892,6 +3674,18 @@ public:
         push(x);
     }
 
+    uint32_t IsNormalNew(uint32_t id_result_type, uint32_t x) {
+        uint32_t op = 159;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(x);
+        return result_id;
+    }
+
     void SignBitSet(uint32_t id_result_type, uint32_t id_result, uint32_t x) {
         uint32_t op = 160;
         uint32_t operand_count = 4;
@@ -1900,6 +3694,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(x);
+    }
+
+    uint32_t SignBitSetNew(uint32_t id_result_type, uint32_t x) {
+        uint32_t op = 160;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(x);
+        return result_id;
     }
 
     void LessOrGreater(uint32_t id_result_type, uint32_t id_result, uint32_t x, uint32_t y) {
@@ -1913,6 +3719,19 @@ public:
         push(y);
     }
 
+    uint32_t LessOrGreaterNew(uint32_t id_result_type, uint32_t x, uint32_t y) {
+        uint32_t op = 161;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(x);
+        push(y);
+        return result_id;
+    }
+
     void Ordered(uint32_t id_result_type, uint32_t id_result, uint32_t x, uint32_t y) {
         uint32_t op = 162;
         uint32_t operand_count = 5;
@@ -1922,6 +3741,19 @@ public:
         push(id_result);
         push(x);
         push(y);
+    }
+
+    uint32_t OrderedNew(uint32_t id_result_type, uint32_t x, uint32_t y) {
+        uint32_t op = 162;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(x);
+        push(y);
+        return result_id;
     }
 
     void Unordered(uint32_t id_result_type, uint32_t id_result, uint32_t x, uint32_t y) {
@@ -1935,6 +3767,19 @@ public:
         push(y);
     }
 
+    uint32_t UnorderedNew(uint32_t id_result_type, uint32_t x, uint32_t y) {
+        uint32_t op = 163;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(x);
+        push(y);
+        return result_id;
+    }
+
     void LogicalEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 164;
         uint32_t operand_count = 5;
@@ -1944,6 +3789,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t LogicalEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 164;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void LogicalNotEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1957,6 +3815,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t LogicalNotEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 165;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void LogicalOr(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 166;
         uint32_t operand_count = 5;
@@ -1966,6 +3837,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t LogicalOrNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 166;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void LogicalAnd(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -1979,6 +3863,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t LogicalAndNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 167;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void LogicalNot(uint32_t id_result_type, uint32_t id_result, uint32_t operand) {
         uint32_t op = 168;
         uint32_t operand_count = 4;
@@ -1987,6 +3884,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(operand);
+    }
+
+    uint32_t LogicalNotNew(uint32_t id_result_type, uint32_t operand) {
+        uint32_t op = 168;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand);
+        return result_id;
     }
 
     void Select(uint32_t id_result_type, uint32_t id_result, uint32_t condition, uint32_t object_1, uint32_t object_2) {
@@ -2001,6 +3910,20 @@ public:
         push(object_2);
     }
 
+    uint32_t SelectNew(uint32_t id_result_type, uint32_t condition, uint32_t object_1, uint32_t object_2) {
+        uint32_t op = 169;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(condition);
+        push(object_1);
+        push(object_2);
+        return result_id;
+    }
+
     void IEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 170;
         uint32_t operand_count = 5;
@@ -2010,6 +3933,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t IEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 170;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void INotEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2023,6 +3959,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t INotEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 171;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void UGreaterThan(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 172;
         uint32_t operand_count = 5;
@@ -2032,6 +3981,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t UGreaterThanNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 172;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void SGreaterThan(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2045,6 +4007,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t SGreaterThanNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 173;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void UGreaterThanEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 174;
         uint32_t operand_count = 5;
@@ -2054,6 +4029,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t UGreaterThanEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 174;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void SGreaterThanEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2067,6 +4055,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t SGreaterThanEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 175;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void ULessThan(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 176;
         uint32_t operand_count = 5;
@@ -2076,6 +4077,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t ULessThanNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 176;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void SLessThan(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2089,6 +4103,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t SLessThanNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 177;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void ULessThanEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 178;
         uint32_t operand_count = 5;
@@ -2098,6 +4125,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t ULessThanEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 178;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void SLessThanEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2111,6 +4151,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t SLessThanEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 179;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FOrdEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 180;
         uint32_t operand_count = 5;
@@ -2120,6 +4173,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FOrdEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 180;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void FUnordEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2133,6 +4199,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t FUnordEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 181;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FOrdNotEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 182;
         uint32_t operand_count = 5;
@@ -2142,6 +4221,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FOrdNotEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 182;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void FUnordNotEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2155,6 +4247,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t FUnordNotEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 183;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FOrdLessThan(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 184;
         uint32_t operand_count = 5;
@@ -2164,6 +4269,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FOrdLessThanNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 184;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void FUnordLessThan(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2177,6 +4295,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t FUnordLessThanNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 185;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FOrdGreaterThan(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 186;
         uint32_t operand_count = 5;
@@ -2186,6 +4317,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FOrdGreaterThanNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 186;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void FUnordGreaterThan(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2199,6 +4343,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t FUnordGreaterThanNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 187;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FOrdLessThanEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 188;
         uint32_t operand_count = 5;
@@ -2208,6 +4365,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FOrdLessThanEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 188;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void FUnordLessThanEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2221,6 +4391,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t FUnordLessThanEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 189;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void FOrdGreaterThanEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 190;
         uint32_t operand_count = 5;
@@ -2230,6 +4413,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t FOrdGreaterThanEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 190;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void FUnordGreaterThanEqual(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2243,6 +4439,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t FUnordGreaterThanEqualNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 191;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void ShiftRightLogical(uint32_t id_result_type, uint32_t id_result, uint32_t base, uint32_t shift) {
         uint32_t op = 194;
         uint32_t operand_count = 5;
@@ -2252,6 +4461,19 @@ public:
         push(id_result);
         push(base);
         push(shift);
+    }
+
+    uint32_t ShiftRightLogicalNew(uint32_t id_result_type, uint32_t base, uint32_t shift) {
+        uint32_t op = 194;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        push(shift);
+        return result_id;
     }
 
     void ShiftRightArithmetic(uint32_t id_result_type, uint32_t id_result, uint32_t base, uint32_t shift) {
@@ -2265,6 +4487,19 @@ public:
         push(shift);
     }
 
+    uint32_t ShiftRightArithmeticNew(uint32_t id_result_type, uint32_t base, uint32_t shift) {
+        uint32_t op = 195;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        push(shift);
+        return result_id;
+    }
+
     void ShiftLeftLogical(uint32_t id_result_type, uint32_t id_result, uint32_t base, uint32_t shift) {
         uint32_t op = 196;
         uint32_t operand_count = 5;
@@ -2274,6 +4509,19 @@ public:
         push(id_result);
         push(base);
         push(shift);
+    }
+
+    uint32_t ShiftLeftLogicalNew(uint32_t id_result_type, uint32_t base, uint32_t shift) {
+        uint32_t op = 196;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        push(shift);
+        return result_id;
     }
 
     void BitwiseOr(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2287,6 +4535,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t BitwiseOrNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 197;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void BitwiseXor(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
         uint32_t op = 198;
         uint32_t operand_count = 5;
@@ -2296,6 +4557,19 @@ public:
         push(id_result);
         push(operand_1);
         push(operand_2);
+    }
+
+    uint32_t BitwiseXorNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 198;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
     }
 
     void BitwiseAnd(uint32_t id_result_type, uint32_t id_result, uint32_t operand_1, uint32_t operand_2) {
@@ -2309,6 +4583,19 @@ public:
         push(operand_2);
     }
 
+    uint32_t BitwiseAndNew(uint32_t id_result_type, uint32_t operand_1, uint32_t operand_2) {
+        uint32_t op = 199;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand_1);
+        push(operand_2);
+        return result_id;
+    }
+
     void Not(uint32_t id_result_type, uint32_t id_result, uint32_t operand) {
         uint32_t op = 200;
         uint32_t operand_count = 4;
@@ -2317,6 +4604,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(operand);
+    }
+
+    uint32_t NotNew(uint32_t id_result_type, uint32_t operand) {
+        uint32_t op = 200;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(operand);
+        return result_id;
     }
 
     void BitFieldInsert(uint32_t id_result_type, uint32_t id_result, uint32_t base, uint32_t insert, uint32_t offset, uint32_t count) {
@@ -2332,6 +4631,21 @@ public:
         push(count);
     }
 
+    uint32_t BitFieldInsertNew(uint32_t id_result_type, uint32_t base, uint32_t insert, uint32_t offset, uint32_t count) {
+        uint32_t op = 201;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        push(insert);
+        push(offset);
+        push(count);
+        return result_id;
+    }
+
     void BitFieldSExtract(uint32_t id_result_type, uint32_t id_result, uint32_t base, uint32_t offset, uint32_t count) {
         uint32_t op = 202;
         uint32_t operand_count = 6;
@@ -2342,6 +4656,20 @@ public:
         push(base);
         push(offset);
         push(count);
+    }
+
+    uint32_t BitFieldSExtractNew(uint32_t id_result_type, uint32_t base, uint32_t offset, uint32_t count) {
+        uint32_t op = 202;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        push(offset);
+        push(count);
+        return result_id;
     }
 
     void BitFieldUExtract(uint32_t id_result_type, uint32_t id_result, uint32_t base, uint32_t offset, uint32_t count) {
@@ -2356,6 +4684,20 @@ public:
         push(count);
     }
 
+    uint32_t BitFieldUExtractNew(uint32_t id_result_type, uint32_t base, uint32_t offset, uint32_t count) {
+        uint32_t op = 203;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        push(offset);
+        push(count);
+        return result_id;
+    }
+
     void BitReverse(uint32_t id_result_type, uint32_t id_result, uint32_t base) {
         uint32_t op = 204;
         uint32_t operand_count = 4;
@@ -2364,6 +4706,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(base);
+    }
+
+    uint32_t BitReverseNew(uint32_t id_result_type, uint32_t base) {
+        uint32_t op = 204;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        return result_id;
     }
 
     void BitCount(uint32_t id_result_type, uint32_t id_result, uint32_t base) {
@@ -2376,6 +4730,18 @@ public:
         push(base);
     }
 
+    uint32_t BitCountNew(uint32_t id_result_type, uint32_t base) {
+        uint32_t op = 205;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(base);
+        return result_id;
+    }
+
     void DPdx(uint32_t id_result_type, uint32_t id_result, uint32_t p) {
         uint32_t op = 207;
         uint32_t operand_count = 4;
@@ -2384,6 +4750,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(p);
+    }
+
+    uint32_t DPdxNew(uint32_t id_result_type, uint32_t p) {
+        uint32_t op = 207;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(p);
+        return result_id;
     }
 
     void DPdy(uint32_t id_result_type, uint32_t id_result, uint32_t p) {
@@ -2396,6 +4774,18 @@ public:
         push(p);
     }
 
+    uint32_t DPdyNew(uint32_t id_result_type, uint32_t p) {
+        uint32_t op = 208;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(p);
+        return result_id;
+    }
+
     void Fwidth(uint32_t id_result_type, uint32_t id_result, uint32_t p) {
         uint32_t op = 209;
         uint32_t operand_count = 4;
@@ -2404,6 +4794,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(p);
+    }
+
+    uint32_t FwidthNew(uint32_t id_result_type, uint32_t p) {
+        uint32_t op = 209;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(p);
+        return result_id;
     }
 
     void DPdxFine(uint32_t id_result_type, uint32_t id_result, uint32_t p) {
@@ -2416,6 +4818,18 @@ public:
         push(p);
     }
 
+    uint32_t DPdxFineNew(uint32_t id_result_type, uint32_t p) {
+        uint32_t op = 210;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(p);
+        return result_id;
+    }
+
     void DPdyFine(uint32_t id_result_type, uint32_t id_result, uint32_t p) {
         uint32_t op = 211;
         uint32_t operand_count = 4;
@@ -2424,6 +4838,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(p);
+    }
+
+    uint32_t DPdyFineNew(uint32_t id_result_type, uint32_t p) {
+        uint32_t op = 211;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(p);
+        return result_id;
     }
 
     void FwidthFine(uint32_t id_result_type, uint32_t id_result, uint32_t p) {
@@ -2436,6 +4862,18 @@ public:
         push(p);
     }
 
+    uint32_t FwidthFineNew(uint32_t id_result_type, uint32_t p) {
+        uint32_t op = 212;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(p);
+        return result_id;
+    }
+
     void DPdxCoarse(uint32_t id_result_type, uint32_t id_result, uint32_t p) {
         uint32_t op = 213;
         uint32_t operand_count = 4;
@@ -2444,6 +4882,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(p);
+    }
+
+    uint32_t DPdxCoarseNew(uint32_t id_result_type, uint32_t p) {
+        uint32_t op = 213;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(p);
+        return result_id;
     }
 
     void DPdyCoarse(uint32_t id_result_type, uint32_t id_result, uint32_t p) {
@@ -2456,6 +4906,18 @@ public:
         push(p);
     }
 
+    uint32_t DPdyCoarseNew(uint32_t id_result_type, uint32_t p) {
+        uint32_t op = 214;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(p);
+        return result_id;
+    }
+
     void FwidthCoarse(uint32_t id_result_type, uint32_t id_result, uint32_t p) {
         uint32_t op = 215;
         uint32_t operand_count = 4;
@@ -2464,6 +4926,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(p);
+    }
+
+    uint32_t FwidthCoarseNew(uint32_t id_result_type, uint32_t p) {
+        uint32_t op = 215;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(p);
+        return result_id;
     }
 
     void EmitVertex() {
@@ -2527,6 +5001,20 @@ public:
         push(semantics);
     }
 
+    uint32_t AtomicLoadNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics) {
+        uint32_t op = 227;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        return result_id;
+    }
+
     void AtomicStore(uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
         uint32_t op = 228;
         uint32_t operand_count = 5;
@@ -2551,6 +5039,21 @@ public:
         push(value);
     }
 
+    uint32_t AtomicExchangeNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 229;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
+    }
+
     void AtomicCompareExchange(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t equal, uint32_t unequal, uint32_t value, uint32_t comparator) {
         uint32_t op = 230;
         uint32_t operand_count = 9;
@@ -2564,6 +5067,23 @@ public:
         push(unequal);
         push(value);
         push(comparator);
+    }
+
+    uint32_t AtomicCompareExchangeNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t equal, uint32_t unequal, uint32_t value, uint32_t comparator) {
+        uint32_t op = 230;
+        uint32_t operand_count = 9;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(equal);
+        push(unequal);
+        push(value);
+        push(comparator);
+        return result_id;
     }
 
     void AtomicCompareExchangeWeak(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t equal, uint32_t unequal, uint32_t value, uint32_t comparator) {
@@ -2581,6 +5101,23 @@ public:
         push(comparator);
     }
 
+    uint32_t AtomicCompareExchangeWeakNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t equal, uint32_t unequal, uint32_t value, uint32_t comparator) {
+        uint32_t op = 231;
+        uint32_t operand_count = 9;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(equal);
+        push(unequal);
+        push(value);
+        push(comparator);
+        return result_id;
+    }
+
     void AtomicIIncrement(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics) {
         uint32_t op = 232;
         uint32_t operand_count = 6;
@@ -2593,6 +5130,20 @@ public:
         push(semantics);
     }
 
+    uint32_t AtomicIIncrementNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics) {
+        uint32_t op = 232;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        return result_id;
+    }
+
     void AtomicIDecrement(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics) {
         uint32_t op = 233;
         uint32_t operand_count = 6;
@@ -2603,6 +5154,20 @@ public:
         push(pointer);
         push(scope);
         push(semantics);
+    }
+
+    uint32_t AtomicIDecrementNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics) {
+        uint32_t op = 233;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        return result_id;
     }
 
     void AtomicIAdd(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
@@ -2618,6 +5183,21 @@ public:
         push(value);
     }
 
+    uint32_t AtomicIAddNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 234;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
+    }
+
     void AtomicISub(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
         uint32_t op = 235;
         uint32_t operand_count = 7;
@@ -2629,6 +5209,21 @@ public:
         push(scope);
         push(semantics);
         push(value);
+    }
+
+    uint32_t AtomicISubNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 235;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
     }
 
     void AtomicSMin(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
@@ -2644,6 +5239,21 @@ public:
         push(value);
     }
 
+    uint32_t AtomicSMinNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 236;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
+    }
+
     void AtomicUMin(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
         uint32_t op = 237;
         uint32_t operand_count = 7;
@@ -2655,6 +5265,21 @@ public:
         push(scope);
         push(semantics);
         push(value);
+    }
+
+    uint32_t AtomicUMinNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 237;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
     }
 
     void AtomicSMax(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
@@ -2670,6 +5295,21 @@ public:
         push(value);
     }
 
+    uint32_t AtomicSMaxNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 238;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
+    }
+
     void AtomicUMax(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
         uint32_t op = 239;
         uint32_t operand_count = 7;
@@ -2681,6 +5321,21 @@ public:
         push(scope);
         push(semantics);
         push(value);
+    }
+
+    uint32_t AtomicUMaxNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 239;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
     }
 
     void AtomicAnd(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
@@ -2696,6 +5351,21 @@ public:
         push(value);
     }
 
+    uint32_t AtomicAndNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 240;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
+    }
+
     void AtomicOr(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
         uint32_t op = 241;
         uint32_t operand_count = 7;
@@ -2707,6 +5377,21 @@ public:
         push(scope);
         push(semantics);
         push(value);
+    }
+
+    uint32_t AtomicOrNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 241;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
     }
 
     void AtomicXor(uint32_t id_result_type, uint32_t id_result, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
@@ -2722,6 +5407,21 @@ public:
         push(value);
     }
 
+    uint32_t AtomicXorNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics, uint32_t value) {
+        uint32_t op = 242;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        push(value);
+        return result_id;
+    }
+
     void Phi(uint32_t id_result_type, uint32_t id_result, uint32_t* operands, uint32_t count) {
         uint32_t op = 245;
         uint32_t operand_count = 3;
@@ -2733,6 +5433,21 @@ public:
         for (uint32_t i = 0; i < count; i++) {
             push(operands[i]);
         }
+    }
+
+    uint32_t PhiNew(uint32_t id_result_type, uint32_t* operands, uint32_t count) {
+        uint32_t op = 245;
+        uint32_t operand_count = 3;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
     }
 
     void LoopMerge(uint32_t merge_block, uint32_t continue_target, uint32_t loop_control) {
@@ -2760,6 +5475,16 @@ public:
         op |= operand_count << 16;
         push(op);
         push(id_result);
+    }
+
+    uint32_t LabelNew() {
+        uint32_t op = 248;
+        uint32_t operand_count = 2;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(result_id);
+        return result_id;
     }
 
     void Branch(uint32_t target_label) {
@@ -2859,6 +5584,23 @@ public:
         push(event);
     }
 
+    uint32_t GroupAsyncCopyNew(uint32_t id_result_type, uint32_t execution, uint32_t destination, uint32_t source, uint32_t num_elements, uint32_t stride, uint32_t event) {
+        uint32_t op = 259;
+        uint32_t operand_count = 9;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(destination);
+        push(source);
+        push(num_elements);
+        push(stride);
+        push(event);
+        return result_id;
+    }
+
     void GroupWaitEvents(uint32_t execution, uint32_t num_events, uint32_t events_list) {
         uint32_t op = 260;
         uint32_t operand_count = 4;
@@ -2880,6 +5622,19 @@ public:
         push(predicate);
     }
 
+    uint32_t GroupAllNew(uint32_t id_result_type, uint32_t execution, uint32_t predicate) {
+        uint32_t op = 261;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(predicate);
+        return result_id;
+    }
+
     void GroupAny(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t predicate) {
         uint32_t op = 262;
         uint32_t operand_count = 5;
@@ -2889,6 +5644,19 @@ public:
         push(id_result);
         push(execution);
         push(predicate);
+    }
+
+    uint32_t GroupAnyNew(uint32_t id_result_type, uint32_t execution, uint32_t predicate) {
+        uint32_t op = 262;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(predicate);
+        return result_id;
     }
 
     void GroupBroadcast(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t value, uint32_t local_id) {
@@ -2903,6 +5671,20 @@ public:
         push(local_id);
     }
 
+    uint32_t GroupBroadcastNew(uint32_t id_result_type, uint32_t execution, uint32_t value, uint32_t local_id) {
+        uint32_t op = 263;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(value);
+        push(local_id);
+        return result_id;
+    }
+
     void GroupIAdd(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
         uint32_t op = 264;
         uint32_t operand_count = 6;
@@ -2913,6 +5695,20 @@ public:
         push(execution);
         push(operation);
         push(x);
+    }
+
+    uint32_t GroupIAddNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 264;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
     }
 
     void GroupFAdd(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
@@ -2927,6 +5723,20 @@ public:
         push(x);
     }
 
+    uint32_t GroupFAddNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 265;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
+    }
+
     void GroupFMin(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
         uint32_t op = 266;
         uint32_t operand_count = 6;
@@ -2937,6 +5747,20 @@ public:
         push(execution);
         push(operation);
         push(x);
+    }
+
+    uint32_t GroupFMinNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 266;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
     }
 
     void GroupUMin(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
@@ -2951,6 +5775,20 @@ public:
         push(x);
     }
 
+    uint32_t GroupUMinNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 267;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
+    }
+
     void GroupSMin(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
         uint32_t op = 268;
         uint32_t operand_count = 6;
@@ -2961,6 +5799,20 @@ public:
         push(execution);
         push(operation);
         push(x);
+    }
+
+    uint32_t GroupSMinNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 268;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
     }
 
     void GroupFMax(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
@@ -2975,6 +5827,20 @@ public:
         push(x);
     }
 
+    uint32_t GroupFMaxNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 269;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
+    }
+
     void GroupUMax(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
         uint32_t op = 270;
         uint32_t operand_count = 6;
@@ -2987,6 +5853,20 @@ public:
         push(x);
     }
 
+    uint32_t GroupUMaxNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 270;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
+    }
+
     void GroupSMax(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
         uint32_t op = 271;
         uint32_t operand_count = 6;
@@ -2997,6 +5877,20 @@ public:
         push(execution);
         push(operation);
         push(x);
+    }
+
+    uint32_t GroupSMaxNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 271;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
     }
 
     void ReadPipe(uint32_t id_result_type, uint32_t id_result, uint32_t pipe, uint32_t pointer, uint32_t packet_size, uint32_t packet_alignment) {
@@ -3012,6 +5906,21 @@ public:
         push(packet_alignment);
     }
 
+    uint32_t ReadPipeNew(uint32_t id_result_type, uint32_t pipe, uint32_t pointer, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 274;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pipe);
+        push(pointer);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
+    }
+
     void WritePipe(uint32_t id_result_type, uint32_t id_result, uint32_t pipe, uint32_t pointer, uint32_t packet_size, uint32_t packet_alignment) {
         uint32_t op = 275;
         uint32_t operand_count = 7;
@@ -3023,6 +5932,21 @@ public:
         push(pointer);
         push(packet_size);
         push(packet_alignment);
+    }
+
+    uint32_t WritePipeNew(uint32_t id_result_type, uint32_t pipe, uint32_t pointer, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 275;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pipe);
+        push(pointer);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
     }
 
     void ReservedReadPipe(uint32_t id_result_type, uint32_t id_result, uint32_t pipe, uint32_t reserve_id, uint32_t index, uint32_t pointer, uint32_t packet_size, uint32_t packet_alignment) {
@@ -3040,6 +5964,23 @@ public:
         push(packet_alignment);
     }
 
+    uint32_t ReservedReadPipeNew(uint32_t id_result_type, uint32_t pipe, uint32_t reserve_id, uint32_t index, uint32_t pointer, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 276;
+        uint32_t operand_count = 9;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pipe);
+        push(reserve_id);
+        push(index);
+        push(pointer);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
+    }
+
     void ReservedWritePipe(uint32_t id_result_type, uint32_t id_result, uint32_t pipe, uint32_t reserve_id, uint32_t index, uint32_t pointer, uint32_t packet_size, uint32_t packet_alignment) {
         uint32_t op = 277;
         uint32_t operand_count = 9;
@@ -3055,6 +5996,23 @@ public:
         push(packet_alignment);
     }
 
+    uint32_t ReservedWritePipeNew(uint32_t id_result_type, uint32_t pipe, uint32_t reserve_id, uint32_t index, uint32_t pointer, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 277;
+        uint32_t operand_count = 9;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pipe);
+        push(reserve_id);
+        push(index);
+        push(pointer);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
+    }
+
     void ReserveReadPipePackets(uint32_t id_result_type, uint32_t id_result, uint32_t pipe, uint32_t num_packets, uint32_t packet_size, uint32_t packet_alignment) {
         uint32_t op = 278;
         uint32_t operand_count = 7;
@@ -3068,6 +6026,21 @@ public:
         push(packet_alignment);
     }
 
+    uint32_t ReserveReadPipePacketsNew(uint32_t id_result_type, uint32_t pipe, uint32_t num_packets, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 278;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pipe);
+        push(num_packets);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
+    }
+
     void ReserveWritePipePackets(uint32_t id_result_type, uint32_t id_result, uint32_t pipe, uint32_t num_packets, uint32_t packet_size, uint32_t packet_alignment) {
         uint32_t op = 279;
         uint32_t operand_count = 7;
@@ -3079,6 +6052,21 @@ public:
         push(num_packets);
         push(packet_size);
         push(packet_alignment);
+    }
+
+    uint32_t ReserveWritePipePacketsNew(uint32_t id_result_type, uint32_t pipe, uint32_t num_packets, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 279;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pipe);
+        push(num_packets);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
     }
 
     void CommitReadPipe(uint32_t pipe, uint32_t reserve_id, uint32_t packet_size, uint32_t packet_alignment) {
@@ -3113,6 +6101,18 @@ public:
         push(reserve_id);
     }
 
+    uint32_t IsValidReserveIdNew(uint32_t id_result_type, uint32_t reserve_id) {
+        uint32_t op = 282;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(reserve_id);
+        return result_id;
+    }
+
     void GetNumPipePackets(uint32_t id_result_type, uint32_t id_result, uint32_t pipe, uint32_t packet_size, uint32_t packet_alignment) {
         uint32_t op = 283;
         uint32_t operand_count = 6;
@@ -3125,6 +6125,20 @@ public:
         push(packet_alignment);
     }
 
+    uint32_t GetNumPipePacketsNew(uint32_t id_result_type, uint32_t pipe, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 283;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pipe);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
+    }
+
     void GetMaxPipePackets(uint32_t id_result_type, uint32_t id_result, uint32_t pipe, uint32_t packet_size, uint32_t packet_alignment) {
         uint32_t op = 284;
         uint32_t operand_count = 6;
@@ -3135,6 +6149,20 @@ public:
         push(pipe);
         push(packet_size);
         push(packet_alignment);
+    }
+
+    uint32_t GetMaxPipePacketsNew(uint32_t id_result_type, uint32_t pipe, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 284;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pipe);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
     }
 
     void GroupReserveReadPipePackets(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t pipe, uint32_t num_packets, uint32_t packet_size, uint32_t packet_alignment) {
@@ -3151,6 +6179,22 @@ public:
         push(packet_alignment);
     }
 
+    uint32_t GroupReserveReadPipePacketsNew(uint32_t id_result_type, uint32_t execution, uint32_t pipe, uint32_t num_packets, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 285;
+        uint32_t operand_count = 8;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(pipe);
+        push(num_packets);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
+    }
+
     void GroupReserveWritePipePackets(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t pipe, uint32_t num_packets, uint32_t packet_size, uint32_t packet_alignment) {
         uint32_t op = 286;
         uint32_t operand_count = 8;
@@ -3163,6 +6207,22 @@ public:
         push(num_packets);
         push(packet_size);
         push(packet_alignment);
+    }
+
+    uint32_t GroupReserveWritePipePacketsNew(uint32_t id_result_type, uint32_t execution, uint32_t pipe, uint32_t num_packets, uint32_t packet_size, uint32_t packet_alignment) {
+        uint32_t op = 286;
+        uint32_t operand_count = 8;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(pipe);
+        push(num_packets);
+        push(packet_size);
+        push(packet_alignment);
+        return result_id;
     }
 
     void GroupCommitReadPipe(uint32_t execution, uint32_t pipe, uint32_t reserve_id, uint32_t packet_size, uint32_t packet_alignment) {
@@ -3202,6 +6262,21 @@ public:
         push(ret_event);
     }
 
+    uint32_t EnqueueMarkerNew(uint32_t id_result_type, uint32_t queue, uint32_t num_events, uint32_t wait_events, uint32_t ret_event) {
+        uint32_t op = 291;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(queue);
+        push(num_events);
+        push(wait_events);
+        push(ret_event);
+        return result_id;
+    }
+
     void EnqueueKernel(uint32_t id_result_type, uint32_t id_result, uint32_t queue, uint32_t flags, uint32_t nd_range, uint32_t num_events, uint32_t wait_events, uint32_t ret_event, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align, uint32_t* operands, uint32_t count) {
         uint32_t op = 292;
         uint32_t operand_count = 13;
@@ -3225,6 +6300,31 @@ public:
         }
     }
 
+    uint32_t EnqueueKernelNew(uint32_t id_result_type, uint32_t queue, uint32_t flags, uint32_t nd_range, uint32_t num_events, uint32_t wait_events, uint32_t ret_event, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align, uint32_t* operands, uint32_t count) {
+        uint32_t op = 292;
+        uint32_t operand_count = 13;
+        operand_count += count;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(queue);
+        push(flags);
+        push(nd_range);
+        push(num_events);
+        push(wait_events);
+        push(ret_event);
+        push(invoke);
+        push(param);
+        push(param_size);
+        push(param_align);
+        for (uint32_t i = 0; i < count; i++) {
+            push(operands[i]);
+        }
+        return result_id;
+    }
+
     void GetKernelNDrangeSubGroupCount(uint32_t id_result_type, uint32_t id_result, uint32_t nd_range, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align) {
         uint32_t op = 293;
         uint32_t operand_count = 8;
@@ -3237,6 +6337,22 @@ public:
         push(param);
         push(param_size);
         push(param_align);
+    }
+
+    uint32_t GetKernelNDrangeSubGroupCountNew(uint32_t id_result_type, uint32_t nd_range, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align) {
+        uint32_t op = 293;
+        uint32_t operand_count = 8;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(nd_range);
+        push(invoke);
+        push(param);
+        push(param_size);
+        push(param_align);
+        return result_id;
     }
 
     void GetKernelNDrangeMaxSubGroupSize(uint32_t id_result_type, uint32_t id_result, uint32_t nd_range, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align) {
@@ -3253,6 +6369,22 @@ public:
         push(param_align);
     }
 
+    uint32_t GetKernelNDrangeMaxSubGroupSizeNew(uint32_t id_result_type, uint32_t nd_range, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align) {
+        uint32_t op = 294;
+        uint32_t operand_count = 8;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(nd_range);
+        push(invoke);
+        push(param);
+        push(param_size);
+        push(param_align);
+        return result_id;
+    }
+
     void GetKernelWorkGroupSize(uint32_t id_result_type, uint32_t id_result, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align) {
         uint32_t op = 295;
         uint32_t operand_count = 7;
@@ -3266,6 +6398,21 @@ public:
         push(param_align);
     }
 
+    uint32_t GetKernelWorkGroupSizeNew(uint32_t id_result_type, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align) {
+        uint32_t op = 295;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(invoke);
+        push(param);
+        push(param_size);
+        push(param_align);
+        return result_id;
+    }
+
     void GetKernelPreferredWorkGroupSizeMultiple(uint32_t id_result_type, uint32_t id_result, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align) {
         uint32_t op = 296;
         uint32_t operand_count = 7;
@@ -3277,6 +6424,21 @@ public:
         push(param);
         push(param_size);
         push(param_align);
+    }
+
+    uint32_t GetKernelPreferredWorkGroupSizeMultipleNew(uint32_t id_result_type, uint32_t invoke, uint32_t param, uint32_t param_size, uint32_t param_align) {
+        uint32_t op = 296;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(invoke);
+        push(param);
+        push(param_size);
+        push(param_align);
+        return result_id;
     }
 
     void RetainEvent(uint32_t event) {
@@ -3304,6 +6466,17 @@ public:
         push(id_result);
     }
 
+    uint32_t CreateUserEventNew(uint32_t id_result_type) {
+        uint32_t op = 299;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        return result_id;
+    }
+
     void IsValidEvent(uint32_t id_result_type, uint32_t id_result, uint32_t event) {
         uint32_t op = 300;
         uint32_t operand_count = 4;
@@ -3312,6 +6485,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(event);
+    }
+
+    uint32_t IsValidEventNew(uint32_t id_result_type, uint32_t event) {
+        uint32_t op = 300;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(event);
+        return result_id;
     }
 
     void SetUserEventStatus(uint32_t event, uint32_t status) {
@@ -3342,6 +6527,17 @@ public:
         push(id_result);
     }
 
+    uint32_t GetDefaultQueueNew(uint32_t id_result_type) {
+        uint32_t op = 303;
+        uint32_t operand_count = 3;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        return result_id;
+    }
+
     void BuildNDRange(uint32_t id_result_type, uint32_t id_result, uint32_t global_work_size, uint32_t local_work_size, uint32_t global_work_offset) {
         uint32_t op = 304;
         uint32_t operand_count = 6;
@@ -3352,6 +6548,20 @@ public:
         push(global_work_size);
         push(local_work_size);
         push(global_work_offset);
+    }
+
+    uint32_t BuildNDRangeNew(uint32_t id_result_type, uint32_t global_work_size, uint32_t local_work_size, uint32_t global_work_offset) {
+        uint32_t op = 304;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(global_work_size);
+        push(local_work_size);
+        push(global_work_offset);
+        return result_id;
     }
 
     void ImageSparseSampleImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
@@ -3366,6 +6576,20 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSparseSampleImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 305;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSparseSampleImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate) {
         uint32_t op = 305;
         uint32_t operand_count = 5;
@@ -3375,6 +6599,19 @@ public:
         push(id_result);
         push(sampled_image);
         push(coordinate);
+    }
+
+    uint32_t ImageSparseSampleImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate) {
+        uint32_t op = 305;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        return result_id;
     }
 
     void ImageSparseSampleExplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
@@ -3387,6 +6624,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(image_operands);
+    }
+
+    uint32_t ImageSparseSampleExplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 306;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
     }
 
     void ImageSparseSampleDrefImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -3402,6 +6653,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSparseSampleDrefImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 307;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSparseSampleDrefImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
         uint32_t op = 307;
         uint32_t operand_count = 6;
@@ -3412,6 +6678,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(dref);
+    }
+
+    uint32_t ImageSparseSampleDrefImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
+        uint32_t op = 307;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        return result_id;
     }
 
     void ImageSparseSampleDrefExplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -3427,6 +6707,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSparseSampleDrefExplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 308;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSparseSampleProjImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
         uint32_t op = 309;
         uint32_t operand_count = 6;
@@ -3437,6 +6732,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(image_operands);
+    }
+
+    uint32_t ImageSparseSampleProjImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 309;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
     }
 
     void ImageSparseSampleProjImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate) {
@@ -3450,6 +6759,19 @@ public:
         push(coordinate);
     }
 
+    uint32_t ImageSparseSampleProjImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate) {
+        uint32_t op = 309;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        return result_id;
+    }
+
     void ImageSparseSampleProjExplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
         uint32_t op = 310;
         uint32_t operand_count = 6;
@@ -3460,6 +6782,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(image_operands);
+    }
+
+    uint32_t ImageSparseSampleProjExplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 310;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
     }
 
     void ImageSparseSampleProjDrefImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -3475,6 +6811,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSparseSampleProjDrefImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 311;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSparseSampleProjDrefImplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
         uint32_t op = 311;
         uint32_t operand_count = 6;
@@ -3485,6 +6836,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(dref);
+    }
+
+    uint32_t ImageSparseSampleProjDrefImplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
+        uint32_t op = 311;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        return result_id;
     }
 
     void ImageSparseSampleProjDrefExplicitLod(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -3500,6 +6865,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSparseSampleProjDrefExplicitLodNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 312;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSparseFetch(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate, uint32_t image_operands) {
         uint32_t op = 313;
         uint32_t operand_count = 6;
@@ -3512,6 +6892,20 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSparseFetchNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 313;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSparseFetch(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate) {
         uint32_t op = 313;
         uint32_t operand_count = 5;
@@ -3521,6 +6915,19 @@ public:
         push(id_result);
         push(image);
         push(coordinate);
+    }
+
+    uint32_t ImageSparseFetchNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate) {
+        uint32_t op = 313;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        return result_id;
     }
 
     void ImageSparseGather(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t component, uint32_t image_operands) {
@@ -3536,6 +6943,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSparseGatherNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t component, uint32_t image_operands) {
+        uint32_t op = 314;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(component);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSparseGather(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t component) {
         uint32_t op = 314;
         uint32_t operand_count = 6;
@@ -3546,6 +6968,20 @@ public:
         push(sampled_image);
         push(coordinate);
         push(component);
+    }
+
+    uint32_t ImageSparseGatherNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t component) {
+        uint32_t op = 314;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(component);
+        return result_id;
     }
 
     void ImageSparseDrefGather(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
@@ -3561,6 +6997,21 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSparseDrefGatherNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref, uint32_t image_operands) {
+        uint32_t op = 315;
+        uint32_t operand_count = 7;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSparseDrefGather(uint32_t id_result_type, uint32_t id_result, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
         uint32_t op = 315;
         uint32_t operand_count = 6;
@@ -3573,6 +7024,20 @@ public:
         push(dref);
     }
 
+    uint32_t ImageSparseDrefGatherNew(uint32_t id_result_type, uint32_t sampled_image, uint32_t coordinate, uint32_t dref) {
+        uint32_t op = 315;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(sampled_image);
+        push(coordinate);
+        push(dref);
+        return result_id;
+    }
+
     void ImageSparseTexelsResident(uint32_t id_result_type, uint32_t id_result, uint32_t resident_code) {
         uint32_t op = 316;
         uint32_t operand_count = 4;
@@ -3581,6 +7046,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(resident_code);
+    }
+
+    uint32_t ImageSparseTexelsResidentNew(uint32_t id_result_type, uint32_t resident_code) {
+        uint32_t op = 316;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(resident_code);
+        return result_id;
     }
 
     void NoLine() {
@@ -3600,6 +7077,20 @@ public:
         push(pointer);
         push(scope);
         push(semantics);
+    }
+
+    uint32_t AtomicFlagTestAndSetNew(uint32_t id_result_type, uint32_t pointer, uint32_t scope, uint32_t semantics) {
+        uint32_t op = 318;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(pointer);
+        push(scope);
+        push(semantics);
+        return result_id;
     }
 
     void AtomicFlagClear(uint32_t pointer, uint32_t scope, uint32_t semantics) {
@@ -3624,6 +7115,20 @@ public:
         push(image_operands);
     }
 
+    uint32_t ImageSparseReadNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate, uint32_t image_operands) {
+        uint32_t op = 320;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        push(image_operands);
+        return result_id;
+    }
+
     void ImageSparseRead(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate) {
         uint32_t op = 320;
         uint32_t operand_count = 5;
@@ -3633,6 +7138,19 @@ public:
         push(id_result);
         push(image);
         push(coordinate);
+    }
+
+    uint32_t ImageSparseReadNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate) {
+        uint32_t op = 320;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        return result_id;
     }
 
     void DecorateId(uint32_t target, spv::Decoration decoration, uint32_t* parameters, uint32_t parameter_count) {
@@ -3658,6 +7176,18 @@ public:
         push(predicate);
     }
 
+    uint32_t SubgroupBallotKHRNew(uint32_t id_result_type, uint32_t predicate) {
+        uint32_t op = 4421;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(predicate);
+        return result_id;
+    }
+
     void SubgroupFirstInvocationKHR(uint32_t id_result_type, uint32_t id_result, uint32_t value) {
         uint32_t op = 4422;
         uint32_t operand_count = 4;
@@ -3666,6 +7196,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(value);
+    }
+
+    uint32_t SubgroupFirstInvocationKHRNew(uint32_t id_result_type, uint32_t value) {
+        uint32_t op = 4422;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(value);
+        return result_id;
     }
 
     void SubgroupAllKHR(uint32_t id_result_type, uint32_t id_result, uint32_t predicate) {
@@ -3678,6 +7220,18 @@ public:
         push(predicate);
     }
 
+    uint32_t SubgroupAllKHRNew(uint32_t id_result_type, uint32_t predicate) {
+        uint32_t op = 4428;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(predicate);
+        return result_id;
+    }
+
     void SubgroupAnyKHR(uint32_t id_result_type, uint32_t id_result, uint32_t predicate) {
         uint32_t op = 4429;
         uint32_t operand_count = 4;
@@ -3686,6 +7240,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(predicate);
+    }
+
+    uint32_t SubgroupAnyKHRNew(uint32_t id_result_type, uint32_t predicate) {
+        uint32_t op = 4429;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(predicate);
+        return result_id;
     }
 
     void SubgroupAllEqualKHR(uint32_t id_result_type, uint32_t id_result, uint32_t predicate) {
@@ -3698,6 +7264,18 @@ public:
         push(predicate);
     }
 
+    uint32_t SubgroupAllEqualKHRNew(uint32_t id_result_type, uint32_t predicate) {
+        uint32_t op = 4430;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(predicate);
+        return result_id;
+    }
+
     void SubgroupReadInvocationKHR(uint32_t id_result_type, uint32_t id_result, uint32_t value, uint32_t index) {
         uint32_t op = 4432;
         uint32_t operand_count = 5;
@@ -3707,6 +7285,19 @@ public:
         push(id_result);
         push(value);
         push(index);
+    }
+
+    uint32_t SubgroupReadInvocationKHRNew(uint32_t id_result_type, uint32_t value, uint32_t index) {
+        uint32_t op = 4432;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(value);
+        push(index);
+        return result_id;
     }
 
     void GroupIAddNonUniformAMD(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
@@ -3721,6 +7312,20 @@ public:
         push(x);
     }
 
+    uint32_t GroupIAddNonUniformAMDNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 5000;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
+    }
+
     void GroupFAddNonUniformAMD(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
         uint32_t op = 5001;
         uint32_t operand_count = 6;
@@ -3731,6 +7336,20 @@ public:
         push(execution);
         push(operation);
         push(x);
+    }
+
+    uint32_t GroupFAddNonUniformAMDNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 5001;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
     }
 
     void GroupFMinNonUniformAMD(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
@@ -3745,6 +7364,20 @@ public:
         push(x);
     }
 
+    uint32_t GroupFMinNonUniformAMDNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 5002;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
+    }
+
     void GroupUMinNonUniformAMD(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
         uint32_t op = 5003;
         uint32_t operand_count = 6;
@@ -3755,6 +7388,20 @@ public:
         push(execution);
         push(operation);
         push(x);
+    }
+
+    uint32_t GroupUMinNonUniformAMDNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 5003;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
     }
 
     void GroupSMinNonUniformAMD(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
@@ -3769,6 +7416,20 @@ public:
         push(x);
     }
 
+    uint32_t GroupSMinNonUniformAMDNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 5004;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
+    }
+
     void GroupFMaxNonUniformAMD(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
         uint32_t op = 5005;
         uint32_t operand_count = 6;
@@ -3779,6 +7440,20 @@ public:
         push(execution);
         push(operation);
         push(x);
+    }
+
+    uint32_t GroupFMaxNonUniformAMDNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 5005;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
     }
 
     void GroupUMaxNonUniformAMD(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
@@ -3793,6 +7468,20 @@ public:
         push(x);
     }
 
+    uint32_t GroupUMaxNonUniformAMDNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 5006;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
+    }
+
     void GroupSMaxNonUniformAMD(uint32_t id_result_type, uint32_t id_result, uint32_t execution, uint32_t operation, uint32_t x) {
         uint32_t op = 5007;
         uint32_t operand_count = 6;
@@ -3805,6 +7494,20 @@ public:
         push(x);
     }
 
+    uint32_t GroupSMaxNonUniformAMDNew(uint32_t id_result_type, uint32_t execution, uint32_t operation, uint32_t x) {
+        uint32_t op = 5007;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(execution);
+        push(operation);
+        push(x);
+        return result_id;
+    }
+
     void FragmentMaskFetchAMD(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate) {
         uint32_t op = 5011;
         uint32_t operand_count = 5;
@@ -3814,6 +7517,19 @@ public:
         push(id_result);
         push(image);
         push(coordinate);
+    }
+
+    uint32_t FragmentMaskFetchAMDNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate) {
+        uint32_t op = 5011;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        return result_id;
     }
 
     void FragmentFetchAMD(uint32_t id_result_type, uint32_t id_result, uint32_t image, uint32_t coordinate, uint32_t fragment_index) {
@@ -3828,6 +7544,20 @@ public:
         push(fragment_index);
     }
 
+    uint32_t FragmentFetchAMDNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate, uint32_t fragment_index) {
+        uint32_t op = 5012;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        push(fragment_index);
+        return result_id;
+    }
+
     void SubgroupShuffleINTEL(uint32_t id_result_type, uint32_t id_result, uint32_t data, uint32_t invocation_id) {
         uint32_t op = 5571;
         uint32_t operand_count = 5;
@@ -3837,6 +7567,19 @@ public:
         push(id_result);
         push(data);
         push(invocation_id);
+    }
+
+    uint32_t SubgroupShuffleINTELNew(uint32_t id_result_type, uint32_t data, uint32_t invocation_id) {
+        uint32_t op = 5571;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(data);
+        push(invocation_id);
+        return result_id;
     }
 
     void SubgroupShuffleDownINTEL(uint32_t id_result_type, uint32_t id_result, uint32_t current, uint32_t next, uint32_t delta) {
@@ -3851,6 +7594,20 @@ public:
         push(delta);
     }
 
+    uint32_t SubgroupShuffleDownINTELNew(uint32_t id_result_type, uint32_t current, uint32_t next, uint32_t delta) {
+        uint32_t op = 5572;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(current);
+        push(next);
+        push(delta);
+        return result_id;
+    }
+
     void SubgroupShuffleUpINTEL(uint32_t id_result_type, uint32_t id_result, uint32_t previous, uint32_t current, uint32_t delta) {
         uint32_t op = 5573;
         uint32_t operand_count = 6;
@@ -3861,6 +7618,20 @@ public:
         push(previous);
         push(current);
         push(delta);
+    }
+
+    uint32_t SubgroupShuffleUpINTELNew(uint32_t id_result_type, uint32_t previous, uint32_t current, uint32_t delta) {
+        uint32_t op = 5573;
+        uint32_t operand_count = 6;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(previous);
+        push(current);
+        push(delta);
+        return result_id;
     }
 
     void SubgroupShuffleXorINTEL(uint32_t id_result_type, uint32_t id_result, uint32_t data, uint32_t value) {
@@ -3874,6 +7645,19 @@ public:
         push(value);
     }
 
+    uint32_t SubgroupShuffleXorINTELNew(uint32_t id_result_type, uint32_t data, uint32_t value) {
+        uint32_t op = 5574;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(data);
+        push(value);
+        return result_id;
+    }
+
     void SubgroupBlockReadINTEL(uint32_t id_result_type, uint32_t id_result, uint32_t ptr) {
         uint32_t op = 5575;
         uint32_t operand_count = 4;
@@ -3882,6 +7666,18 @@ public:
         push(id_result_type);
         push(id_result);
         push(ptr);
+    }
+
+    uint32_t SubgroupBlockReadINTELNew(uint32_t id_result_type, uint32_t ptr) {
+        uint32_t op = 5575;
+        uint32_t operand_count = 4;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(ptr);
+        return result_id;
     }
 
     void SubgroupBlockWriteINTEL(uint32_t ptr, uint32_t data) {
@@ -3902,6 +7698,19 @@ public:
         push(id_result);
         push(image);
         push(coordinate);
+    }
+
+    uint32_t SubgroupImageBlockReadINTELNew(uint32_t id_result_type, uint32_t image, uint32_t coordinate) {
+        uint32_t op = 5577;
+        uint32_t operand_count = 5;
+        op |= operand_count << 16;
+        push(op);
+        uint32_t result_id = get_id();
+        push(id_result_type);
+        push(result_id);
+        push(image);
+        push(coordinate);
+        return result_id;
     }
 
     void SubgroupImageBlockWriteINTEL(uint32_t image, uint32_t coordinate, uint32_t data) {

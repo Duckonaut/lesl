@@ -31,6 +31,7 @@ class SPIRVBinaryContainerGenerator:
 
     def generate_op_method(self, instruction, output):
         has_optargs = 0
+        has_result = -1
         operands_raw = instruction['operands'] if 'operands' in instruction else []
         operands = []
         for operand in operands_raw:
@@ -38,6 +39,8 @@ class SPIRVBinaryContainerGenerator:
             ty = 'uint32_t'
             if kind == 'LiteralString':
                 ty = 'const char*'
+            if kind == 'IdResult':
+                has_result = len(operands)
 
             vararg = False
             optarg = False
@@ -62,9 +65,15 @@ class SPIRVBinaryContainerGenerator:
 
         for i in range(has_optargs + 1):
             partial = operands[:len(operands)-i]
-            self.generate_method_overload(instruction, partial, output)
 
-    def generate_method_overload(self, instruction, operands, output):
+            self.generate_method_overload(instruction, partial, -1, output)
+
+            if has_result != -1:
+                partial = operands[:len(operands)-i]
+                partial.pop(has_result)
+                self.generate_method_overload(instruction, partial, has_result, output)
+
+    def generate_method_overload(self, instruction, operands, create_result, output):
         has_varargs = False
         has_decoration = False
         has_string = -1
@@ -77,8 +86,13 @@ class SPIRVBinaryContainerGenerator:
             if operand['kind'] == 'LiteralString':
                 has_string = i
 
-        output.write("    void " + self.opname(instruction['opname']) + "(")
+        if create_result != -1:
+            output.write("    uint32_t " + self.opname(instruction['opname']) + "New(")
+        else:
+            output.write("    void " + self.opname(instruction['opname']) + "(")
         for i, operand in enumerate(operands):
+            if i > 0:
+                output.write(", ")
             if operand['vararg']:
                 output.write(operand['ty'] + "* operands, uint32_t count")
             elif operand['kind'] == 'Decoration':
@@ -86,8 +100,6 @@ class SPIRVBinaryContainerGenerator:
             else:
                 output.write(operand['ty'] + " " + operand['name'])
 
-            if i < len(operands) - 1:
-                output.write(", ")
 
         output.write(") {\n")
         output.write("        uint32_t op = " + str(instruction['opcode']) + ";\n")
@@ -96,6 +108,8 @@ class SPIRVBinaryContainerGenerator:
             operand_count_base -= 1
         if has_string != -1:
             operand_count_base -= 1
+        if create_result != -1:
+            operand_count_base += 1
         output.write("        uint32_t operand_count = " + str(operand_count_base) + ";\n")
         if has_varargs:
             output.write("        operand_count += count;\n")
@@ -105,7 +119,12 @@ class SPIRVBinaryContainerGenerator:
             output.write("        operand_count += parameter_count;\n")
         output.write("        op |= operand_count << 16;\n")
         output.write("        push(op);\n")
-        for operand in operands:
+        if create_result != -1:
+            output.write("        uint32_t result_id = get_id();\n")
+        for i, operand in enumerate(operands):
+            if create_result == i:
+                output.write("        push(result_id);\n")
+
             if operand['vararg']:
                 output.write("        for (uint32_t i = 0; i < count; i++) {\n")
                 output.write("            push(operands[i]);\n")
@@ -128,6 +147,10 @@ class SPIRVBinaryContainerGenerator:
                 output.write("        }\n")
             else:
                 output.write("        push(" + operand['name'] + ");\n")
+        if create_result != -1:
+            if create_result == len(operands):
+                output.write("        push(result_id);\n")
+            output.write("        return result_id;\n")
         output.write("    }\n\n")
 
     def generate(self, output):
@@ -144,6 +167,7 @@ class SPIRVBinaryContainerGenerator:
         output.write("class BinaryContainer {\n")
         output.write("public:\n")
         output.write("    std::vector<uint32_t> words;\n")
+        output.write("    uint32_t id_bound = 1;\n")
         output.write("    BinaryContainer() {\n")
         output.write("        words.reserve(1024);\n")
         output.write("        words.push_back(spv::MagicNumber);\n")
@@ -156,8 +180,9 @@ class SPIRVBinaryContainerGenerator:
         output.write("    uint32_t* data() { return words.data(); }\n")
         output.write("    size_t size() { return words.size(); }\n")
         output.write("    void clear() { words.clear(); }\n")
+        output.write("    uint32_t get_id() { return id_bound++; }\n")
         output.write("    void push(uint32_t word) { words.push_back(word); }\n")
-        output.write("    void update_bound(uint32_t bound) { words[3] = bound; }\n")
+        output.write("    void update_bound() { words[3] = id_bound; }\n")
         for instruction in self.instructions:
             self.generate_op_method(instruction, output)
 

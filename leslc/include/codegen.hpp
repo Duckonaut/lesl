@@ -18,71 +18,88 @@ class CodeGenerator final {
         spv.Capability(spv::CapabilityShader);
         spv.MemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
 
-        uint32_t frag_binds[] = { 2, 3 };
+        spv::Id fiColor = spv.get_id();
+        spv::Id foColor = spv.get_id();
+
+        spv::Id viPos = spv.get_id();
+        spv::Id voPos = spv.get_id();
+        spv::Id viColor = spv.get_id();
+        spv::Id voColor = spv.get_id();
+
+        spv::Id frag_fn = spv.get_id();
+        spv::Id vert_fn = spv.get_id();
+
+        uint32_t frag_binds[] = { fiColor, foColor };
         uint32_t frag_bind_count = sizeof(frag_binds) / sizeof(frag_binds[0]);
 
-        spv.EntryPoint(spv::ExecutionModelFragment, 1, "frag", frag_binds, frag_bind_count);
+        spv.EntryPoint(spv::ExecutionModelFragment, frag_fn, "frag", frag_binds, frag_bind_count);
 
-        uint32_t vert_binds[] = { 5, 6, 7, 8 };
+        uint32_t vert_binds[] = { viPos, voPos, viColor, voColor };
         uint32_t vert_bind_count = sizeof(vert_binds) / sizeof(vert_binds[0]);
 
-        spv.EntryPoint(spv::ExecutionModelVertex, 4, "vert", vert_binds, vert_bind_count);
-        spv.ExecutionMode(1, spv::ExecutionModeOriginUpperLeft);
+        spv.EntryPoint(spv::ExecutionModelVertex, vert_fn, "vert", vert_binds, vert_bind_count);
+        spv.ExecutionMode(frag_fn, spv::ExecutionModeOriginUpperLeft);
 
         uint32_t locs[] = { 0, 1 };
-        spv.Decorate(2, spv::DecorationLocation, &locs[0], 1);
-        spv.Decorate(3, spv::DecorationLocation, &locs[0], 1);
+        spv.Decorate(fiColor, spv::DecorationLocation, &locs[0], 1);
+        spv.Decorate(foColor, spv::DecorationLocation, &locs[0], 1);
 
         uint32_t builtins[] = { spv::BuiltInPosition };
-        spv.Decorate(5, spv::DecorationBuiltIn, &builtins[0], 1);
-        spv.Decorate(6, spv::DecorationLocation, &locs[0], 1);
-        spv.Decorate(7, spv::DecorationLocation, &locs[1], 1);
-        spv.Decorate(8, spv::DecorationLocation, &locs[0], 1);
+        spv.Decorate(voPos, spv::DecorationBuiltIn, &builtins[0], 1);
+        spv.Decorate(viPos, spv::DecorationLocation, &locs[0], 1);
+        spv.Decorate(viColor, spv::DecorationLocation, &locs[1], 1);
+        spv.Decorate(voColor, spv::DecorationLocation, &locs[0], 1);
 
-        spv.TypeVoid(9);
-        spv.TypeFunction(10, 9, nullptr, 0);
-        spv.TypeFloat(11, 32);
-        spv.TypeVector(12, 11, 4);
-        spv.TypePointer(13, spv::StorageClassOutput, 12);
-        spv.TypePointer(14, spv::StorageClassInput, 12);
+        spv::Id void_ = spv.TypeVoidNew();
+        spv::Id fn = spv.TypeFunctionNew(void_, nullptr, 0);
+        spv::Id fl32 = spv.TypeFloatNew(32);
+        spv::Id vec4f32 = spv.TypeVectorNew(fl32, 4);
+        spv::Id outVec4 = spv.TypePointerNew(spv::StorageClassOutput, vec4f32);
+        spv::Id inVec4 = spv.TypePointerNew(spv::StorageClassInput, vec4f32);
 
         // fragment shader
-        spv.Variable(14, 2, spv::StorageClassInput);
-        spv.Variable(13, 3, spv::StorageClassOutput);
+        spv.Variable(inVec4, fiColor, spv::StorageClassInput);
+        spv.Variable(outVec4, foColor, spv::StorageClassOutput);
 
         // vertex shader
-        spv.Variable(13, 5, spv::StorageClassOutput);
-        spv.Variable(14, 6, spv::StorageClassInput);
-        spv.Variable(14, 7, spv::StorageClassInput);
-        spv.Variable(13, 8, spv::StorageClassOutput);
+        spv.Variable(inVec4, viPos, spv::StorageClassInput);
+        spv.Variable(inVec4, viColor, spv::StorageClassInput);
+        spv.Variable(outVec4, voPos, spv::StorageClassOutput);
+        spv.Variable(outVec4, voColor, spv::StorageClassOutput);
 
         float f = 0.5f;
-        spv.Constant(11, 15, *reinterpret_cast<uint32_t*>(&f));
+        spv::Id f0_5 = spv.ConstantNew(fl32, *reinterpret_cast<uint32_t*>(&f));
 
-        uint32_t vec4[] = { 15, 15, 15, 15 };
+        uint32_t vec4_0_5_binds[] = { f0_5, f0_5, f0_5, f0_5 };
+        spv::Id vec4_0_5 = spv.ConstantCompositeNew(vec4f32, vec4_0_5_binds, 4);
 
-        spv.ConstantComposite(12, 16, vec4, 4);
+        f = 0.0f;
+        spv::Id f0 = spv.ConstantNew(fl32, *reinterpret_cast<uint32_t*>(&f));
+
+        uint32_t vec4_0_binds[] = { f0, f0, f0, f0 };
+        spv::Id vec4_0 = spv.ConstantCompositeNew(vec4f32, vec4_0_binds, 4);
 
         // fragment shader
-        spv.Function(9, 1, spv::FunctionControlMaskNone, 10);
-        spv.Label(17);
-        spv.Load(12, 18, 2, spv::MemoryAccessMaskNone);
-        spv.FMul(12, 19, 18, 16);
-        spv.Store(3, 19, spv::MemoryAccessMaskNone);
+        spv.Function(void_, frag_fn, spv::FunctionControlMaskNone, fn);
+        spv::Id frag_begin_label = spv.LabelNew();
+        spv::Id fCol = spv.LoadNew(vec4f32, fiColor, spv::MemoryAccessMaskNone);
+        spv::Id fTemp = spv.FMulNew(vec4f32, fCol, vec4_0_5);
+        spv.Store(foColor, fTemp, spv::MemoryAccessMaskNone);
         spv.Return();
         spv.FunctionEnd();
 
         // vertex shader
-        spv.Function(9, 4, spv::FunctionControlMaskNone, 10);
-        spv.Label(20);
-        spv.Load(12, 21, 6, spv::MemoryAccessMaskNone);
-        spv.Store(5, 21, spv::MemoryAccessMaskNone);
-        spv.Load(12, 22, 7, spv::MemoryAccessMaskNone);
-        spv.Store(8, 22, spv::MemoryAccessMaskNone);
+        spv.Function(void_, vert_fn, spv::FunctionControlMaskNone, fn);
+        spv::Id vert_begin_label = spv.LabelNew();
+        spv::Id vCol = spv.LoadNew(vec4f32, viColor, spv::MemoryAccessMaskNone);
+        spv.Store(voColor, vCol, spv::MemoryAccessMaskNone);
+        spv::Id vPos = spv.LoadNew(vec4f32, viPos, spv::MemoryAccessMaskNone);
+        spv::Id neg = spv.FSubNew(vec4f32, vec4_0, vPos);
+        spv.Store(voPos, neg, spv::MemoryAccessMaskNone);
         spv.Return();
         spv.FunctionEnd();
 
-        spv.update_bound(23);
+        spv.update_bound();
     }
 
     void flush(std::ostream& out) {
