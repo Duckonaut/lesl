@@ -12,8 +12,6 @@ function(define_sdl3_example example-name)
     )
 
     target_compile_definitions(sdl3-${example-name} PUBLIC SDL_MAIN_USE_CALLBACKS)
-
-    target_compile_options(sdl3-${example-name} PRIVATE -Wno-unused-parameter -Wno-missing-field-initializers)
 endfunction()
 
 define_sdl3_example(triangle)

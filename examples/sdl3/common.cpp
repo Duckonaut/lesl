@@ -38,7 +38,7 @@ struct App {
         : window(window), device(device), example(example) {}
 };
 
-SDL_AppResult SDL_AppInit(void** appstate, int argc, char** argv) {
+SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
     Log::init();
 
     Log::info(PROJECT_NAME " " EXE_VERSION);
@@ -73,7 +73,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char** argv) {
         return SDL_APP_FAILURE;
     }
 
-    example->init(device);
+    example->init(window, device);
 
     App* app = new App(window, device, example);
 

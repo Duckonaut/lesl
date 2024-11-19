@@ -9,7 +9,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE INTERNAL "")
 
 # Declare the project
-project(lesl VERSION 0.1.0 LANGUAGES C CXX)
+project(lesl VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
@@ -27,19 +27,15 @@ set(LESL_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
 function(define_executable_target target_name)
     add_executable(${target_name})
-    target_link_libraries(${target_name} PRIVATE -static-libgcc -static-libstdc++)
-    target_compile_features(${target_name} PRIVATE cxx_std_20 c_std_11)
-    target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_features(${target_name} PRIVATE cxx_std_20)
     target_compile_definitions(${target_name} PUBLIC PROJECT_NAME="${target_name}")
     target_compile_definitions(${target_name} PUBLIC PROJECT_VERSION="${PROJECT_VERSION}")
     target_compile_definitions(${target_name} PUBLIC PROJECT_COMMIT_HASH="${GIT_COMMIT_HASH}")
 
     if (CMAKE_BUILD_TYPE STREQUAL "Release")
         target_compile_definitions(${target_name} PUBLIC RELEASE)
-        target_compile_options(${target_name} PRIVATE -O3)
     else ()
         target_compile_definitions(${target_name} PUBLIC DEBUG)
-        target_compile_options(${target_name} PRIVATE -O1 -g)
     endif()
 
     if (WIN32)
@@ -54,6 +50,13 @@ function(define_executable_target target_name)
     if (UNIX)
         target_compile_definitions(${target_name} PUBLIC _POSIX_C_SOURCE=200809L)
         target_link_libraries(${target_name} PRIVATE pthread dl)
+    endif()
+
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_link_libraries(${target_name} PRIVATE -static-libstdc++)
+        target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        target_compile_options(${target_name} PRIVATE /W4)
     endif()
 
     target_include_directories(${target_name} PUBLIC ${LESL_ROOT}/common/include)

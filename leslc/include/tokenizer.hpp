@@ -31,17 +31,17 @@ struct Tokenizer final {
         }
 
         if (std::isalpha(unit.peek())) {
-            token = read_identifier();
+            token = read_keyword_or_identifier();
         } else if (std::isdigit(unit.peek())) {
             token = read_number();
         } else {
-            token.type = TokenType::EndOfFile;
+            token = read_symbol();
         }
 
         return token;
     }
 
-    Token read_identifier() {
+    Token read_keyword_or_identifier() {
         Token token;
         token.type = TokenType::Identifier;
 
@@ -53,7 +53,21 @@ struct Tokenizer final {
             c = unit.peek();
         }
 
-        token.value.str = pool.add(str);
+        if (str == "function") {
+            token.type = TokenType::Function;
+        } else if (str == "attributes") {
+            token.type = TokenType::Attributes;
+        } else if (str == "uniform") {
+            token.type = TokenType::Uniform;
+        } else if (str == "pipeline") {
+            token.type = TokenType::Pipeline;
+        } else if (str == "use") {
+            token.type = TokenType::Use;
+        }
+
+        if (token.type == TokenType::Identifier) {
+            token.value.str = pool.add(str);
+        }
 
         return token;
     }
@@ -80,6 +94,51 @@ struct Tokenizer final {
         }
 
         token.value.num = std::stod(str);
+
+        return token;
+    }
+
+#define SINGLE_CHAR_TOKEN(c, t)                                                                \
+    case c:                                                                                    \
+        token.type = t;                                                                        \
+        break;
+
+#define SINGLE_OR_DOUBLE_CHAR_TOKEN(c1, c2, t1, t2)                                            \
+    case c1:                                                                                   \
+        token.type = t1;                                                                       \
+        if (unit.peek() == c2) {                                                               \
+            unit.next();                                                                       \
+            token.type = t2;                                                                   \
+        }                                                                                      \
+        break;
+
+    Token read_symbol() {
+        Token token;
+
+        char c = unit.next();
+
+        switch (c) {
+            SINGLE_CHAR_TOKEN('(', TokenType::LeftParen)
+            SINGLE_CHAR_TOKEN(')', TokenType::RightParen)
+            SINGLE_CHAR_TOKEN('{', TokenType::LeftBrace)
+            SINGLE_CHAR_TOKEN('}', TokenType::RightBrace)
+            SINGLE_CHAR_TOKEN('[', TokenType::LeftBracket)
+            SINGLE_CHAR_TOKEN(']', TokenType::RightBracket)
+            SINGLE_CHAR_TOKEN(',', TokenType::Comma)
+            SINGLE_CHAR_TOKEN('.', TokenType::Dot)
+            SINGLE_CHAR_TOKEN('+', TokenType::Plus)
+            SINGLE_CHAR_TOKEN(';', TokenType::Semicolon)
+            SINGLE_CHAR_TOKEN('/', TokenType::Slash)
+            SINGLE_CHAR_TOKEN('*', TokenType::Star)
+            SINGLE_CHAR_TOKEN('%', TokenType::Percent)
+            SINGLE_OR_DOUBLE_CHAR_TOKEN('-', '>', TokenType::Minus, TokenType::MinusArrow)
+            SINGLE_OR_DOUBLE_CHAR_TOKEN('!', '=', TokenType::Bang, TokenType::BangEqual)
+            SINGLE_OR_DOUBLE_CHAR_TOKEN('=', '=', TokenType::Equal, TokenType::EqualEqual)
+            SINGLE_OR_DOUBLE_CHAR_TOKEN('>', '=', TokenType::Greater, TokenType::GreaterEqual)
+            SINGLE_OR_DOUBLE_CHAR_TOKEN('<', '=', TokenType::Less, TokenType::LessEqual)
+            default:
+                token.type = TokenType::Error;
+        }
 
         return token;
     }

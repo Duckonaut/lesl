@@ -1,0 +1,19 @@
+use manifest
+
+attributes ShaderLink {
+    vec4 color,
+}
+
+function vertex (VsIn v) -> (ShaderLink o) {
+    o.color = v.color
+    POSITION = v.position
+}
+
+function fragment (ShaderLink i) -> (FsOut o) {
+    o.color = i.color
+}
+
+pipeline Basic {
+    Vertex = vertex,
+    Fragment = fragment,
+}

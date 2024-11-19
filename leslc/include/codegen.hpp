@@ -45,7 +45,7 @@ class CodeGenerator final {
         spv.Decorate(foColor, spv::DecorationLocation, &locs[0], 1);
 
         uint32_t builtins[] = { spv::BuiltInPosition };
-        spv.Decorate(voPos, spv::DecorationBuiltIn, &builtins[0], 1);
+        spv.Decorate(voPos, spv::DecorationBuiltIn, builtins, 1);
         spv.Decorate(viPos, spv::DecorationLocation, &locs[0], 1);
         spv.Decorate(viColor, spv::DecorationLocation, &locs[1], 1);
         spv.Decorate(voColor, spv::DecorationLocation, &locs[0], 1);
@@ -67,7 +67,7 @@ class CodeGenerator final {
         spv.Variable(outVec4, voPos, spv::StorageClassOutput);
         spv.Variable(outVec4, voColor, spv::StorageClassOutput);
 
-        float f = 0.5f;
+        float f = 1.0f;
         spv::Id f0_5 = spv.ConstantNew(fl32, *reinterpret_cast<uint32_t*>(&f));
 
         uint32_t vec4_0_5_binds[] = { f0_5, f0_5, f0_5, f0_5 };
@@ -103,7 +103,7 @@ class CodeGenerator final {
     }
 
     void flush(std::ostream& out) {
-        for (uint i = 0; i < spv.words.size(); i++) {
+        for (unsigned i = 0; i < spv.words.size(); i++) {
             out.write(reinterpret_cast<const char*>(&spv.words[i]), sizeof(uint32_t));
         }
     }

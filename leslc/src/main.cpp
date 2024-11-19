@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::ostream* out =
-        args.output.has_value() ? new std::ofstream(args.output.value()) : &std::cout;
+        args.output.has_value() ? new std::ofstream(args.output.value(), std::ios::binary) : &std::cout;
 
     if (!out->good()) {
         std::cerr << "error: failed to open output file" << std::endl;
@@ -80,9 +80,9 @@ int main(int argc, char* argv[]) {
     if (!args.input.has_value()) {
         _setmode(_fileno(stdin), _O_BINARY);
     }
-    if (!args.output.has_value()) {
-        _setmode(_fileno(stdout), _O_BINARY);
-    }
+    // if (!args.output.has_value()) {
+    //     _setmode(_fileno(stdout), _O_BINARY);
+    // }
 #endif
 
     StringPool pool(0x1000);
@@ -91,12 +91,19 @@ int main(int argc, char* argv[]) {
 
     Tokenizer tokenizer(pool, unit);
 
-    Parser parser(tokenizer);
+    std::vector<Token> tokens;
 
-    CodeGenerator codegen(parser);
+    Token token = tokenizer.next();
 
-    codegen.generate();
-    codegen.flush(*out);
+    while (token.type != TokenType::EndOfFile) {
+        if (token.type == TokenType::Error) {
+            std::cerr << "error: unexpected token" << std::endl;
+            return 1;
+        }
+
+        std::cout << token << std::endl;
+        token = tokenizer.next();
+    }
 
     if (args.input.has_value()) {
         delete in;

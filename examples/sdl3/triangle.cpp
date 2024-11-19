@@ -19,8 +19,11 @@ static Vertex vertices[] = {
 
 class Triangle : public Example {
   public:
-    void init(SDL_GPUDevice* device) override {
+    void init(SDL_Window* window, SDL_GPUDevice* device) override {
         FileData unified_shader = readFile("../shaders/spirv/unified_basic.spv");
+
+        SDL_GPUTextureFormat swapchain_format =
+            SDL_GetGPUSwapchainTextureFormat(device, window);
 
         SDL_GPUShaderCreateInfo shaderCreateInfo = {
             .code_size = unified_shader.size,
@@ -43,7 +46,7 @@ class Triangle : public Example {
         SDL_GPUShader* fragment_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
 
         SDL_GPUColorTargetDescription color_target_description = {
-            .format = SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM,
+            .format = swapchain_format,
             .blend_state = {
                 .enable_blend = false,
             },
