@@ -1,6 +1,19 @@
-use manifest
+import manifest
 
-attributes ShaderLink {
+struct VsIn {
+    vec4 position,
+    vec4 color
+}
+
+struct FsOut {
+    vec4 color
+}
+
+struct Uniforms {
+    vec4 color
+}
+
+struct ShaderLink {
     vec4 color,
 }
 
@@ -9,8 +22,8 @@ function vertex (VsIn v) -> (ShaderLink o) {
     POSITION = v.position
 }
 
-function fragment (ShaderLink i) -> (FsOut o) {
-    o.color = i.color
+function fragment (ShaderLink i, Uniforms u) -> (FsOut o) {
+    o.color = i.color * u.color
 }
 
 pipeline Basic {

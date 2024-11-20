@@ -1,5 +1,8 @@
 #include "stringpool.hpp"
 
+#include <cstring>
+#include <cassert>
+
 const char* PoolStr::c_str() const {
     return pool->data + this->pool->fragments[this->poolIndex].offset;
 }
@@ -40,7 +43,7 @@ int StringPool::find(const char* str, size_t len) {
 }
 
 PoolStr StringPool::add(const char* str, size_t len) {
-    assert(len > 0, "string length must be greater than zero");
+    assert(len > 0);
     int index = find(str, len);
     if (index != -1) {
         return { this, index };

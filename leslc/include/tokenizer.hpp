@@ -55,14 +55,12 @@ struct Tokenizer final {
 
         if (str == "function") {
             token.type = TokenType::Function;
-        } else if (str == "attributes") {
-            token.type = TokenType::Attributes;
-        } else if (str == "uniform") {
-            token.type = TokenType::Uniform;
+        } else if (str == "struct") {
+            token.type = TokenType::Struct;
         } else if (str == "pipeline") {
             token.type = TokenType::Pipeline;
-        } else if (str == "use") {
-            token.type = TokenType::Use;
+        } else if (str == "import") {
+            token.type = TokenType::Import;
         }
 
         if (token.type == TokenType::Identifier) {
@@ -126,12 +124,21 @@ struct Tokenizer final {
             SINGLE_CHAR_TOKEN(']', TokenType::RightBracket)
             SINGLE_CHAR_TOKEN(',', TokenType::Comma)
             SINGLE_CHAR_TOKEN('.', TokenType::Dot)
-            SINGLE_CHAR_TOKEN('+', TokenType::Plus)
             SINGLE_CHAR_TOKEN(';', TokenType::Semicolon)
-            SINGLE_CHAR_TOKEN('/', TokenType::Slash)
-            SINGLE_CHAR_TOKEN('*', TokenType::Star)
-            SINGLE_CHAR_TOKEN('%', TokenType::Percent)
-            SINGLE_OR_DOUBLE_CHAR_TOKEN('-', '>', TokenType::Minus, TokenType::MinusArrow)
+            case '-':
+                token.type = TokenType::Minus;
+                if (unit.peek() == '>') {
+                    unit.next();
+                    token.type = TokenType::MinusArrow;
+                } else if (unit.peek() == '=') {
+                    unit.next();
+                    token.type = TokenType::MinusEqual;
+                }
+                break;
+            SINGLE_OR_DOUBLE_CHAR_TOKEN('+', '=', TokenType::Plus, TokenType::PlusEqual)
+            SINGLE_OR_DOUBLE_CHAR_TOKEN('/', '=', TokenType::Slash, TokenType::SlashEqual)
+            SINGLE_OR_DOUBLE_CHAR_TOKEN('*', '=', TokenType::Star, TokenType::StarEqual)
+            SINGLE_OR_DOUBLE_CHAR_TOKEN('%', '=', TokenType::Percent, TokenType::PercentEqual)
             SINGLE_OR_DOUBLE_CHAR_TOKEN('!', '=', TokenType::Bang, TokenType::BangEqual)
             SINGLE_OR_DOUBLE_CHAR_TOKEN('=', '=', TokenType::Equal, TokenType::EqualEqual)
             SINGLE_OR_DOUBLE_CHAR_TOKEN('>', '=', TokenType::Greater, TokenType::GreaterEqual)

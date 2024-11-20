@@ -14,15 +14,20 @@ enum class TokenType {
     RightBracket,
     Comma,
     Dot,
-    Plus,
     Semicolon,
-    Slash,
-    Star,
-    Percent,
 
     // One or two character tokens
     Minus,
     MinusArrow,
+    MinusEqual,
+    Plus,
+    PlusEqual,
+    Slash,
+    SlashEqual,
+    Star,
+    StarEqual,
+    Percent,
+    PercentEqual,
     Bang,
     BangEqual,
     Equal,
@@ -38,10 +43,9 @@ enum class TokenType {
 
     // Keywords
     Function,
-    Attributes,
-    Uniform,
+    Struct,
     Pipeline,
-    Use,
+    Import,
 
     EndOfFile,
     Error,
@@ -65,20 +69,30 @@ inline const char* token_type_to_string(TokenType type) {
             return "Comma";
         case TokenType::Dot:
             return "Dot";
-        case TokenType::Plus:
-            return "Plus";
         case TokenType::Semicolon:
             return "Semicolon";
-        case TokenType::Slash:
-            return "Slash";
-        case TokenType::Star:
-            return "Star";
-        case TokenType::Percent:
-            return "Percent";
         case TokenType::Minus:
             return "Minus";
         case TokenType::MinusArrow:
             return "MinusArrow";
+        case TokenType::MinusEqual:
+            return "MinusEqual";
+        case TokenType::Plus:
+            return "Plus";
+        case TokenType::PlusEqual:
+            return "PlusEqual";
+        case TokenType::Slash:
+            return "Slash";
+        case TokenType::SlashEqual:
+            return "SlashEqual";
+        case TokenType::Star:
+            return "Star";
+        case TokenType::StarEqual:
+            return "StarEqual";
+        case TokenType::Percent:
+            return "Percent";
+        case TokenType::PercentEqual:
+            return "PercentEqual";
         case TokenType::Bang:
             return "Bang";
         case TokenType::BangEqual:
@@ -101,14 +115,12 @@ inline const char* token_type_to_string(TokenType type) {
             return "Number";
         case TokenType::Function:
             return "Function";
-        case TokenType::Attributes:
-            return "Attributes";
-        case TokenType::Uniform:
-            return "Uniform";
+        case TokenType::Struct:
+            return "Struct";
         case TokenType::Pipeline:
             return "Pipeline";
-        case TokenType::Use:
-            return "Use";
+        case TokenType::Import:
+            return "Import";
         case TokenType::EndOfFile:
             return "EndOfFile";
         case TokenType::Error:
