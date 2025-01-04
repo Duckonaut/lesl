@@ -16,6 +16,7 @@ struct ShaderLink {
 }
 
 function vertex (VsIn v) -> (ShaderLink o) {
+    return
 }
 
 function fragment (ShaderLink i, Uniforms u) -> (FsOut o) {

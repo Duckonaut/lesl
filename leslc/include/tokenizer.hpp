@@ -73,6 +73,8 @@ struct Tokenizer final {
             token.type = TokenType::Pipeline;
         } else if (str == "import") {
             token.type = TokenType::Import;
+        } else if (str == "return") {
+            token.type = TokenType::Return; 
         }
 
         if (token.type == TokenType::Identifier) {

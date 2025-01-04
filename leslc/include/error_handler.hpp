@@ -6,6 +6,9 @@
 
 #include <ostream>
 #include <vector>
+#include <cassert>
+
+#define ENABLE_ASSERT_ON_ERROR 1
 
 enum class ErrorType {
     UnexpectedCharacter,
@@ -47,14 +50,23 @@ struct Error {
 
 struct ErrorHandler {
     inline void error(ErrorType type, char character, SourceLocation location) {
+#if ENABLE_ASSERT_ON_ERROR
+        assert(false);
+#endif
         errors.push_back({ type, { character }, location });
     }
 
     inline void error(ErrorType type, TokenType token, SourceLocation location) {
+#if ENABLE_ASSERT_ON_ERROR
+        assert(false);
+#endif
         errors.push_back({ type, { token }, location });
     }
 
     inline void error(ErrorType type, SourceLocation location) {
+#if ENABLE_ASSERT_ON_ERROR
+        assert(false);
+#endif
         errors.push_back({ type, {}, location });
     }
 

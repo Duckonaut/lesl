@@ -37,6 +37,10 @@ enum class TokenType {
     GreaterEqual,
     Less,
     LessEqual,
+    Pipe,
+    PipePipe,
+    Amp,
+    AmpAmp,
 
     // Literals
     Identifier,
@@ -47,6 +51,7 @@ enum class TokenType {
     Struct,
     Pipeline,
     Import,
+    Return,
 
     EndOfFile,
     Error,
@@ -122,6 +127,8 @@ inline const char* token_type_to_string(TokenType type) {
             return "Pipeline";
         case TokenType::Import:
             return "Import";
+        case TokenType::Return:
+            return "Return";
         case TokenType::EndOfFile:
             return "EndOfFile";
         case TokenType::Error:

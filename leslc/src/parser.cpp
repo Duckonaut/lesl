@@ -1,14 +1,16 @@
 #include "parser.hpp"
 #include "repr.hpp"
 
+#include <initializer_list>
+
 Parser::Parser(Tokenizer& tokenizer, ErrorHandler& error_handler)
     : tokenizer(tokenizer), error_handler(error_handler) {
     current = tokenizer.next();
+    next = tokenizer.next();
 }
 
 Module Parser::parse() {
     Module module;
-
 
     while (true) {
         if (error_handler.has_errors()) {
@@ -18,7 +20,6 @@ Module Parser::parse() {
         if (current.type == TokenType::EndOfFile) {
             break;
         }
-
 
         if (current.type == TokenType::Function) {
             module.decls.push_back(parse_function());
@@ -45,11 +46,12 @@ void Parser::expect(TokenType type) {
 
 void Parser::consume(TokenType type) {
     expect(type);
-    current = tokenizer.next();
+    step();
 }
 
 void Parser::step() {
-    current = tokenizer.next();
+    current = next;
+    next = tokenizer.next();
 }
 
 Decl Parser::parse_function() {
@@ -98,6 +100,7 @@ Decl Parser::parse_function() {
         step();
         expect(TokenType::Identifier);
         param.name = current;
+        step();
         if (current.type == TokenType::Comma) {
             step();
         }
@@ -111,13 +114,7 @@ Decl Parser::parse_function() {
 
     consume(TokenType::RightParen);
 
-    consume(TokenType::LeftBrace);
-
-    while (current.type != TokenType::RightBrace) {
-        f.stmts.push_back(parse_stmt());
-    }
-
-    consume(TokenType::RightBrace);
+    f.stmts = std::move(parse_stmt_block());
 
     return Decl{std::move(f)};
 }
@@ -153,6 +150,8 @@ Decl Parser::parse_struct() {
         s.members.push_back(param);
     }
 
+    consume(TokenType::RightBrace);
+
     return Decl{std::move(s)};
 }
 
@@ -175,7 +174,7 @@ Decl Parser::parse_pipeline() {
         step();
         consume(TokenType::Equal);
         expect(TokenType::Identifier);
-        param.name = current;
+        param.value = current;
         step();
         if (current.type == TokenType::Comma) {
             step();
@@ -188,9 +187,233 @@ Decl Parser::parse_pipeline() {
         p.params.push_back(param);
     }
 
+    consume(TokenType::RightBrace);
+
     return Decl{std::move(p)};
 }
 
-Stmt Parser::parse_stmt() {
-    return Stmt(Stmt::Var());
+std::vector<Stmt> Parser::parse_stmt_block() {
+    consume(TokenType::LeftBrace);
+
+    std::vector<Stmt> stmts;
+
+    while (current.type != TokenType::RightBrace) {
+        if (error_handler.has_errors()) {
+            break;
+        }
+        if (current.type == TokenType::Return) {
+            stmts.push_back(parse_return());
+            // return is the last statement in a block
+            break;
+        } else if (current.type == TokenType::Identifier &&
+                   next.type == TokenType::Identifier) {
+            stmts.push_back(parse_var());
+        } else {
+            stmts.push_back(parse_expr_stmt());
+        }
+    }
+
+    consume(TokenType::RightBrace);
+
+    return stmts;
+}
+
+// Both can start with an identifier
+Stmt Parser::parse_var() {
+    Stmt::Var v;
+    expect(TokenType::Identifier);
+    v.typedIdentifier.type = current;
+    step();
+    expect(TokenType::Identifier);
+    v.typedIdentifier.name = current;
+        step();
+        consume(TokenType::Equal);
+        v.expr = parse_expr().ref();
+
+    return Stmt{ std::move(v) };
+}
+
+Stmt Parser::parse_return() {
+    Stmt::Return r;
+    consume(TokenType::Return);
+    if (current.type != TokenType::RightBrace) {
+        r.expr = parse_expr().ref();
+    }
+    return Stmt{ std::move(r) };
+}
+
+Stmt Parser::parse_expr_stmt() {
+    return Stmt{ parse_expr().ref() };
+}
+
+Expr Parser::parse_expr() {
+    return parse_assignment_expr();
+}
+
+Expr Parser::parse_binary_left_assoc_expr(
+    std::initializer_list<std::pair<TokenType, Expr::BinaryOp>> ops,
+    Expr (Parser::*parse_next)()
+) {
+    Expr lhs = (this->*parse_next)();
+
+    while (true) {
+        bool any_match = false;
+        for (auto [type, op] : ops) {
+            if (current.type == type) {
+                any_match = true;
+                step();
+                lhs = Expr::Binary{ op, lhs.ref(), (this->*parse_next)().ref() };
+                break;
+            }
+        }
+
+        if (!any_match) {
+            break;
+        }
+    }
+
+    return lhs;
+}
+
+Expr Parser::parse_assignment_expr() {
+    return parse_binary_left_assoc_expr(
+        {
+            { TokenType::Equal, Expr::BinaryOp::Assign },
+            { TokenType::PlusEqual, Expr::BinaryOp::AddAssign },
+            { TokenType::MinusEqual, Expr::BinaryOp::SubAssign },
+            { TokenType::StarEqual, Expr::BinaryOp::MulAssign },
+            { TokenType::SlashEqual, Expr::BinaryOp::DivAssign },
+            { TokenType::PercentEqual, Expr::BinaryOp::ModAssign },
+        },
+        &Parser::parse_logical_or_expr
+    );
+}
+
+Expr Parser::parse_logical_or_expr() {
+    return parse_binary_left_assoc_expr(
+        {
+            { TokenType::PipePipe, Expr::BinaryOp::Or },
+        },
+        &Parser::parse_logical_and_expr
+    );
+}
+
+Expr Parser::parse_logical_and_expr() {
+    return parse_binary_left_assoc_expr(
+        {
+            { TokenType::AmpAmp, Expr::BinaryOp::And },
+        },
+        &Parser::parse_equality_expr
+    );
+}
+
+Expr Parser::parse_equality_expr() {
+    return parse_binary_left_assoc_expr(
+        {
+            { TokenType::EqualEqual, Expr::BinaryOp::Equal },
+            { TokenType::BangEqual, Expr::BinaryOp::NotEqual },
+        },
+        &Parser::parse_comparison_expr
+    );
+}
+
+Expr Parser::parse_comparison_expr() {
+    return parse_binary_left_assoc_expr(
+        {
+            { TokenType::Less, Expr::BinaryOp::Less },
+            { TokenType::LessEqual, Expr::BinaryOp::LessEqual },
+            { TokenType::Greater, Expr::BinaryOp::Greater },
+            { TokenType::GreaterEqual, Expr::BinaryOp::GreaterEqual },
+        },
+        &Parser::parse_term_expr
+    );
+}
+
+Expr Parser::parse_term_expr() {
+    return parse_binary_left_assoc_expr(
+        {
+            { TokenType::Plus, Expr::BinaryOp::Add },
+            { TokenType::Minus, Expr::BinaryOp::Sub },
+        },
+        &Parser::parse_factor_expr
+    );
+}
+
+Expr Parser::parse_factor_expr() {
+    return parse_binary_left_assoc_expr(
+        {
+            { TokenType::Star, Expr::BinaryOp::Mul },
+            { TokenType::Slash, Expr::BinaryOp::Div },
+            { TokenType::Percent, Expr::BinaryOp::Mod },
+        },
+        &Parser::parse_unary
+    );
+}
+
+Expr Parser::parse_unary() {
+    if (current.type == TokenType::Minus) {
+        step();
+        return Expr::Unary{ Expr::UnaryOp::Neg, parse_unary().ref() };
+    } else if (current.type == TokenType::Bang) {
+        step();
+        return Expr::Unary{ Expr::UnaryOp::Not, parse_unary().ref() };
+    } else {
+        return parse_access_or_call_or_list_access_or_field_access();
+    }
+}
+
+Expr Parser::parse_access_or_call_or_list_access_or_field_access() {
+    Expr e = parse_primary();
+    while (true) {
+        if (current.type == TokenType::Dot) {
+            step();
+            expect(TokenType::Identifier);
+            e = Expr::FieldAccess{ e.ref(), current };
+            step();
+        } else if (current.type == TokenType::LeftParen) {
+            step();
+            std::vector<Ref<Expr>> args;
+            while (current.type != TokenType::RightParen) {
+                args.push_back(parse_expr().ref());
+                if (current.type == TokenType::Comma) {
+                    step();
+                } else if (current.type != TokenType::RightParen) {
+                    error_handler
+                        .error(ErrorType::UnexpectedToken, current.type, current.location);
+                    break;
+                }
+            }
+            e = Expr::Call{ e.ref(), args };
+            step();
+        } else if (current.type == TokenType::LeftBracket) {
+            step();
+            Expr index = parse_expr();
+            expect(TokenType::RightBracket);
+            e = Expr::ListAccess{ e.ref(), index.ref() };
+            step();
+        } else {
+            break;
+        }
+    }
+    return e;
+}
+
+Expr Parser::parse_primary() {
+    if (current.type == TokenType::Identifier) {
+        Expr e{ current };
+        step();
+        return e;
+    } else if (current.type == TokenType::Number) {
+        Expr e{ current.value.num };
+        step();
+        return e;
+    } else if (current.type == TokenType::LeftParen) {
+        step();
+        Expr e = parse_expr();
+        consume(TokenType::RightParen);
+        return e;
+    } else {
+        error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
+        return Expr{ 0 };
+    }
 }

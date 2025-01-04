@@ -103,6 +103,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    ReprPrinter repr_printer(*out);
+    for (const Decl& decl : module.decls) {
+        repr_printer.print(decl);
+    }
+
     if (args.input.has_value()) {
         delete in;
     }
