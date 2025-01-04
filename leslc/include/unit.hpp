@@ -2,13 +2,18 @@
 
 #include <istream>
 
+struct SourceLocation {
+    int line;
+    int column;
+};
+
 /// @brief A class that represents a single compilation unit.
 /// @details Wraps a stream and provides a way to read chars from it while keeping track of the current line and column.
 class Unit final {
 public:
     std::istream& stream;
     int line = 1;
-    int column = 0;
+    int column = 1;
 
     Unit(std::istream& stream) : stream(stream) {}
 
@@ -18,7 +23,7 @@ public:
         char c = stream.get();
         if (c == '\n') {
             line++;
-            column = 0;
+            column = 1;
         } else {
             column++;
         }
@@ -37,5 +42,11 @@ public:
     /// @details This function does not consume the character.
     bool eof() {
         return stream.eof();
+    }
+
+    /// @brief Get the current source location.
+    /// @return The current source location.
+    SourceLocation location() {
+        return {line, column};
     }
 };

@@ -3,6 +3,7 @@
 #include "stringpool.hpp"
 #include "token.hpp"
 
+#include <cassert>
 #include <utility>
 #include <vector>
 
@@ -11,6 +12,15 @@ using Ref = T*;
 
 struct Identifier {
     PoolStr name;
+    SourceLocation location;
+
+    Identifier() {}
+
+    Identifier(Token token) {
+        assert(token.type == TokenType::Identifier);
+        this->name = token.value.str;
+        this->location = token.location;
+    }
 };
 
 struct Module;
@@ -134,10 +144,10 @@ struct Decl {
         Pipeline pipeline;
     };
 
-    Decl(Import import) : kind(Kind::Import), import(import) {}
-    Decl(Struct struct_) : kind(Kind::Struct), struct_(struct_) {}
-    Decl(Function function) : kind(Kind::Function), function(function) {}
-    Decl(Pipeline pipeline) : kind(Kind::Pipeline), pipeline(pipeline) {}
+    Decl(Import&& import) : kind(Kind::Import), import(import) {}
+    Decl(Struct&& struct_) : kind(Kind::Struct), struct_(struct_) {}
+    Decl(Function&& function) : kind(Kind::Function), function(function) {}
+    Decl(Pipeline&& pipeline) : kind(Kind::Pipeline), pipeline(pipeline) {}
 
     inline Decl(Decl& d) {
         this->kind = d.kind;

@@ -1,5 +1,7 @@
 #include "codegen.hpp"
+#include "error_handler.hpp"
 #include "parser.hpp"
+#include "repr.hpp"
 #include "stringpool.hpp"
 #include "tokenizer.hpp"
 #include "unit.hpp"
@@ -86,23 +88,19 @@ int main(int argc, char* argv[]) {
 #endif
 
     StringPool pool(0x1000);
+    ErrorHandler error_handler;
 
     Unit unit(*in);
 
-    Tokenizer tokenizer(pool, unit);
+    Tokenizer tokenizer(pool, unit, error_handler);
 
-    std::vector<Token> tokens;
+    Parser parser(tokenizer, error_handler);
 
-    Token token = tokenizer.next();
+    Module module = parser.parse();
 
-    while (token.type != TokenType::EndOfFile) {
-        if (token.type == TokenType::Error) {
-            std::cerr << "error: unexpected token" << std::endl;
-            return 1;
-        }
-
-        std::cout << token << std::endl;
-        token = tokenizer.next();
+    if (error_handler.has_errors()) {
+        error_handler.dump(std::cerr);
+        return 1;
     }
 
     if (args.input.has_value()) {

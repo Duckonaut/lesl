@@ -1,5 +1,6 @@
 #pragma once
 
+#include "error_handler.hpp"
 #include "stringpool.hpp"
 #include "token.hpp"
 #include "unit.hpp"
@@ -8,8 +9,10 @@
 struct Tokenizer final {
     Unit& unit;
     StringPool& pool;
+    ErrorHandler& error_handler;
 
-    Tokenizer(StringPool& pool, Unit& unit) : unit(unit), pool(pool) {}
+    Tokenizer(StringPool& pool, Unit& unit, ErrorHandler& error_handler)
+        : unit(unit), pool(pool), error_handler(error_handler) {}
 
     void skip_whitespace() {
         char c = unit.peek();
@@ -27,15 +30,24 @@ struct Tokenizer final {
 
         if (unit.eof()) {
             token.type = TokenType::EndOfFile;
+            token.location = unit.location();
             return token;
         }
 
+        char c = unit.peek();
+        SourceLocation location = unit.location();
         if (std::isalpha(unit.peek())) {
             token = read_keyword_or_identifier();
         } else if (std::isdigit(unit.peek())) {
             token = read_number();
         } else {
             token = read_symbol();
+        }
+
+        token.location = location;
+
+        if (token.type == TokenType::Error) {
+            error_handler.error(ErrorType::UnexpectedCharacter, c, location);
         }
 
         return token;
@@ -135,14 +147,24 @@ struct Tokenizer final {
                     token.type = TokenType::MinusEqual;
                 }
                 break;
-            SINGLE_OR_DOUBLE_CHAR_TOKEN('+', '=', TokenType::Plus, TokenType::PlusEqual)
-            SINGLE_OR_DOUBLE_CHAR_TOKEN('/', '=', TokenType::Slash, TokenType::SlashEqual)
-            SINGLE_OR_DOUBLE_CHAR_TOKEN('*', '=', TokenType::Star, TokenType::StarEqual)
-            SINGLE_OR_DOUBLE_CHAR_TOKEN('%', '=', TokenType::Percent, TokenType::PercentEqual)
-            SINGLE_OR_DOUBLE_CHAR_TOKEN('!', '=', TokenType::Bang, TokenType::BangEqual)
-            SINGLE_OR_DOUBLE_CHAR_TOKEN('=', '=', TokenType::Equal, TokenType::EqualEqual)
-            SINGLE_OR_DOUBLE_CHAR_TOKEN('>', '=', TokenType::Greater, TokenType::GreaterEqual)
-            SINGLE_OR_DOUBLE_CHAR_TOKEN('<', '=', TokenType::Less, TokenType::LessEqual)
+                SINGLE_OR_DOUBLE_CHAR_TOKEN('+', '=', TokenType::Plus, TokenType::PlusEqual)
+                SINGLE_OR_DOUBLE_CHAR_TOKEN('/', '=', TokenType::Slash, TokenType::SlashEqual)
+                SINGLE_OR_DOUBLE_CHAR_TOKEN('*', '=', TokenType::Star, TokenType::StarEqual)
+                SINGLE_OR_DOUBLE_CHAR_TOKEN(
+                    '%',
+                    '=',
+                    TokenType::Percent,
+                    TokenType::PercentEqual
+                )
+                SINGLE_OR_DOUBLE_CHAR_TOKEN('!', '=', TokenType::Bang, TokenType::BangEqual)
+                SINGLE_OR_DOUBLE_CHAR_TOKEN('=', '=', TokenType::Equal, TokenType::EqualEqual)
+                SINGLE_OR_DOUBLE_CHAR_TOKEN(
+                    '>',
+                    '=',
+                    TokenType::Greater,
+                    TokenType::GreaterEqual
+                )
+                SINGLE_OR_DOUBLE_CHAR_TOKEN('<', '=', TokenType::Less, TokenType::LessEqual)
             default:
                 token.type = TokenType::Error;
         }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stringpool.hpp"
+#include "unit.hpp"
 
 #include <ostream>
 
@@ -136,6 +137,7 @@ union TokenValue {
 struct Token {
     TokenType type;
     TokenValue value;
+    SourceLocation location;
 };
 
 inline std::ostream& operator<<(std::ostream& out, const Token& token) {
@@ -145,5 +147,10 @@ inline std::ostream& operator<<(std::ostream& out, const Token& token) {
     } else if (token.type == TokenType::Number) {
         out << ": " << token.value.num;
     }
+    return out;
+}
+
+inline std::ostream& operator<<(std::ostream& out, const TokenType& type) {
+    out << token_type_to_string(type);
     return out;
 }

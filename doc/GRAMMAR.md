@@ -7,7 +7,7 @@ comment =
     "#", COMMENT, (EOL | EOF);
 
 declaration =
-    (function | interface | pipeline | import);
+    (function | struct | pipeline | import);
 function =
     "function", IDENTIFIER, "(", [functionInputs], ")", "->", type, executableBlock;
 struct =
