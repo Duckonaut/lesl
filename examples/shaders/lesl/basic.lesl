@@ -18,10 +18,10 @@ struct ShaderLink {
 function vertex (VsIn v) -> (ShaderLink o) {
     o.color = v.color
     POSITION = v.position
-    gay.men(5 + 11 * 4)
 }
 
 function fragment (ShaderLink i, Uniforms u) -> (FsOut o) {
+    vec4 a = i.color
     o.color = i.color * u.color
 }
 

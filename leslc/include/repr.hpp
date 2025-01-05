@@ -8,12 +8,120 @@
 #include <vector>
 #include <variant>
 #include <optional>
-
-template <typename T>
-using Ref = T*;
+#include <concepts>
 
 template <typename T>
 using Opt = std::optional<T>;
+
+struct CompilationArena;
+template <typename T> struct Ref;
+
+struct Module;
+struct Decl;
+struct Stmt;
+struct Expr;
+
+struct CompilationArena {
+    std::vector<Expr> exprs;
+    std::vector<Stmt> stmts;
+    std::vector<Decl> decls;
+
+    int32_t generation = 0;
+
+    struct Statistics {
+        size_t exprs;
+        size_t stmts;
+        size_t decls;
+    };
+    
+    Statistics statistics() const {
+        return { exprs.size(), stmts.size(), decls.size() };
+    }
+
+    void clear() {
+        exprs.clear();
+        stmts.clear();
+        decls.clear();
+
+        generation++;
+    }
+
+    template <typename T> Ref<T> alloc(T&& t) {
+        if constexpr (std::same_as<T, Expr>) {
+            exprs.push_back(std::forward<T>(t));
+            return Ref<T>(this, exprs.size() - 1, generation);
+        } else if constexpr (std::same_as<T, Stmt>) {
+            stmts.push_back(std::forward<T>(t));
+            return Ref<T>(this, stmts.size() - 1, generation);
+        } else if constexpr (std::same_as<T, Decl>) {
+            decls.push_back(std::forward<T>(t));
+            return Ref<T>(this, decls.size() - 1, generation);
+        } else {
+            static_assert(false, "unsupported type");
+        }
+    }
+};
+
+template <> struct Ref<Expr> {
+    CompilationArena* arena;
+    int32_t index;
+    int32_t generation;
+    
+    Ref() : arena(nullptr), index(-1), generation(-1) {}
+    Ref(CompilationArena* arena, int32_t index, int32_t generation) : arena(arena), index(index), generation(generation)  {}
+
+    Expr* operator->() const {
+        return &arena->exprs[index];
+    }
+
+    Expr& operator*() const {
+        return arena->exprs[index];
+    }
+
+    operator bool() const {
+        return arena != nullptr && index >= 0 && index < (int32_t)arena->exprs.size() &&
+               generation == arena->generation;
+    }
+};
+
+template <> struct Ref<Stmt> {
+    CompilationArena* arena;
+    int32_t index;
+    int32_t generation;
+    
+    Ref() : arena(nullptr), index(-1), generation(-1) {}
+    Ref(CompilationArena* arena, int32_t index, int32_t generation) : arena(arena), index(index), generation(generation)  {}
+
+    Stmt* operator->() const {
+        return &arena->stmts[index];
+    }
+    Stmt& operator*() const {
+        return arena->stmts[index];
+    }
+    operator bool() const {
+        return arena != nullptr && index >= 0 && index < (int32_t)arena->stmts.size() &&
+               generation == arena->generation;
+    }
+};
+
+template <> struct Ref<Decl> {
+    CompilationArena* arena;
+    int32_t index;
+    int32_t generation;
+    
+    Ref() : arena(nullptr), index(-1), generation(-1) {}
+    Ref(CompilationArena* arena, int32_t index, int32_t generation) : arena(arena), index(index), generation(generation) {}
+    Decl* operator->() const {
+        return &arena->decls[index];
+    }
+    Decl& operator*() const {
+        return arena->decls[index];
+    }
+    operator bool() const {
+        return arena != nullptr && index >= 0 && index < (int32_t)arena->decls.size() &&
+               generation == arena->generation;
+    }
+};
 
 struct Identifier {
     PoolStr name;
@@ -28,18 +136,13 @@ struct Identifier {
     }
 };
 
-struct Module;
-struct Decl;
-struct Stmt;
-struct Expr;
-
 struct TypedIdentifier {
     Identifier name;
     Identifier type;
 };
 
 struct Module {
-    std::vector<Decl> decls;
+    std::vector<Ref<Decl>> decls;
 };
 
 struct PipelineParameter {
@@ -116,9 +219,8 @@ struct Expr {
 
     Expr(const Expr& other) : data(other.data) {}
 
-    Ref<Expr> ref() {
-        // temp hack, will register in a compilation-lifetime pool
-        return new Expr(*this);
+    Ref<Expr> ref(CompilationArena& arena) {
+        return arena.alloc<Expr>(std::move(*this));
     }
 };
 
@@ -137,6 +239,10 @@ struct Stmt {
     Stmt(Return return_) : data(return_) {}
     Stmt(Var var) : data(var) {}
     Stmt(Ref<Expr> expr) : data(expr) {}
+
+    Ref<Stmt> ref(CompilationArena& arena) {
+        return arena.alloc<Stmt>(std::move(*this));
+    }
 };
 
 struct Decl {
@@ -160,7 +266,7 @@ struct Decl {
         Identifier name;
         std::vector<TypedIdentifier> params;
         std::vector<TypedIdentifier> rets;
-        std::vector<Stmt> stmts;
+        std::vector<Ref<Stmt>> stmts;
     };
 
     struct Pipeline {
@@ -174,6 +280,10 @@ struct Decl {
     Decl(Struct&& struct_) : data(struct_) {}
     Decl(Function&& function) : data(function) {}
     Decl(Pipeline&& pipeline) : data(pipeline) {}
+
+    Ref<Decl> ref(CompilationArena& arena) {
+        return arena.alloc<Decl>(std::move(*this));
+    }
 };
 
 template <class... Ts> struct overloaded : Ts... {
@@ -210,7 +320,7 @@ struct ReprPrinter {
         indent++;
         for (const TypedIdentifier& member : struct_.members) {
             print_indent();
-            out << member.type.name.c_str() << " " << member.name.name.c_str() << ";\n";
+            out << member.type.name.c_str() << " " << member.name.name.c_str() << ",\n";
         }
         indent--;
         print_indent();
@@ -236,10 +346,10 @@ struct ReprPrinter {
         }
         out << ") {\n";
         indent++;
-        for (const Stmt& stmt : function.stmts) {
+        for (const Ref<Stmt>& stmt : function.stmts) {
             print_indent();
-            print(stmt);
-            out << ";\n";
+            print(*stmt);
+            out << "\n";
         }
         indent--;
         print_indent();
@@ -251,7 +361,7 @@ struct ReprPrinter {
         indent++;
         for (const PipelineParameter& param : pipeline.params) {
             print_indent();
-            out << param.name.name.c_str() << " = " << param.value.name.c_str() << ";\n";
+            out << param.name.name.c_str() << " = " << param.value.name.c_str() << ",\n";
         }
         indent--;
         print_indent();
@@ -284,7 +394,7 @@ struct ReprPrinter {
     }
 
     void print(const Stmt::Var& var) {
-        out << var.typedIdentifier.type.name.c_str() << " "
+        out << colorize::bright_blue(var.typedIdentifier.type.name.c_str()) << " "
             << var.typedIdentifier.name.name.c_str();
         if (var.expr) {
             out << " = ";

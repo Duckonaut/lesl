@@ -8,7 +8,7 @@
 #include <vector>
 #include <cassert>
 
-#define ENABLE_ASSERT_ON_ERROR 1
+#define ENABLE_ASSERT_ON_ERROR 0
 
 enum class ErrorType {
     UnexpectedCharacter,

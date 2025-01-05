@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+    <Type Name="PoolStr">
+        <DisplayString>{pool->data + pool->fragments[poolIndex].offset,[pool->fragments[poolIndex].length]}</DisplayString>
+        <StringView>pool->data + pool->fragments[poolIndex].offset,[pool->fragments[poolIndex].length]</StringView>
+    </Type>
+
+    <Type Name="SourceLocation">
+        <DisplayString>{line}:{column}</DisplayString>
+    </Type>
+</AutoVisualizer>

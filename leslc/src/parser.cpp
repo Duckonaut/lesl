@@ -3,8 +3,8 @@
 
 #include <initializer_list>
 
-Parser::Parser(Tokenizer& tokenizer, ErrorHandler& error_handler)
-    : tokenizer(tokenizer), error_handler(error_handler) {
+Parser::Parser(Tokenizer& tokenizer, CompilationArena& arena, ErrorHandler& error_handler)
+    : tokenizer(tokenizer), error_handler(error_handler), arena(arena) {
     current = tokenizer.next();
     next = tokenizer.next();
 }
@@ -24,7 +24,7 @@ Module Parser::parse() {
         if (current.type == TokenType::Function) {
             module.decls.push_back(parse_function());
         } else if (current.type == TokenType::Struct) {
-            Decl s = parse_struct();
+            Ref<Decl> s = parse_struct();
             module.decls.push_back(std::move(s));
         } else if (current.type == TokenType::Pipeline) {
             module.decls.push_back(parse_pipeline());
@@ -54,7 +54,7 @@ void Parser::step() {
     next = tokenizer.next();
 }
 
-Decl Parser::parse_function() {
+Ref<Decl> Parser::parse_function() {
     Decl::Function f;
 
     consume(TokenType::Function);
@@ -116,10 +116,10 @@ Decl Parser::parse_function() {
 
     f.stmts = std::move(parse_stmt_block());
 
-    return Decl{std::move(f)};
+    return Decl{std::move(f)}.ref(arena);
 }
 
-Decl Parser::parse_struct() {
+Ref<Decl> Parser::parse_struct() {
     Decl::Struct s;
 
     consume(TokenType::Struct);
@@ -152,10 +152,10 @@ Decl Parser::parse_struct() {
 
     consume(TokenType::RightBrace);
 
-    return Decl{std::move(s)};
+    return Decl{std::move(s)}.ref(arena);
 }
 
-Decl Parser::parse_pipeline() {
+Ref<Decl> Parser::parse_pipeline() {
     Decl::Pipeline p;
 
     consume(TokenType::Pipeline);
@@ -189,13 +189,13 @@ Decl Parser::parse_pipeline() {
 
     consume(TokenType::RightBrace);
 
-    return Decl{std::move(p)};
+    return Decl{std::move(p)}.ref(arena);
 }
 
-std::vector<Stmt> Parser::parse_stmt_block() {
+std::vector<Ref<Stmt>> Parser::parse_stmt_block() {
     consume(TokenType::LeftBrace);
 
-    std::vector<Stmt> stmts;
+    std::vector<Ref<Stmt>> stmts;
 
     while (current.type != TokenType::RightBrace) {
         if (error_handler.has_errors()) {
@@ -219,7 +219,7 @@ std::vector<Stmt> Parser::parse_stmt_block() {
 }
 
 // Both can start with an identifier
-Stmt Parser::parse_var() {
+Ref<Stmt> Parser::parse_var() {
     Stmt::Var v;
     expect(TokenType::Identifier);
     v.typedIdentifier.type = current;
@@ -228,33 +228,33 @@ Stmt Parser::parse_var() {
     v.typedIdentifier.name = current;
         step();
         consume(TokenType::Equal);
-        v.expr = parse_expr().ref();
+        v.expr = parse_expr();
 
-    return Stmt{ std::move(v) };
+    return Stmt{ std::move(v) }.ref(arena);
 }
 
-Stmt Parser::parse_return() {
+Ref<Stmt> Parser::parse_return() {
     Stmt::Return r;
     consume(TokenType::Return);
     if (current.type != TokenType::RightBrace) {
-        r.expr = parse_expr().ref();
+        r.expr = parse_expr();
     }
-    return Stmt{ std::move(r) };
+    return Stmt{ std::move(r) }.ref(arena);
 }
 
-Stmt Parser::parse_expr_stmt() {
-    return Stmt{ parse_expr().ref() };
+Ref<Stmt> Parser::parse_expr_stmt() {
+    return Stmt{ parse_expr() }.ref(arena);
 }
 
-Expr Parser::parse_expr() {
+Ref<Expr> Parser::parse_expr() {
     return parse_assignment_expr();
 }
 
-Expr Parser::parse_binary_left_assoc_expr(
+Ref<Expr> Parser::parse_binary_left_assoc_expr(
     std::initializer_list<std::pair<TokenType, Expr::BinaryOp>> ops,
-    Expr (Parser::*parse_next)()
+    Ref<Expr> (Parser::*parse_next)()
 ) {
-    Expr lhs = (this->*parse_next)();
+    Ref<Expr> lhs = (this->*parse_next)();
 
     while (true) {
         bool any_match = false;
@@ -262,7 +262,10 @@ Expr Parser::parse_binary_left_assoc_expr(
             if (current.type == type) {
                 any_match = true;
                 step();
-                lhs = Expr::Binary{ op, lhs.ref(), (this->*parse_next)().ref() };
+                lhs = Expr {
+                    Expr::Binary {
+                        op, lhs, (this->*parse_next)()
+                    } }.ref(arena);
                 break;
             }
         }
@@ -275,7 +278,7 @@ Expr Parser::parse_binary_left_assoc_expr(
     return lhs;
 }
 
-Expr Parser::parse_assignment_expr() {
+Ref<Expr> Parser::parse_assignment_expr() {
     return parse_binary_left_assoc_expr(
         {
             { TokenType::Equal, Expr::BinaryOp::Assign },
@@ -289,7 +292,7 @@ Expr Parser::parse_assignment_expr() {
     );
 }
 
-Expr Parser::parse_logical_or_expr() {
+Ref<Expr> Parser::parse_logical_or_expr() {
     return parse_binary_left_assoc_expr(
         {
             { TokenType::PipePipe, Expr::BinaryOp::Or },
@@ -298,7 +301,7 @@ Expr Parser::parse_logical_or_expr() {
     );
 }
 
-Expr Parser::parse_logical_and_expr() {
+Ref<Expr> Parser::parse_logical_and_expr() {
     return parse_binary_left_assoc_expr(
         {
             { TokenType::AmpAmp, Expr::BinaryOp::And },
@@ -307,7 +310,7 @@ Expr Parser::parse_logical_and_expr() {
     );
 }
 
-Expr Parser::parse_equality_expr() {
+Ref<Expr> Parser::parse_equality_expr() {
     return parse_binary_left_assoc_expr(
         {
             { TokenType::EqualEqual, Expr::BinaryOp::Equal },
@@ -317,7 +320,7 @@ Expr Parser::parse_equality_expr() {
     );
 }
 
-Expr Parser::parse_comparison_expr() {
+Ref<Expr> Parser::parse_comparison_expr() {
     return parse_binary_left_assoc_expr(
         {
             { TokenType::Less, Expr::BinaryOp::Less },
@@ -329,7 +332,7 @@ Expr Parser::parse_comparison_expr() {
     );
 }
 
-Expr Parser::parse_term_expr() {
+Ref<Expr> Parser::parse_term_expr() {
     return parse_binary_left_assoc_expr(
         {
             { TokenType::Plus, Expr::BinaryOp::Add },
@@ -339,7 +342,7 @@ Expr Parser::parse_term_expr() {
     );
 }
 
-Expr Parser::parse_factor_expr() {
+Ref<Expr> Parser::parse_factor_expr() {
     return parse_binary_left_assoc_expr(
         {
             { TokenType::Star, Expr::BinaryOp::Mul },
@@ -350,31 +353,34 @@ Expr Parser::parse_factor_expr() {
     );
 }
 
-Expr Parser::parse_unary() {
+Ref<Expr> Parser::parse_unary() {
     if (current.type == TokenType::Minus) {
         step();
-        return Expr::Unary{ Expr::UnaryOp::Neg, parse_unary().ref() };
+        return Expr{
+            Expr::Unary{ Expr::UnaryOp::Neg, parse_unary(), },
+        }
+            .ref(arena);
     } else if (current.type == TokenType::Bang) {
         step();
-        return Expr::Unary{ Expr::UnaryOp::Not, parse_unary().ref() };
+        return Expr{ Expr::Unary{ Expr::UnaryOp::Not, parse_unary() } }.ref(arena);
     } else {
         return parse_access_or_call_or_list_access_or_field_access();
     }
 }
 
-Expr Parser::parse_access_or_call_or_list_access_or_field_access() {
-    Expr e = parse_primary();
+Ref<Expr> Parser::parse_access_or_call_or_list_access_or_field_access() {
+    Ref<Expr> e = parse_primary();
     while (true) {
         if (current.type == TokenType::Dot) {
             step();
             expect(TokenType::Identifier);
-            e = Expr::FieldAccess{ e.ref(), current };
+            e = Expr{ Expr::FieldAccess{ e, current } }.ref(arena);
             step();
         } else if (current.type == TokenType::LeftParen) {
             step();
             std::vector<Ref<Expr>> args;
             while (current.type != TokenType::RightParen) {
-                args.push_back(parse_expr().ref());
+                args.push_back(parse_expr());
                 if (current.type == TokenType::Comma) {
                     step();
                 } else if (current.type != TokenType::RightParen) {
@@ -383,13 +389,13 @@ Expr Parser::parse_access_or_call_or_list_access_or_field_access() {
                     break;
                 }
             }
-            e = Expr::Call{ e.ref(), args };
+            e = Expr{ Expr::Call{ e, args } }.ref(arena);
             step();
         } else if (current.type == TokenType::LeftBracket) {
             step();
-            Expr index = parse_expr();
+            Ref<Expr> index = parse_expr();
             expect(TokenType::RightBracket);
-            e = Expr::ListAccess{ e.ref(), index.ref() };
+            e = Expr {Expr::ListAccess { e, index } }.ref(arena);
             step();
         } else {
             break;
@@ -398,22 +404,22 @@ Expr Parser::parse_access_or_call_or_list_access_or_field_access() {
     return e;
 }
 
-Expr Parser::parse_primary() {
+Ref<Expr> Parser::parse_primary() {
     if (current.type == TokenType::Identifier) {
         Expr e{ current };
         step();
-        return e;
+        return e.ref(arena);
     } else if (current.type == TokenType::Number) {
         Expr e{ current.value.num };
         step();
-        return e;
+        return e.ref(arena);
     } else if (current.type == TokenType::LeftParen) {
         step();
-        Expr e = parse_expr();
+        Ref<Expr> e = parse_expr();
         consume(TokenType::RightParen);
         return e;
     } else {
         error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
-        return Expr{ 0 };
+        return Expr{ 0 }.ref(arena);
     }
 }

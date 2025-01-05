@@ -9,42 +9,43 @@
 
 struct Parser final {
     Tokenizer& tokenizer;
+    CompilationArena& arena;
     ErrorHandler& error_handler;
 
     Token current;
     Token next;
 
-    Parser(Tokenizer& tokenizer, ErrorHandler& error_handler);
+    Parser(Tokenizer& tokenizer, CompilationArena& arena, ErrorHandler& error_handler);
     ~Parser();
 
     Module parse();
 
-    Decl parse_decl();
+    Ref<Decl> parse_decl();
 
-    Decl parse_function();
-    Decl parse_struct();
-    Decl parse_pipeline();
+    Ref<Decl> parse_function();
+    Ref<Decl> parse_struct();
+    Ref<Decl> parse_pipeline();
 
-    std::vector<Stmt> parse_stmt_block();
-    Stmt parse_return();
-    Stmt parse_var();
-    Stmt parse_expr_stmt();
+    std::vector<Ref<Stmt>> parse_stmt_block();
+    Ref<Stmt> parse_return();
+    Ref<Stmt> parse_var();
+    Ref<Stmt> parse_expr_stmt();
 
-    Expr parse_expr();
-    Expr parse_assignment_expr();
-    Expr parse_logical_or_expr();
-    Expr parse_logical_and_expr();
-    Expr parse_equality_expr();
-    Expr parse_comparison_expr();
-    Expr parse_term_expr();
-    Expr parse_factor_expr();
-    Expr parse_unary();
-    Expr parse_access_or_call_or_list_access_or_field_access();
-    Expr parse_primary();
+    Ref<Expr> parse_expr();
+    Ref<Expr> parse_assignment_expr();
+    Ref<Expr> parse_logical_or_expr();
+    Ref<Expr> parse_logical_and_expr();
+    Ref<Expr> parse_equality_expr();
+    Ref<Expr> parse_comparison_expr();
+    Ref<Expr> parse_term_expr();
+    Ref<Expr> parse_factor_expr();
+    Ref<Expr> parse_unary();
+    Ref<Expr> parse_access_or_call_or_list_access_or_field_access();
+    Ref<Expr> parse_primary();
 
-    Expr parse_binary_left_assoc_expr(
+    Ref<Expr> parse_binary_left_assoc_expr(
         std::initializer_list<std::pair<TokenType, Expr::BinaryOp>> ops,
-        Expr (Parser::*parse_next)()
+        Ref<Expr> (Parser::*parse_next)()
     );
 
     void expect(TokenType type);

@@ -88,13 +88,14 @@ int main(int argc, char* argv[]) {
 #endif
 
     StringPool pool(0x1000);
+    CompilationArena arena{};
     ErrorHandler error_handler;
 
     Unit unit(*in);
 
     Tokenizer tokenizer(pool, unit, error_handler);
 
-    Parser parser(tokenizer, error_handler);
+    Parser parser(tokenizer, arena, error_handler);
 
     Module module = parser.parse();
 
@@ -104,9 +105,18 @@ int main(int argc, char* argv[]) {
     }
 
     ReprPrinter repr_printer(*out);
-    for (const Decl& decl : module.decls) {
-        repr_printer.print(decl);
+    for (const Ref<Decl>& decl : module.decls) {
+        repr_printer.print(*decl);
     }
+
+    auto stats = arena.statistics();
+
+    *out << colorize::bold("Compilation statistics:") << "\n";
+    *out << "  " << stats.decls << " declarations\n";
+    *out << "  " << stats.stmts << " statements\n";
+    *out << "  " << stats.exprs << " expressions\n";
+
+    arena.clear();
 
     if (args.input.has_value()) {
         delete in;
