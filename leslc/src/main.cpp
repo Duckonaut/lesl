@@ -1,10 +1,11 @@
-#include "codegen.hpp"
-#include "error_handler.hpp"
-#include "parser.hpp"
-#include "repr.hpp"
-#include "stringpool.hpp"
-#include "tokenizer.hpp"
+#include "arena.hpp"
 #include "unit.hpp"
+#include "error_handler.hpp"
+#include "tokenizer.hpp"
+#include "repr.hpp"
+#include "parser.hpp"
+#include "validator.hpp"
+#include "codegen.hpp"
 
 #include <fstream>
 #include <istream>
@@ -100,6 +101,15 @@ int main(int argc, char* argv[]) {
 
     for (const auto& decl : module.decls) {
         printer.print(*decl);
+    }
+
+    Validator validator(arena, error_handler);
+
+    validator.validate();
+
+    if (error_handler.has_errors()) {
+        error_handler.dump(std::cerr);
+        return 1;
     }
 
     arena.clear();

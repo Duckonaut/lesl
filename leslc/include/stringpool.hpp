@@ -21,6 +21,8 @@ struct PoolStr final {
 
     bool operator==(const PoolStr& other) const;
     bool operator!=(const PoolStr& other) const;
+    bool operator==(const char* other) const;
+    bool operator!=(const char* other) const;
 };
 
 /// <summary>

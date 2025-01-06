@@ -32,6 +32,10 @@ template <> struct Ref<Expr> {
         return arena != nullptr && index >= 0 && index < (int32_t)arena->exprs.size() &&
                generation == arena->generation;
     }
+
+    bool same_as(const Ref<Expr>& other) const {
+        return arena == other.arena && index == other.index && generation == other.generation;
+    }
 };
 
 template <> struct Ref<Stmt> {
@@ -52,6 +56,10 @@ template <> struct Ref<Stmt> {
         return arena != nullptr && index >= 0 && index < (int32_t)arena->stmts.size() &&
                generation == arena->generation;
     }
+
+    bool same_as(const Ref<Expr>& other) const {
+        return arena == other.arena && index == other.index && generation == other.generation;
+    }
 };
 
 template <> struct Ref<Decl> {
@@ -70,6 +78,10 @@ template <> struct Ref<Decl> {
     operator bool() const {
         return arena != nullptr && index >= 0 && index < (int32_t)arena->decls.size() &&
                generation == arena->generation;
+    }
+
+    bool same_as(const Ref<Expr>& other) const {
+        return arena == other.arena && index == other.index && generation == other.generation;
     }
 };
 
@@ -172,6 +184,14 @@ struct Expr {
     Ref<Expr> ref(CompilationArena& arena) {
         return arena.alloc<Expr>(std::move(*this));
     }
+
+    template <typename T> bool is() const {
+        return std::holds_alternative<T>(data);
+    }
+
+    template <typename T> T& get() {
+        return std::get<T>(data);
+    }
 };
 
 struct Stmt {
@@ -181,7 +201,7 @@ struct Stmt {
 
     struct Var {
         TypedIdentifier typedIdentifier;
-        Ref<Expr> expr;
+        Opt<Ref<Expr>> expr;
     };
 
     std::variant<Return, Var, Ref<Expr>> data;
@@ -192,6 +212,14 @@ struct Stmt {
 
     Ref<Stmt> ref(CompilationArena& arena) {
         return arena.alloc<Stmt>(std::move(*this));
+    }
+
+    template <typename T> bool is() const {
+        return std::holds_alternative<T>(data);
+    }
+
+    template <typename T> T& get() {
+        return std::get<T>(data);
     }
 };
 
@@ -233,6 +261,14 @@ struct Decl {
 
     Ref<Decl> ref(CompilationArena& arena) {
         return arena.alloc<Decl>(std::move(*this));
+    }
+
+    template <typename T> bool is() const {
+        return std::holds_alternative<T>(data);
+    }
+
+    template <typename T> T& get() {
+        return std::get<T>(data);
     }
 };
 
@@ -348,7 +384,7 @@ struct ReprPrinter {
             << var.typedIdentifier.name.name.c_str();
         if (var.expr) {
             out << " = ";
-            print_expr(*var.expr);
+            print_expr(**var.expr);
         }
     }
 

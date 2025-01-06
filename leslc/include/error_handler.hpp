@@ -13,6 +13,10 @@
 enum class ErrorType {
     UnexpectedCharacter,
     UnexpectedToken,
+    UnknownType,
+    FunctionRedefinition,
+    StructRedefinition,
+    PipelineRedefinition,
 };
 
 struct ErrorData {
@@ -20,10 +24,12 @@ struct ErrorData {
     union {
         char character;
         TokenType token;
+        PoolStr str;
     };
 
     ErrorData(char character) : non_empty(true), character(character) {}
     ErrorData(TokenType token) : non_empty(true), token(token) {}
+    ErrorData(PoolStr str) : non_empty(true), str(str) {}
 
     ErrorData() : non_empty(false), character('0') {}
 };
@@ -41,6 +47,21 @@ struct Error {
                 break;
             case ErrorType::UnexpectedToken:
                 out << "Unexpected token " << colorize::bold(data.token);
+                break;
+            case ErrorType::UnknownType:
+                out << "Unknown type " << colorize::bold(data.str.to_string());
+                break;
+            case ErrorType::FunctionRedefinition:
+                out << "Function " << colorize::bold(data.str.to_string())
+                    << " was already defined";
+                break;
+            case ErrorType::StructRedefinition:
+                out << "Struct " << colorize::bold(data.str.to_string())
+                    << " was already defined";
+                break;
+            case ErrorType::PipelineRedefinition:
+                out << "Pipeline " << colorize::bold(data.str.to_string())
+                    << " was already defined";
                 break;
         }
 
@@ -61,6 +82,13 @@ struct ErrorHandler {
         assert(false);
 #endif
         errors.push_back({ type, { token }, location });
+    }
+
+    inline void error(ErrorType type, PoolStr str, SourceLocation location) {
+#if ENABLE_ASSERT_ON_ERROR
+        assert(false);
+#endif
+        errors.push_back({ type, { str }, location });
     }
 
     inline void error(ErrorType type, SourceLocation location) {

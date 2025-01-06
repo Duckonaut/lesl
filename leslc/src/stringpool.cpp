@@ -23,6 +23,21 @@ bool PoolStr::operator!=(const PoolStr& other) const {
     return !(*this == other);
 }
 
+bool PoolStr::operator==(const char* other) const {
+    const char* str = c_str();
+    size_t len = size();
+    for (size_t i = 0; i < len; i++) {
+        if (str[i] != other[i]) {
+            return false;
+        }
+    }
+    return other[len] == '\0';
+}
+
+bool PoolStr::operator!=(const char* other) const {
+    return !(*this == other);
+}
+
 StringPool::StringPool(size_t capacity)
     : data(new char[capacity]), size(0), capacity(capacity) {
     fragments.reserve(0x1000);
