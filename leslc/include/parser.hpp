@@ -15,7 +15,7 @@ struct Parser final {
     Token current;
     Token next;
 
-    Parser(Tokenizer& tokenizer, CompilationArena& arena, ErrorHandler& error_handler);
+    Parser(CompilationArena& arena, Tokenizer& tokenizer, ErrorHandler& error_handler);
     ~Parser();
 
     Module parse();

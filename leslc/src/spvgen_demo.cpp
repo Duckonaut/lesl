@@ -21,7 +21,7 @@ struct Args {
     std::optional<std::string> output;
 };
 
-Args parse_args(int argc, char* argv[]) {
+static Args parse_args(int argc, char* argv[]) {
     Args args;
 
     if (argc < 2) {

@@ -134,6 +134,8 @@ inline const char* token_type_to_string(TokenType type) {
         case TokenType::Error:
             return "ERROR";
     }
+
+    return "UNKNOWN";
 }
 
 union TokenValue {

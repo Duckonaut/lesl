@@ -25,7 +25,7 @@ struct ErrorData {
     ErrorData(char character) : non_empty(true), character(character) {}
     ErrorData(TokenType token) : non_empty(true), token(token) {}
 
-    ErrorData() : non_empty(false) {}
+    ErrorData() : non_empty(false), character('0') {}
 };
 
 struct Error {

@@ -3,7 +3,7 @@
 
 #include <initializer_list>
 
-Parser::Parser(Tokenizer& tokenizer, CompilationArena& arena, ErrorHandler& error_handler)
+Parser::Parser(CompilationArena& arena, Tokenizer& tokenizer, ErrorHandler& error_handler)
     : tokenizer(tokenizer), error_handler(error_handler), arena(arena) {
     current = tokenizer.next();
     next = tokenizer.next();

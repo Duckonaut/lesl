@@ -40,7 +40,7 @@ public:
     /// @brief Check if the stream is at the end.
     /// @return True if the stream is at the end, false otherwise.
     /// @details This function does not consume the character.
-    bool eof() {
+    bool eof() const {
         return stream.eof();
     }
 

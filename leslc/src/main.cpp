@@ -16,6 +16,7 @@
 #include <iostream>
 #include <ostream>
 #include <string>
+#include <chrono>
 
 #ifdef _WIN32
 #include <io.h>
@@ -27,7 +28,7 @@ struct Args {
     std::optional<std::string> output;
 };
 
-Args parse_args(int argc, char* argv[]) {
+static Args parse_args(int argc, char* argv[]) {
     Args args;
 
     if (argc < 2) {
@@ -69,33 +70,24 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::ostream* out =
-        args.output.has_value() ? new std::ofstream(args.output.value(), std::ios::binary) : &std::cout;
+    std::ostream* out = args.output.has_value()
+                            ? new std::ofstream(args.output.value(), std::ios::binary)
+                            : &std::cout;
 
     if (!out->good()) {
         std::cerr << "error: failed to open output file" << std::endl;
         return 1;
     }
 
-#ifdef _WIN32
-    // switch to binary mode on Windows
-    if (!args.input.has_value()) {
-        _setmode(_fileno(stdin), _O_BINARY);
-    }
-    // if (!args.output.has_value()) {
-    //     _setmode(_fileno(stdout), _O_BINARY);
-    // }
-#endif
-
-    StringPool pool(0x1000);
     CompilationArena arena{};
+
     ErrorHandler error_handler;
 
     Unit unit(*in);
 
-    Tokenizer tokenizer(pool, unit, error_handler);
+    Tokenizer tokenizer(arena, unit, error_handler);
 
-    Parser parser(tokenizer, arena, error_handler);
+    Parser parser(arena, tokenizer, error_handler);
 
     Module module = parser.parse();
 
@@ -104,17 +96,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    ReprPrinter repr_printer(*out);
-    for (const Ref<Decl>& decl : module.decls) {
-        repr_printer.print(*decl);
+    ReprPrinter printer{ *out };
+
+    for (const auto& decl : module.decls) {
+        printer.print(*decl);
     }
-
-    auto stats = arena.statistics();
-
-    *out << colorize::bold("Compilation statistics:") << "\n";
-    *out << "  " << stats.decls << " declarations\n";
-    *out << "  " << stats.stmts << " statements\n";
-    *out << "  " << stats.exprs << " expressions\n";
 
     arena.clear();
 

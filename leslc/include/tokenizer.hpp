@@ -2,17 +2,18 @@
 
 #include "error_handler.hpp"
 #include "stringpool.hpp"
+#include "arena.hpp"
 #include "token.hpp"
 #include "unit.hpp"
 #include <cctype>
 
 struct Tokenizer final {
     Unit& unit;
-    StringPool& pool;
+    CompilationArena& arena;
     ErrorHandler& error_handler;
 
-    Tokenizer(StringPool& pool, Unit& unit, ErrorHandler& error_handler)
-        : unit(unit), pool(pool), error_handler(error_handler) {}
+    Tokenizer(CompilationArena& arena, Unit& unit, ErrorHandler& error_handler)
+        : unit(unit), arena(arena), error_handler(error_handler) {}
 
     void skip_whitespace() {
         char c = unit.peek();
@@ -24,7 +25,7 @@ struct Tokenizer final {
     }
 
     Token next() {
-        Token token;
+        Token token{};
 
         skip_whitespace();
 
@@ -54,7 +55,7 @@ struct Tokenizer final {
     }
 
     Token read_keyword_or_identifier() {
-        Token token;
+        Token token{};
         token.type = TokenType::Identifier;
 
         std::string str;
@@ -78,14 +79,14 @@ struct Tokenizer final {
         }
 
         if (token.type == TokenType::Identifier) {
-            token.value.str = pool.add(str);
+            token.value.str = arena.string_pool.add(str);
         }
 
         return token;
     }
 
     Token read_number() {
-        Token token;
+        Token token{};
         token.type = TokenType::Number;
 
         std::string str;
@@ -125,7 +126,7 @@ struct Tokenizer final {
         break;
 
     Token read_symbol() {
-        Token token;
+        Token token{};
 
         char c = unit.next();
 
