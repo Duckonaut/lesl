@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    ReprPrinter printer{ *out };
+    ReprPrinter printer{ std::cout };
 
     for (const auto& decl : module.decls) {
         printer.print(*decl);
@@ -111,6 +111,17 @@ int main(int argc, char* argv[]) {
         error_handler.dump(std::cerr);
         return 1;
     }
+
+    CodeGenerator codegen(arena);
+
+    codegen.generate();
+
+    if (error_handler.has_errors()) {
+        error_handler.dump(std::cerr);
+        return 1;
+    }
+
+    codegen.flush(*out);
 
     arena.clear();
 
