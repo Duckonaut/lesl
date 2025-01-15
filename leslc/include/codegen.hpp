@@ -5,9 +5,10 @@
 
 #include "spirv_binary_container.hpp"
 
-#include "arena.hpp"
 #include "repr.hpp"
+#include "arena.hpp"
 
+#include <algorithm>
 #include <ostream>
 #include <unordered_map>
 
@@ -25,11 +26,11 @@ class CodeGenerator final {
         generate_prelude();
 
         // preallocate decl ids
-        for (Decl& decl : arena.decls) {
-            if (decl.is<Decl::Struct>()) {
-                decl_ids[decl.get<Decl::Struct>().name.name] = spv.get_id();
-            } else if (decl.is<Decl::Function>()) {
-                decl_ids[decl.get<Decl::Function>().name.name] = spv.get_id();
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Struct>()) {
+                decl_ids[decl->get<Decl::Struct>().name.name] = spv.get_id();
+            } else if (decl->is<Decl::Function>()) {
+                decl_ids[decl->get<Decl::Function>().name.name] = spv.get_id();
             }
         }
 
@@ -55,9 +56,9 @@ class CodeGenerator final {
         std::vector<PoolStr> fragment_entry_points;
         std::vector<PoolStr> vertex_entry_points;
 
-        for (Decl& decl : arena.decls) {
-            if (decl.is<Decl::Pipeline>()) {
-                Decl::Pipeline& p = decl.get<Decl::Pipeline>();
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Pipeline>()) {
+                Decl::Pipeline& p = decl->get<Decl::Pipeline>();
                 for (PipelineParameter& param : p.params) {
                     if (param.name.name == "Vertex") {
                         if (std::find(
@@ -125,9 +126,9 @@ class CodeGenerator final {
     }
 
     void generate_types() {
-        for (Decl& decl : arena.decls) {
-            if (decl.is<Decl::Struct>()) {
-                generate_struct(decl.get<Decl::Struct>());
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Struct>()) {
+                generate_struct(decl->get<Decl::Struct>());
             }
         }
     }
@@ -158,9 +159,9 @@ class CodeGenerator final {
     void generate_constants() {}
 
     void generate_functions() {
-        for (Decl& decl : arena.decls) {
-            if (decl.is<Decl::Function>()) {
-                generate_function(decl.get<Decl::Function>());
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Function>()) {
+                generate_function(decl->get<Decl::Function>());
             }
         }
     }
@@ -176,9 +177,9 @@ class CodeGenerator final {
     }
 
     Decl::Function& find_function(const PoolStr& name) {
-        for (Decl& decl : arena.decls) {
-            if (decl.is<Decl::Function>()) {
-                Decl::Function& f = decl.get<Decl::Function>();
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Function>()) {
+                Decl::Function& f = decl->get<Decl::Function>();
                 if (f.name.name == name) {
                     return f;
                 }

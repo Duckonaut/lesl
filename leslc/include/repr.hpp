@@ -1,10 +1,10 @@
 #pragma once
 
-#include "arena.hpp"
+#include <ref_container.hpp>
+#include "colorize.hpp"
 #include "token.hpp"
 
 #include <cassert>
-#include <utility>
 #include <vector>
 #include <variant>
 #include <optional>
@@ -12,78 +12,9 @@
 template <typename T>
 using Opt = std::optional<T>;
 
-template <> struct Ref<Expr> {
-    CompilationArena* arena;
-    int32_t index;
-    int32_t generation;
-    
-    Ref() : arena(nullptr), index(-1), generation(-1) {}
-    Ref(CompilationArena* arena, int32_t index, int32_t generation) : arena(arena), index(index), generation(generation)  {}
-
-    Expr* operator->() const {
-        return &arena->exprs[index];
-    }
-
-    Expr& operator*() const {
-        return arena->exprs[index];
-    }
-
-    operator bool() const {
-        return arena != nullptr && index >= 0 && index < (int32_t)arena->exprs.size() &&
-               generation == arena->generation;
-    }
-
-    bool same_as(const Ref<Expr>& other) const {
-        return arena == other.arena && index == other.index && generation == other.generation;
-    }
-};
-
-template <> struct Ref<Stmt> {
-    CompilationArena* arena;
-    int32_t index;
-    int32_t generation;
-    
-    Ref() : arena(nullptr), index(-1), generation(-1) {}
-    Ref(CompilationArena* arena, int32_t index, int32_t generation) : arena(arena), index(index), generation(generation)  {}
-
-    Stmt* operator->() const {
-        return &arena->stmts[index];
-    }
-    Stmt& operator*() const {
-        return arena->stmts[index];
-    }
-    operator bool() const {
-        return arena != nullptr && index >= 0 && index < (int32_t)arena->stmts.size() &&
-               generation == arena->generation;
-    }
-
-    bool same_as(const Ref<Expr>& other) const {
-        return arena == other.arena && index == other.index && generation == other.generation;
-    }
-};
-
-template <> struct Ref<Decl> {
-    CompilationArena* arena;
-    int32_t index;
-    int32_t generation;
-    
-    Ref() : arena(nullptr), index(-1), generation(-1) {}
-    Ref(CompilationArena* arena, int32_t index, int32_t generation) : arena(arena), index(index), generation(generation) {}
-    Decl* operator->() const {
-        return &arena->decls[index];
-    }
-    Decl& operator*() const {
-        return arena->decls[index];
-    }
-    operator bool() const {
-        return arena != nullptr && index >= 0 && index < (int32_t)arena->decls.size() &&
-               generation == arena->generation;
-    }
-
-    bool same_as(const Ref<Expr>& other) const {
-        return arena == other.arena && index == other.index && generation == other.generation;
-    }
-};
+struct Expr;
+struct Stmt;
+struct Decl;
 
 struct Identifier {
     PoolStr name;
@@ -101,10 +32,6 @@ struct Identifier {
 struct TypedIdentifier {
     Identifier name;
     Identifier type;
-};
-
-struct Module {
-    std::vector<Ref<Decl>> decls;
 };
 
 struct PipelineParameter {
@@ -181,10 +108,6 @@ struct Expr {
 
     Expr(const Expr& other) : data(other.data) {}
 
-    Ref<Expr> ref(CompilationArena& arena) {
-        return arena.alloc<Expr>(std::move(*this));
-    }
-
     template <typename T> bool is() const {
         return std::holds_alternative<T>(data);
     }
@@ -209,10 +132,6 @@ struct Stmt {
     Stmt(Return return_) : data(return_) {}
     Stmt(Var var) : data(var) {}
     Stmt(Ref<Expr> expr) : data(expr) {}
-
-    Ref<Stmt> ref(CompilationArena& arena) {
-        return arena.alloc<Stmt>(std::move(*this));
-    }
 
     template <typename T> bool is() const {
         return std::holds_alternative<T>(data);
@@ -258,10 +177,6 @@ struct Decl {
     Decl(Struct&& struct_) : data(struct_) {}
     Decl(Function&& function) : data(function) {}
     Decl(Pipeline&& pipeline) : data(pipeline) {}
-
-    Ref<Decl> ref(CompilationArena& arena) {
-        return arena.alloc<Decl>(std::move(*this));
-    }
 
     template <typename T> bool is() const {
         return std::holds_alternative<T>(data);

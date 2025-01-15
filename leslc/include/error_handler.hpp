@@ -17,6 +17,7 @@ enum class ErrorType {
     FunctionRedefinition,
     StructRedefinition,
     PipelineRedefinition,
+    MissingPipelineParameter,
 };
 
 struct ErrorData {
@@ -62,6 +63,9 @@ struct Error {
             case ErrorType::PipelineRedefinition:
                 out << "Pipeline " << colorize::bold(data.str.to_string())
                     << " was already defined";
+                break;
+            case ErrorType::MissingPipelineParameter:
+                out << "Pipeline is missing parameter " << colorize::bold(data.str.to_string());
                 break;
         }
 

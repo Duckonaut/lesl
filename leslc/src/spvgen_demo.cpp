@@ -1,9 +1,7 @@
 #include <fstream>
-#include <istream>
 #include <optional>
 
 #include "spirv/1.0/spirv.hpp"
-#include "spirv/1.0/GLSL.std.450.h"
 #include <spirv_binary_container.hpp>
 
 #include <cstdint>

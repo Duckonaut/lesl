@@ -1,9 +1,9 @@
 #pragma once
 
+#include "arena.hpp"
 #include "repr.hpp"
 #include "error_handler.hpp"
 
-#include <algorithm>
 #include <array>
 
 struct Validator {
@@ -12,13 +12,13 @@ struct Validator {
     Validator(CompilationArena& arena, ErrorHandler& error_handler)
         : arena(arena), error_handler(error_handler) {}
     void validate() {
-        for (Decl& decl : arena.decls) {
-            if (decl.is<Decl::Function>()) {
-                validate_function(decl.get<Decl::Function>());
-            } else if (decl.is<Decl::Struct>()) {
-                validate_struct(decl.get<Decl::Struct>());
-            } else if (decl.is<Decl::Pipeline>()) {
-                validate_pipeline(decl.get<Decl::Pipeline>());
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Function>()) {
+                validate_function(decl->get<Decl::Function>());
+            } else if (decl->is<Decl::Struct>()) {
+                validate_struct(decl->get<Decl::Struct>());
+            } else if (decl->is<Decl::Pipeline>()) {
+                validate_pipeline(decl->get<Decl::Pipeline>());
             } else {
                 assert(false);
             }
@@ -42,6 +42,22 @@ struct Validator {
         }
     }
     void validate_pipeline(Decl::Pipeline& p) {
+        constexpr std::array<const char*, 2> necessary_params = {
+            "Vertex", "Fragment",
+        };
+
+        for (const char* necessary_param : necessary_params) {
+            bool found = false;
+            for (const PipelineParameter& param : p.params) {
+                if (param.name.name == necessary_param) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                error_handler.error(ErrorType::MissingPipelineParameter, arena.string_pool.add(necessary_param), p.name.location);
+            }
+        }
     }
     void validate_stmt(Stmt& stmt) {
         if (stmt.is<Stmt::Return>()) {
@@ -76,9 +92,9 @@ struct Validator {
             }
         }
 
-        for (auto& decl : arena.decls) {
-            if (decl.is<Decl::Struct>()) {
-                if (decl.get<Decl::Struct>().name.name == type.name) {
+        for (auto decl : arena.decls) {
+            if (decl->is<Decl::Struct>()) {
+                if (decl->get<Decl::Struct>().name.name == type.name) {
                     return;
                 }
             }

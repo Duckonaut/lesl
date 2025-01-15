@@ -115,6 +115,14 @@ inline const char* token_type_to_string(TokenType type) {
             return "Less";
         case TokenType::LessEqual:
             return "LessEqual";
+        case TokenType::Pipe:
+            return "Pipe";
+        case TokenType::PipePipe:
+            return "PipePipe";
+        case TokenType::Amp:
+            return "Amp";
+        case TokenType::AmpAmp:
+            return "AmpAmp";
         case TokenType::Identifier:
             return "Identifier";
         case TokenType::Number:

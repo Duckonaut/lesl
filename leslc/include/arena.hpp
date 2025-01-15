@@ -1,22 +1,16 @@
 #pragma once
 
-#include <vector>
-
+#include "ref_container.hpp"
 #include "stringpool.hpp"
+#include "repr.hpp"
 
-struct CompilationArena;
-template <typename T> struct Ref;
-
-struct Module;
-struct Decl;
-struct Stmt;
-struct Expr;
+template <typename T> concept ArenaType = std::same_as<T, Decl> || std::same_as<T, Stmt> || std::same_as<T, Expr>;
 
 struct CompilationArena {
     StringPool string_pool;
-    std::vector<Expr> exprs;
-    std::vector<Stmt> stmts;
-    std::vector<Decl> decls;
+    RefContainer<Expr> exprs;
+    RefContainer<Stmt> stmts;
+    RefContainer<Decl> decls;
 
     int32_t generation = 0;
 
@@ -40,16 +34,16 @@ struct CompilationArena {
         generation++;
     }
 
-    template <typename T> Ref<T> alloc(T&& t) {
+    template <ArenaType T> Ref<T> alloc(T&& t) {
         if constexpr (std::same_as<T, Expr>) {
             exprs.push_back(std::forward<T>(t));
-            return Ref<T>(this, exprs.size() - 1, generation);
+            return Ref<T>(&exprs, exprs.size() - 1, generation);
         } else if constexpr (std::same_as<T, Stmt>) {
             stmts.push_back(std::forward<T>(t));
-            return Ref<T>(this, stmts.size() - 1, generation);
+            return Ref<T>(&stmts, stmts.size() - 1, generation);
         } else if constexpr (std::same_as<T, Decl>) {
             decls.push_back(std::forward<T>(t));
-            return Ref<T>(this, decls.size() - 1, generation);
+            return Ref<T>(&decls, decls.size() - 1, generation);
         } else {
             static_assert(false, "unsupported type");
         }

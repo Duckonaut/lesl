@@ -2,9 +2,9 @@
 
 #include "error_handler.hpp"
 #include "stringpool.hpp"
-#include "arena.hpp"
 #include "token.hpp"
 #include "unit.hpp"
+#include "arena.hpp"
 #include <cctype>
 
 struct Tokenizer final {

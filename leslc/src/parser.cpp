@@ -4,14 +4,12 @@
 #include <initializer_list>
 
 Parser::Parser(CompilationArena& arena, Tokenizer& tokenizer, ErrorHandler& error_handler)
-    : tokenizer(tokenizer), error_handler(error_handler), arena(arena) {
+    : tokenizer(tokenizer), arena(arena), error_handler(error_handler) {
     current = tokenizer.next();
     next = tokenizer.next();
 }
 
-Module Parser::parse() {
-    Module module;
-
+void Parser::parse() {
     while (true) {
         if (error_handler.has_errors()) {
             break;
@@ -22,18 +20,15 @@ Module Parser::parse() {
         }
 
         if (current.type == TokenType::Function) {
-            module.decls.push_back(parse_function());
+            parse_function();
         } else if (current.type == TokenType::Struct) {
-            Ref<Decl> s = parse_struct();
-            module.decls.push_back(std::move(s));
+            parse_struct();
         } else if (current.type == TokenType::Pipeline) {
-            module.decls.push_back(parse_pipeline());
+            parse_pipeline();
         } else {
             error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
         }
     }
-
-    return module;
 }
 
 Parser::~Parser() {}
@@ -77,8 +72,7 @@ Ref<Decl> Parser::parse_function() {
         step();
         if (current.type == TokenType::Comma) {
             step();
-        }
-        else if (current.type != TokenType::RightParen) {
+        } else if (current.type != TokenType::RightParen) {
             error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
             break;
         }
@@ -103,8 +97,7 @@ Ref<Decl> Parser::parse_function() {
         step();
         if (current.type == TokenType::Comma) {
             step();
-        }
-        else if (current.type != TokenType::RightParen) {
+        } else if (current.type != TokenType::RightParen) {
             error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
             break;
         }
@@ -114,9 +107,9 @@ Ref<Decl> Parser::parse_function() {
 
     consume(TokenType::RightParen);
 
-    f.stmts = std::move(parse_stmt_block());
+    f.stmts = parse_stmt_block();
 
-    return Decl{std::move(f)}.ref(arena);
+    return arena.alloc(Decl{ std::move(f) });
 }
 
 Ref<Decl> Parser::parse_struct() {
@@ -141,8 +134,7 @@ Ref<Decl> Parser::parse_struct() {
         step();
         if (current.type == TokenType::Comma) {
             step();
-        }
-        else if (current.type != TokenType::RightBrace) {
+        } else if (current.type != TokenType::RightBrace) {
             error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
             break;
         }
@@ -152,7 +144,7 @@ Ref<Decl> Parser::parse_struct() {
 
     consume(TokenType::RightBrace);
 
-    return Decl{std::move(s)}.ref(arena);
+    return arena.alloc(Decl{ std::move(s) });
 }
 
 Ref<Decl> Parser::parse_pipeline() {
@@ -178,8 +170,7 @@ Ref<Decl> Parser::parse_pipeline() {
         step();
         if (current.type == TokenType::Comma) {
             step();
-        }
-        else if (current.type != TokenType::RightBrace) {
+        } else if (current.type != TokenType::RightBrace) {
             error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
             break;
         }
@@ -189,7 +180,7 @@ Ref<Decl> Parser::parse_pipeline() {
 
     consume(TokenType::RightBrace);
 
-    return Decl{std::move(p)}.ref(arena);
+    return arena.alloc(Decl{ std::move(p) });
 }
 
 std::vector<Ref<Stmt>> Parser::parse_stmt_block() {
@@ -226,11 +217,11 @@ Ref<Stmt> Parser::parse_var() {
     step();
     expect(TokenType::Identifier);
     v.typedIdentifier.name = current;
-        step();
-        consume(TokenType::Equal);
-        v.expr = parse_expr();
+    step();
+    consume(TokenType::Equal);
+    v.expr = parse_expr();
 
-    return Stmt{ std::move(v) }.ref(arena);
+    return arena.alloc(Stmt{ std::move(v) });
 }
 
 Ref<Stmt> Parser::parse_return() {
@@ -239,11 +230,11 @@ Ref<Stmt> Parser::parse_return() {
     if (current.type != TokenType::RightBrace) {
         r.expr = parse_expr();
     }
-    return Stmt{ std::move(r) }.ref(arena);
+    return arena.alloc(Stmt{ std::move(r) });
 }
 
 Ref<Stmt> Parser::parse_expr_stmt() {
-    return Stmt{ parse_expr() }.ref(arena);
+    return arena.alloc(Stmt{ parse_expr() });
 }
 
 Ref<Expr> Parser::parse_expr() {
@@ -262,10 +253,7 @@ Ref<Expr> Parser::parse_binary_left_assoc_expr(
             if (current.type == type) {
                 any_match = true;
                 step();
-                lhs = Expr {
-                    Expr::Binary {
-                        op, lhs, (this->*parse_next)()
-                    } }.ref(arena);
+                lhs = arena.alloc(Expr{ Expr::Binary{ op, lhs, (this->*parse_next)() } });
                 break;
             }
         }
@@ -356,13 +344,15 @@ Ref<Expr> Parser::parse_factor_expr() {
 Ref<Expr> Parser::parse_unary() {
     if (current.type == TokenType::Minus) {
         step();
-        return Expr{
-            Expr::Unary{ Expr::UnaryOp::Neg, parse_unary(), },
-        }
-            .ref(arena);
+        return arena.alloc(Expr{
+            Expr::Unary{
+                Expr::UnaryOp::Neg,
+                parse_unary(),
+            },
+        });
     } else if (current.type == TokenType::Bang) {
         step();
-        return Expr{ Expr::Unary{ Expr::UnaryOp::Not, parse_unary() } }.ref(arena);
+        return arena.alloc(Expr{ Expr::Unary{ Expr::UnaryOp::Not, parse_unary() } });
     } else {
         return parse_access_or_call_or_list_access_or_field_access();
     }
@@ -374,7 +364,7 @@ Ref<Expr> Parser::parse_access_or_call_or_list_access_or_field_access() {
         if (current.type == TokenType::Dot) {
             step();
             expect(TokenType::Identifier);
-            e = Expr{ Expr::FieldAccess{ e, current } }.ref(arena);
+            e = arena.alloc(Expr{ Expr::FieldAccess{ e, current } });
             step();
         } else if (current.type == TokenType::LeftParen) {
             step();
@@ -389,13 +379,13 @@ Ref<Expr> Parser::parse_access_or_call_or_list_access_or_field_access() {
                     break;
                 }
             }
-            e = Expr{ Expr::Call{ e, args } }.ref(arena);
+            e = arena.alloc(Expr{ Expr::Call{ e, args } });
             step();
         } else if (current.type == TokenType::LeftBracket) {
             step();
             Ref<Expr> index = parse_expr();
             expect(TokenType::RightBracket);
-            e = Expr {Expr::ListAccess { e, index } }.ref(arena);
+            e = arena.alloc(Expr{ Expr::ListAccess{ e, index } });
             step();
         } else {
             break;
@@ -408,11 +398,11 @@ Ref<Expr> Parser::parse_primary() {
     if (current.type == TokenType::Identifier) {
         Expr e{ current };
         step();
-        return e.ref(arena);
+        return arena.alloc(std::move(e));
     } else if (current.type == TokenType::Number) {
         Expr e{ current.value.num };
         step();
-        return e.ref(arena);
+        return arena.alloc(std::move(e));
     } else if (current.type == TokenType::LeftParen) {
         step();
         Ref<Expr> e = parse_expr();
@@ -420,6 +410,6 @@ Ref<Expr> Parser::parse_primary() {
         return e;
     } else {
         error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
-        return Expr{ 0 }.ref(arena);
+        return arena.alloc(Expr{ 0 });
     }
 }

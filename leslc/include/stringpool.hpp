@@ -26,7 +26,7 @@ struct PoolStr final {
 };
 
 namespace std {
-template <> struct std::hash<PoolStr> {
+template <> struct hash<PoolStr> {
     size_t operator()(const PoolStr& str) const {
         size_t hash = 0;
         const char* data = str.c_str();

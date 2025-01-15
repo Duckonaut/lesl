@@ -2,8 +2,8 @@
 
 #include "error_handler.hpp"
 #include "token.hpp"
-#include "tokenizer.hpp"
 #include "repr.hpp"
+#include "tokenizer.hpp"
 
 #include <initializer_list>
 
@@ -18,7 +18,7 @@ struct Parser final {
     Parser(CompilationArena& arena, Tokenizer& tokenizer, ErrorHandler& error_handler);
     ~Parser();
 
-    Module parse();
+    void parse();
 
     Ref<Decl> parse_decl();
 

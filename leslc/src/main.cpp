@@ -9,15 +9,14 @@
 
 #include <fstream>
 #include <istream>
+#include <iterator>
 #include <optional>
 #include <spirv_binary_container.hpp>
 
-#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <ostream>
 #include <string>
-#include <chrono>
 
 #ifdef _WIN32
 #include <io.h>
@@ -90,7 +89,7 @@ int main(int argc, char* argv[]) {
 
     Parser parser(arena, tokenizer, error_handler);
 
-    Module module = parser.parse();
+    parser.parse();
 
     if (error_handler.has_errors()) {
         error_handler.dump(std::cerr);
@@ -99,7 +98,7 @@ int main(int argc, char* argv[]) {
 
     ReprPrinter printer{ std::cout };
 
-    for (const auto& decl : module.decls) {
+    for (auto decl : arena.decls) {
         printer.print(*decl);
     }
 
