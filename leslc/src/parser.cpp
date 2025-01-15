@@ -87,13 +87,13 @@ Ref<Decl> Parser::parse_function() {
     consume(TokenType::LeftParen);
 
     while (current.type != TokenType::RightParen) {
-        TypedIdentifier param;
+        TypedIdentifier ret;
 
         expect(TokenType::Identifier);
-        param.type = current;
+        ret.type = current;
         step();
         expect(TokenType::Identifier);
-        param.name = current;
+        ret.name = current;
         step();
         if (current.type == TokenType::Comma) {
             step();
@@ -102,7 +102,7 @@ Ref<Decl> Parser::parse_function() {
             break;
         }
 
-        f.rets.push_back(param);
+        f.rets.push_back(ret);
     }
 
     consume(TokenType::RightParen);

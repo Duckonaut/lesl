@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tracking_allocator.hpp"
+
 #include <vector>
 #include <stdexcept>
 
@@ -7,7 +9,7 @@ template <typename T> struct Ref;
 
 template <typename T>
 struct RefContainer {
-    std::vector<T> items;
+    std::vector<T, TrackingAllocator<T>> items;
     int32_t generation = 0;
 
     void clear() {
