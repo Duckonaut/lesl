@@ -49,6 +49,30 @@ void Parser::step() {
     next = tokenizer.next();
 }
 
+TypeRef Parser::parse_type_ref() {
+    TypeRef type;
+    expect(TokenType::Identifier);
+    type.name = current;
+    step();
+    while (current.type == TokenType::LeftBracket) {
+        step();
+        if (current.type == TokenType::RightBracket) {
+            type.array_sizes.push_back(0);
+        } else {
+            expect(TokenType::Number);
+            double num = current.value.num;
+            if (num != (uint32_t)num) {
+                error_handler.error(ErrorType::InvalidArraySize, current.location);
+            }
+            type.array_sizes.push_back((uint32_t)current.value.num);
+            step();
+            expect(TokenType::RightBracket);
+        }
+        step();
+    }
+    return type;
+}
+
 Ref<Decl> Parser::parse_function() {
     Decl::Function f;
 
@@ -65,7 +89,7 @@ Ref<Decl> Parser::parse_function() {
         TypedIdentifier param;
 
         expect(TokenType::Identifier);
-        param.type = current;
+        param.type = TypeRef{ current };
         step();
         expect(TokenType::Identifier);
         param.name = current;
@@ -89,9 +113,7 @@ Ref<Decl> Parser::parse_function() {
     while (current.type != TokenType::RightParen) {
         TypedIdentifier ret;
 
-        expect(TokenType::Identifier);
-        ret.type = current;
-        step();
+        ret.type = parse_type_ref();
         expect(TokenType::Identifier);
         ret.name = current;
         step();
@@ -126,9 +148,7 @@ Ref<Decl> Parser::parse_struct() {
     while (current.type != TokenType::RightBrace) {
         TypedIdentifier param;
 
-        expect(TokenType::Identifier);
-        param.type = current;
-        step();
+        param.type = parse_type_ref();
         expect(TokenType::Identifier);
         param.name = current;
         step();
@@ -212,9 +232,7 @@ std::vector<Ref<Stmt>> Parser::parse_stmt_block() {
 // Both can start with an identifier
 Ref<Stmt> Parser::parse_var() {
     Stmt::Var v;
-    expect(TokenType::Identifier);
-    v.typedIdentifier.type = current;
-    step();
+    v.typedIdentifier.type = parse_type_ref();
     expect(TokenType::Identifier);
     v.typedIdentifier.name = current;
     step();

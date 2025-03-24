@@ -29,9 +29,15 @@ struct Identifier {
     }
 };
 
+// Vastly simplified version of the structure of TypeInfo. We can resolve everything except nested arrays with just an Identifier.
+struct TypeRef {
+    Identifier name;
+    std::vector<uint32_t> array_sizes;
+};
+
 struct TypedIdentifier {
     Identifier name;
-    Identifier type;
+    TypeRef type;
 };
 
 struct PipelineParameter {
@@ -221,7 +227,7 @@ struct ReprPrinter {
         indent++;
         for (const TypedIdentifier& member : struct_.members) {
             print_indent();
-            out << member.type.name.c_str() << " " << member.name.name.c_str() << ",\n";
+            out << member.type.name.name.c_str() << " " << member.name.name.c_str() << ",\n";
         }
         indent--;
         print_indent();
@@ -232,7 +238,7 @@ struct ReprPrinter {
         out << colorize::magenta("function ") << function.name.name.c_str() << "(";
         for (size_t i = 0; i < function.params.size(); i++) {
             const TypedIdentifier& param = function.params[i];
-            out << param.type.name.c_str() << " " << param.name.name.c_str();
+            out << param.type.name.name.c_str() << " " << param.name.name.c_str();
             if (i + 1 < function.params.size()) {
                 out << ", ";
             }
@@ -240,7 +246,7 @@ struct ReprPrinter {
         out << ") -> (";
         for (size_t i = 0; i < function.rets.size(); i++) {
             const TypedIdentifier& ret = function.rets[i];
-            out << ret.type.name.c_str() << " " << ret.name.name.c_str();
+            out << ret.type.name.name.c_str() << " " << ret.name.name.c_str();
             if (i + 1 < function.rets.size()) {
                 out << ", ";
             }
@@ -295,7 +301,7 @@ struct ReprPrinter {
     }
 
     void print(const Stmt::Var& var) {
-        out << colorize::bright_blue(var.typedIdentifier.type.name.c_str()) << " "
+        out << colorize::bright_blue(var.typedIdentifier.type.name.name.c_str()) << " "
             << var.typedIdentifier.name.name.c_str();
         if (var.expr) {
             out << " = ";
@@ -437,3 +443,188 @@ struct ReprPrinter {
         out << "." << fieldAccess.field.name.c_str();
     }
 };
+
+struct TypeInfo {
+    PoolStr name;
+    uint32_t size;
+    uint32_t alignment;
+    uint32_t id;
+
+    enum class BuiltinPrimitive {
+        Void,
+        Bool,
+        Int,
+        Uint,
+        Float,
+    };
+
+    struct Primitive {
+        BuiltinPrimitive primitive;
+    };
+
+    struct Vector {
+        Ref<TypeInfo> element;
+        uint32_t size;
+    };
+
+    struct Matrix {
+        Ref<TypeInfo> vector_element;
+        uint32_t columns;
+    };
+
+    struct Struct {
+        std::vector<Ref<TypeInfo>> members;
+    };
+
+    struct Array {
+        Ref<TypeInfo> element;
+        bool is_sized;
+        uint32_t size;
+    };
+
+    std::variant<Primitive, Struct, Array, Vector, Matrix> data;
+
+    TypeInfo(Primitive&& primitive) : data(primitive) {}
+    TypeInfo(Struct&& struct_) : data(struct_) {}
+    TypeInfo(Array&& array) : data(array) {}
+    TypeInfo(Vector&& vector) : data(vector) {}
+    TypeInfo(Matrix&& matrix) : data(matrix) {}
+
+    static TypeInfo create_primitive(StringPool& pool, BuiltinPrimitive primitive) {
+        TypeInfo type{ Primitive{ primitive } };
+        switch (primitive) {
+            case BuiltinPrimitive::Void:
+                type.name = pool.add("void");
+                type.size = 0;
+                type.alignment = 0;
+                break;
+            case BuiltinPrimitive::Bool:
+                type.name = pool.add("bool");
+                type.size = 1;
+                type.alignment = 1;
+                break;
+            case BuiltinPrimitive::Int:
+                type.name = pool.add("int");
+                type.size = 4;
+                type.alignment = 4;
+                break;
+            case BuiltinPrimitive::Uint:
+                type.name = pool.add("uint");
+                type.size = 4;
+                type.alignment = 4;
+                break;
+            case BuiltinPrimitive::Float:
+                type.name = pool.add("float");
+                type.size = 4;
+                type.alignment = 4;
+                break;
+        }
+
+        return type;
+    }
+
+    static TypeInfo create_vector(StringPool& pool, Ref<TypeInfo> element, uint32_t size) {
+        TypeInfo type{ Vector{ element, size } };
+        type.name = pool.add(std::string(element->name.c_str()) + std::to_string(size));
+        type.size = element->size * size;
+        type.alignment = element->alignment;
+        return type;
+    }
+
+    static TypeInfo
+    create_matrix(StringPool& pool, Ref<TypeInfo> vector_element, uint32_t columns) {
+        TypeInfo type{ Matrix{ vector_element, columns } };
+        type.name =
+            pool.add(std::string(vector_element->name.c_str()) + "x" + std::to_string(columns));
+        type.size = vector_element->size * columns;
+        type.alignment = vector_element->alignment;
+        return type;
+    }
+
+    static TypeInfo create_struct(PoolStr name, std::vector<Ref<TypeInfo>> members) {
+        TypeInfo type{ Struct{ members } };
+        type.name = name;
+        type.size = 0;
+        type.alignment = 0;
+        for (const Ref<TypeInfo>& member : members) {
+            type.size += member->size;
+            type.alignment = std::max(type.alignment, member->alignment);
+        }
+        return type;
+    }
+
+    static TypeInfo create_array(StringPool& pool, Ref<TypeInfo> element, bool is_sized, uint32_t size) {
+        TypeInfo type{ Array{ element, is_sized, size } };
+        type.name = pool.add(
+            std::string(element->name.c_str()) +
+            (is_sized ? "[" + std::to_string(size) + "]" : "[]")
+        );
+        if (is_sized) {
+            type.size = element->size * size;
+        } else {
+            type.size = 0;
+        }
+        type.alignment = element->alignment;
+        return type;
+    }
+
+    template <typename T> bool is() const {
+        return std::holds_alternative<T>(data);
+    }
+
+    template <typename T> T& get() {
+        return std::get<T>(data);
+    }
+};
+
+std::ostream& operator<<(std::ostream& out, const TypeInfo& type) {
+    std::visit(
+        overloaded{
+            [&out](const TypeInfo::Primitive& builtin) {
+                switch (builtin.primitive) {
+                    case TypeInfo::BuiltinPrimitive::Void:
+                        out << "void";
+                        break;
+                    case TypeInfo::BuiltinPrimitive::Bool:
+                        out << "bool";
+                        break;
+                    case TypeInfo::BuiltinPrimitive::Int:
+                        out << "int";
+                        break;
+                    case TypeInfo::BuiltinPrimitive::Uint:
+                        out << "uint";
+                        break;
+                    case TypeInfo::BuiltinPrimitive::Float:
+                        out << "float";
+                        break;
+                }
+            },
+            [&out](const TypeInfo::Vector& vector) {
+                out << *vector.element << vector.size;
+            },
+            [&out](const TypeInfo::Matrix& matrix) {
+                out << *matrix.vector_element << "x" << matrix.columns;
+            },
+            [&out](const TypeInfo::Struct& struct_) {
+                out << "struct { ";
+                for (size_t i = 0; i < struct_.members.size(); i++) {
+                    out << *struct_.members[i];
+                    if (i + 1 < struct_.members.size()) {
+                        out << ", ";
+                    }
+                }
+                out << " }";
+            },
+            [&out](const TypeInfo::Array& array) {
+                out << *array.element;
+                if (array.is_sized) {
+                    out << "[" << array.size << "]";
+                } else {
+                    out << "[]";
+                }
+            },
+        },
+        type.data
+    );
+    return out;
+}

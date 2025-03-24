@@ -16,8 +16,14 @@ enum class ErrorType {
     UnknownType,
     FunctionRedefinition,
     StructRedefinition,
+    StructMemberRedefinition,
+    UnknownSizedArrayNotLast,
     PipelineRedefinition,
     MissingPipelineParameter,
+    InvalidArraySize,
+    InvalidVectorSize,
+    InvalidMatrixSize,
+    InvalidCompoundBaseType,
 };
 
 struct ErrorData {
@@ -60,12 +66,34 @@ struct Error {
                 out << "Struct " << colorize::bold(data.str.to_string())
                     << " was already defined";
                 break;
+            case ErrorType::StructMemberRedefinition:
+                out << "Struct member " << colorize::bold(data.str.to_string())
+                    << " was already defined";
+                break;
+            case ErrorType::UnknownSizedArrayNotLast:
+                out << "Zero-sized array " << colorize::bold(data.str.to_string())
+                    << " is not the last member of the struct";
+                break;
             case ErrorType::PipelineRedefinition:
                 out << "Pipeline " << colorize::bold(data.str.to_string())
                     << " was already defined";
                 break;
             case ErrorType::MissingPipelineParameter:
                 out << "Pipeline is missing parameter " << colorize::bold(data.str.to_string());
+                break;
+            case ErrorType::InvalidArraySize:
+                out << "Invalid array size";
+                break;
+            case ErrorType::InvalidVectorSize:
+                out << "Invalid vector size";
+                break;
+            case ErrorType::InvalidMatrixSize:
+                out << "Invalid matrix size";
+                break;
+            case ErrorType::InvalidCompoundBaseType:
+                out << "Invalid base type " << colorize::bold(data.str.to_string())
+                    << "for a compound type. Only basic types 'float', 'int' and 'uint' "
+                       "allowed";
                 break;
         }
 

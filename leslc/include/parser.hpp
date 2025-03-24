@@ -48,6 +48,8 @@ struct Parser final {
         Ref<Expr> (Parser::*parse_next)()
     );
 
+    TypeRef parse_type_ref();
+
     void expect(TokenType type);
     void consume(TokenType type);
     void step();

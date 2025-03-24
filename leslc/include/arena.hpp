@@ -7,7 +7,8 @@
 #include <concepts>
 
 template <typename T>
-concept ArenaType = std::same_as<T, Decl> || std::same_as<T, Stmt> || std::same_as<T, Expr>;
+concept ArenaType = std::same_as<T, Decl> || std::same_as<T, Stmt> || std::same_as<T, Expr> ||
+                    std::same_as<T, TypeInfo>;
 
 /// The CompilationArena is a container for all the objects that are created during the compilation process.
 /// As of right now, it contains the following objects:
@@ -21,6 +22,7 @@ struct CompilationArena {
     RefContainer<Expr> exprs;
     RefContainer<Stmt> stmts;
     RefContainer<Decl> decls;
+    RefContainer<TypeInfo> types;
 
     int32_t generation = 0;
 
@@ -30,16 +32,18 @@ struct CompilationArena {
         size_t exprs;
         size_t stmts;
         size_t decls;
+        size_t types;
     };
 
     Statistics statistics() const {
-        return { exprs.size(), stmts.size(), decls.size() };
+        return { exprs.size(), stmts.size(), decls.size(), types.size() };
     }
 
     void clear() {
         exprs.clear();
         stmts.clear();
         decls.clear();
+        types.clear();
 
         generation++;
     }
@@ -54,6 +58,9 @@ struct CompilationArena {
         } else if constexpr (std::same_as<T, Decl>) {
             decls.push_back(std::forward<T>(t));
             return Ref<T>(&decls, decls.size() - 1, generation);
+        } else if constexpr (std::same_as<T, TypeInfo>) {
+            types.push_back(std::forward<T>(t));
+            return Ref<T>(&types, types.size() - 1, generation);
         } else {
             static_assert(false, "unsupported type");
         }

@@ -162,12 +162,24 @@ class CodeGenerator final {
         spv.Name(decl_ids[s.name.name], s.name.name.c_str());
     }
 
+    uint32_t get_type_size_offset(uint32_t previous_offset, const TypeInfo& type_info) {
+        uint32_t size = type_info.size;
+        uint32_t alignment = type_info.alignment;
+
+        if (size % alignment != 0) {
+            size += alignment - (size % alignment);
+        }
+
+        return size;
+    }
+
     void generate_struct_decorations(const Decl::Struct& s) {
         int32_t n_ops = 0;
 
         uint32_t offset = 0;
 
-        for (const TypedIdentifier& _ : s.members) {
+
+        for (const TypedIdentifier& member : s.members) {
             spv.MemberDecorate(
                 decl_ids[s.name.name],
                 n_ops,
@@ -176,7 +188,7 @@ class CodeGenerator final {
                 1
             );
 
-            offset += 4;
+            offset += get_type_size_offset(offset, member.type);
             n_ops++;
         }
     }
