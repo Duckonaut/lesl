@@ -18,7 +18,7 @@ struct ShaderLink {
 struct Mario {
     float4x4 a,
     int3x2 b,
-    uint5x2 c,
+    uint4x2 c,
     float3 d,
     int[3] e,
     int[5][6] f,

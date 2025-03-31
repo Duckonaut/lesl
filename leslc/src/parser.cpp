@@ -57,7 +57,7 @@ TypeRef Parser::parse_type_ref() {
     while (current.type == TokenType::LeftBracket) {
         step();
         if (current.type == TokenType::RightBracket) {
-            type.array_sizes.push_back(0);
+            type.array_sizes.push_back(-1);
         } else {
             expect(TokenType::Number);
             double num = current.value.num;

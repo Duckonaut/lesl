@@ -1,4 +1,5 @@
 #include "arena.hpp"
+#include "colorize.hpp"
 #include "unit.hpp"
 #include "error_handler.hpp"
 #include "tokenizer.hpp"
@@ -109,6 +110,10 @@ int main(int argc, char* argv[]) {
     if (error_handler.has_errors()) {
         error_handler.dump(std::cerr);
         return 1;
+    }
+
+    for (auto typeinfo : arena.types) {
+        std::cout << colorize::bright_green("Type") << " " << typeinfo->name.c_str() << std::endl;
     }
 
     CodeGenerator codegen(arena);

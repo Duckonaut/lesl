@@ -86,7 +86,7 @@ class CodeGenerator final {
 
             std::vector<uint32_t> ops;
             for (TypedIdentifier& param : f.params) {
-                ops.push_back(resolve_type(param.type.name));
+                ops.push_back(resolve_type(param.type.name.name));
             }
 
             spv.EntryPoint(
@@ -188,7 +188,7 @@ class CodeGenerator final {
                 1
             );
 
-            offset += get_type_size_offset(offset, member.type);
+            offset += get_type_size_offset(offset, **member.type.resolved_type);
             n_ops++;
         }
     }
@@ -197,7 +197,7 @@ class CodeGenerator final {
         std::vector<uint32_t> ops;
 
         for (const TypedIdentifier& member : s.members) {
-            ops.push_back(resolve_type(member.type.name));
+            ops.push_back(resolve_type(member.type.name.name));
         }
 
         spv.TypeStruct(decl_ids[s.name.name], ops.data(), ops.size());
@@ -227,7 +227,7 @@ class CodeGenerator final {
                 name += ",";
             }
             first = false;
-            name += param.type.name.c_str();
+            name += param.type.name.name.c_str();
         }
 
         name += ")->(";
@@ -240,7 +240,7 @@ class CodeGenerator final {
                     name += ",";
                 }
                 first = false;
-                name += ret.type.name.c_str();
+                name += ret.type.name.name.c_str();
             }
         }
         name += ")";
@@ -252,13 +252,13 @@ class CodeGenerator final {
         std::vector<uint32_t> ops;
 
         for (const TypedIdentifier& param : f.params) {
-            ops.push_back(resolve_type(param.type.name));
+            ops.push_back(resolve_type(param.type.name.name));
         }
 
         std::vector<PoolStr> return_types;
 
         for (const TypedIdentifier& ret : f.rets) {
-            return_types.push_back(ret.type.name);
+            return_types.push_back(ret.type.name.name);
         }
 
         uint32_t return_type;
