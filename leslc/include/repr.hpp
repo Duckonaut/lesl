@@ -373,6 +373,7 @@ struct Decl {
         Identifier name;
         std::vector<TypedIdentifier> members;
         Opt<Ref<TypeInfo>> resolved_type;
+        bool is_interface;
     };
 
     struct Function {

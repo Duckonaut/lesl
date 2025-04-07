@@ -22,7 +22,6 @@ struct Mario {
     float3 d,
     int[3] e,
     int[5][6] f,
-    uint[] g,
 }
 
 function vertex (VsIn v) -> (ShaderLink o) {

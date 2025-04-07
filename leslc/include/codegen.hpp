@@ -1,5 +1,7 @@
 #pragma once
 
+#include "log.hpp"
+#include "utils.hpp"
 #include "spirv/1.0/spirv.hpp"
 #include "spirv/1.0/GLSL.std.450.h"
 
@@ -14,6 +16,57 @@
 #include <ostream>
 #include <unordered_map>
 #include <variant>
+
+struct BindingManager final {
+    enum class BindingAllocationMode {
+        SingleInputMultipleUniform,
+        MultiInput,
+    };
+
+    BindingAllocationMode mode;
+
+    bool already_allocated_input = false;
+
+    uint32_t binding = 0;
+    uint32_t set = 0;
+    uint32_t location = 0;
+
+    BindingManager(BindingAllocationMode mode) : mode(mode) {}
+
+    void decorate(spv_binary::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
+        switch (mode) {
+            case BindingAllocationMode::SingleInputMultipleUniform:
+                if (already_allocated_input) {
+                    decorate_as_uniform(spv, s, struct_id);
+                }
+                else {
+                    decorate_as_input(spv, s, struct_id);
+                    already_allocated_input = true;
+                }
+                break;
+            case BindingAllocationMode::MultiInput:
+                decorate_as_input(spv, s, struct_id);
+                break;
+        }
+    }
+
+    void decorate_as_input(spv_binary::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
+        location = 0;
+
+        spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+
+        for (uint32_t i = 0; i < s.members.size(); i++) {
+            spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
+            location++;
+        }
+
+        binding++;
+    }
+
+    void decorate_as_uniform(spv_binary::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
+
+    }
+};
 
 class CodeGenerator final {
   public:
@@ -33,6 +86,8 @@ class CodeGenerator final {
     };
 
     std::vector<GlobalInterface> global_interfaces;
+
+    BindingManager binding_manager;
 
     CodeGenerator(CompilationArena& arena) : arena(arena) {}
 
@@ -259,7 +314,7 @@ class CodeGenerator final {
                 interfaces.size()
             );
 
-            spv.ExecutionMode(decl_ids[name], spv::ExecutionModeOriginLowerLeft);
+            spv.ExecutionMode(decl_ids[name], spv::ExecutionModeOriginUpperLeft);
         }
     }
 
@@ -392,6 +447,19 @@ class CodeGenerator final {
 
             offset += get_type_size_offset(offset, **member.type.resolved_type);
             n_ops++;
+        }
+
+        bool is_interface = false;
+
+        for (const auto& intf : global_interfaces) {
+            if (intf.type == s.resolved_type) {
+                is_interface = true;
+                break;
+            }
+        }
+
+        if (is_interface) {
+            binding_manager.decorate(spv, s, decl_ids[s.name.name]);
         }
     }
 

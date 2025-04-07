@@ -1,11 +1,13 @@
 #pragma once
 
 #include "arena.hpp"
+#include "log.hpp"
 #include "ref_container.hpp"
 #include "repr.hpp"
 #include "repr_walker.hpp"
 #include "error_handler.hpp"
 
+#include <algorithm>
 #include <array>
 #include <variant>
 
@@ -207,7 +209,7 @@ struct Validator {
             validate_type(member.type);
         }
 
-        // check for zero-sized arrays that aren't the last member
+        // check for runtime sized arrays that aren't the last member
 
         for (size_t i = 0; i < s.members.size(); i++) {
             if (s.members[i].type.array_sizes.size() > 0 &&
@@ -215,6 +217,18 @@ struct Validator {
                 i != s.members.size() - 1) {
                 error_handler.error(ErrorType::InvalidArraySize, s.members[i].name.location);
             }
+        }
+
+        // check if runtime sized array exists and struct is not an interface
+
+        bool has_runtime_array =
+            std::any_of(s.members.begin(), s.members.end(), [](const auto& member) {
+                return member.type.array_sizes.size() > 0 &&
+                       member.type.array_sizes[member.type.array_sizes.size() - 1] == -1;
+            });
+
+        if (has_runtime_array && !s.is_interface) {
+            error_handler.error(ErrorType::RuntimeSizedArrayInStruct, s.name.name, s.name.location);
         }
 
         // check for duplicate members

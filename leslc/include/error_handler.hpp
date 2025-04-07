@@ -24,6 +24,7 @@ enum class ErrorType {
     InvalidVectorSize,
     InvalidMatrixSize,
     InvalidCompoundBaseType,
+    RuntimeSizedArrayInStruct,
 };
 
 struct ErrorData {
@@ -94,6 +95,11 @@ struct Error {
                 out << "Invalid base type " << colorize::bold(data.str.to_string())
                     << "for a compound type. Only basic types 'float', 'int' and 'uint' "
                        "allowed";
+                break;
+            case ErrorType::RuntimeSizedArrayInStruct:
+                out << "Runtime sized array is not allowed in struct "
+                    << colorize::bold(data.str.to_string())
+                    << " as it is not an interface (input or output)";
                 break;
         }
 
