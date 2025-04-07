@@ -24,7 +24,21 @@ struct Validator {
         void visit(TypedIdentifier& typedIdentifier) override {
             ReprWalker::visit(typedIdentifier);
 
-            typedIdentifier.type.resolved_type = create_or_get_info(arena, typedIdentifier.type);
+            typedIdentifier.type.resolved_type =
+                create_or_get_info(arena, typedIdentifier.type);
+        }
+
+        void visit(Decl::Struct& struct_) override {
+            ReprWalker::visit(struct_);
+
+            struct_.resolved_type = create_or_get_info(
+                arena,
+                TypeRef{
+                    struct_.name,
+                    {},
+                    {},
+                }
+            );
         }
 
         Ref<TypeInfo> create_or_get_info(CompilationArena& arena, const TypeRef& type) {
@@ -168,7 +182,12 @@ struct Validator {
         // fill in type infos
         TypeInfoFiller filler(arena);
         for (Ref<Decl> decl : arena.decls) {
-            std::visit([&filler](auto& decl) { filler.visit(decl); }, decl->data);
+            std::visit(
+                [&filler](auto& decl) {
+                    filler.visit(decl);
+                },
+                decl->data
+            );
         }
     }
 
@@ -312,7 +331,19 @@ struct Validator {
             }
         }
 
-        if (is_vector || is_matrix) {
+        if (is_matrix) {
+            if (name == "float") {
+                return;
+            } else {
+                error_handler.error(
+                    ErrorType::InvalidCompoundBaseType,
+                    type.name.name,
+                    type.name.location
+                );
+
+                return;
+            }
+        } else if (is_vector) {
             if (name == "float" || name == "int" || name == "uint") {
                 return;
             } else {

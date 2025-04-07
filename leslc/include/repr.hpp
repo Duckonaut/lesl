@@ -372,6 +372,7 @@ struct Decl {
     struct Struct {
         Identifier name;
         std::vector<TypedIdentifier> members;
+        Opt<Ref<TypeInfo>> resolved_type;
     };
 
     struct Function {
@@ -379,6 +380,7 @@ struct Decl {
         std::vector<TypedIdentifier> params;
         std::vector<TypedIdentifier> rets;
         std::vector<Ref<Stmt>> stmts;
+        uint32_t return_type_id;
     };
 
     struct Pipeline {

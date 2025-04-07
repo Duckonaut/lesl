@@ -7,10 +7,13 @@
 
 #include "repr.hpp"
 #include "arena.hpp"
+#include "stringpool.hpp"
 
 #include <algorithm>
+#include <iostream>
 #include <ostream>
 #include <unordered_map>
+#include <variant>
 
 class CodeGenerator final {
   public:
@@ -19,6 +22,17 @@ class CodeGenerator final {
 
     uint32_t glsl_ext;
     std::unordered_map<PoolStr, uint32_t> decl_ids;
+    std::unordered_map<int32_t, uint32_t> int_constant_ids;
+
+    struct GlobalInterface {
+        bool is_input;
+        bool is_vertex;
+        Ref<TypeInfo> type;
+        uint32_t id;
+        uint32_t pointer_type;
+    };
+
+    std::vector<GlobalInterface> global_interfaces;
 
     CodeGenerator(CompilationArena& arena) : arena(arena) {}
 
@@ -34,13 +48,38 @@ class CodeGenerator final {
             }
         }
 
+        preallocate_interface_ids();
         generate_entry_points();
         generate_debug_info();
         generate_decorations();
         generate_builtins();
         generate_types();
-        generate_constants();
         generate_functions();
+
+        for (auto& [name, id] : decl_ids) {
+            std::cout << colorize::green(name.c_str()) << " -> " << colorize::yellow(id)
+                      << std::endl;
+        }
+
+        uint i = 5;
+        uint opn = 0;
+        while (i < spv.words.size()) {
+            uint32_t inst = spv.words[i];
+            uint32_t word_count = (inst >> 16) & 0xffff;
+
+            std::cout << opn << " " << colorize::cyan("OpID ")
+                      << colorize::yellow(inst & 0xffff) << colorize::cyan(" WordCount ")
+                      << colorize::yellow(word_count) << ": ";
+
+            for (uint j = 0; j < word_count; j++) {
+                printf("%08x ", spv.words[i + j]);
+            }
+
+            printf("\n");
+
+            i += word_count;
+            opn++;
+        }
 
         spv.update_bound();
     }
@@ -49,6 +88,85 @@ class CodeGenerator final {
         spv.Capability(spv::CapabilityShader);
         glsl_ext = spv.ExtInstImportNew("GLSL.std.450");
         spv.MemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
+    }
+
+    void preallocate_interface_ids() {
+        std::vector<PoolStr> fragment_entry_points;
+        std::vector<PoolStr> vertex_entry_points;
+
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Pipeline>()) {
+                Decl::Pipeline& p = decl->get<Decl::Pipeline>();
+                for (PipelineParameter& param : p.params) {
+                    if (param.name.name == "Vertex") {
+                        if (std::find(
+                                vertex_entry_points.begin(),
+                                vertex_entry_points.end(),
+                                param.value.name
+                            ) == vertex_entry_points.end()) {
+                            vertex_entry_points.push_back(param.value.name);
+                        }
+                    } else if (param.name.name == "Fragment") {
+                        if (std::find(
+                                fragment_entry_points.begin(),
+                                fragment_entry_points.end(),
+                                param.value.name
+                            ) == fragment_entry_points.end()) {
+                            fragment_entry_points.push_back(param.value.name);
+                        }
+                    }
+                }
+            }
+        }
+
+        std::vector<Ref<TypeInfo>> vertex_inputs;
+        std::vector<Ref<TypeInfo>> vertex_outputs;
+        std::vector<Ref<TypeInfo>> fragment_inputs;
+        std::vector<Ref<TypeInfo>> fragment_outputs;
+
+        for (PoolStr& name : vertex_entry_points) {
+            Decl::Function& f = find_function(name);
+
+            for (TypedIdentifier& param : f.params) {
+                vertex_inputs.push_back(param.type.resolved_type.value());
+            }
+
+            for (TypedIdentifier& ret : f.rets) {
+                vertex_outputs.push_back(ret.type.resolved_type.value());
+            }
+        }
+
+        for (PoolStr& name : fragment_entry_points) {
+            Decl::Function& f = find_function(name);
+
+            for (TypedIdentifier& param : f.params) {
+                fragment_inputs.push_back(param.type.resolved_type.value());
+            }
+
+            for (TypedIdentifier& ret : f.rets) {
+                fragment_outputs.push_back(ret.type.resolved_type.value());
+            }
+        }
+
+        for (Ref<TypeInfo>& type : vertex_inputs) {
+            uint32_t id = spv.get_id();
+            global_interfaces.push_back({ true, true, type, id, 0 });
+        }
+
+        for (Ref<TypeInfo>& type : vertex_outputs) {
+            uint32_t id = spv.get_id();
+            global_interfaces.push_back({ false, true, type, id, 0 });
+        }
+
+        for (Ref<TypeInfo>& type : fragment_inputs) {
+            uint32_t id = spv.get_id();
+            global_interfaces.push_back({ true, false, type, id, 0 });
+        }
+
+        for (Ref<TypeInfo>& type : fragment_outputs) {
+            uint32_t id = spv.get_id();
+            global_interfaces.push_back({ false, false, type, id, 0 });
+        }
     }
 
     void generate_entry_points() {
@@ -67,8 +185,7 @@ class CodeGenerator final {
                             ) == vertex_entry_points.end()) {
                             vertex_entry_points.push_back(param.value.name);
                         }
-                    } else
-                    if (param.name.name == "Fragment") {
+                    } else if (param.name.name == "Fragment") {
                         if (std::find(
                                 fragment_entry_points.begin(),
                                 fragment_entry_points.end(),
@@ -81,6 +198,37 @@ class CodeGenerator final {
             }
         }
 
+        for (PoolStr& name : vertex_entry_points) {
+            Decl::Function& f = find_function(name);
+
+            std::vector<uint32_t> ops;
+            for (TypedIdentifier& param : f.params) {
+                ops.push_back(resolve_type(param.type.name.name));
+            }
+
+            std::vector<uint32_t> interfaces;
+
+            for (GlobalInterface& gi : global_interfaces) {
+                if (gi.is_input && gi.is_vertex) {
+                    interfaces.push_back(gi.id);
+                }
+            }
+
+            for (GlobalInterface& gi : global_interfaces) {
+                if (!gi.is_input && gi.is_vertex) {
+                    interfaces.push_back(gi.id);
+                }
+            }
+
+            spv.EntryPoint(
+                spv::ExecutionModelVertex,
+                decl_ids[name],
+                name.c_str(),
+                interfaces.data(),
+                interfaces.size()
+            );
+        }
+
         for (PoolStr& name : fragment_entry_points) {
             Decl::Function& f = find_function(name);
 
@@ -89,13 +237,29 @@ class CodeGenerator final {
                 ops.push_back(resolve_type(param.type.name.name));
             }
 
+            std::vector<uint32_t> interfaces;
+
+            for (GlobalInterface& gi : global_interfaces) {
+                if (gi.is_input && !gi.is_vertex) {
+                    interfaces.push_back(gi.id);
+                }
+            }
+
+            for (GlobalInterface& gi : global_interfaces) {
+                if (!gi.is_input && !gi.is_vertex) {
+                    interfaces.push_back(gi.id);
+                }
+            }
+
             spv.EntryPoint(
                 spv::ExecutionModelFragment,
                 decl_ids[name],
                 name.c_str(),
-                nullptr,
-                0
+                interfaces.data(),
+                interfaces.size()
             );
+
+            spv.ExecutionMode(decl_ids[name], spv::ExecutionModeOriginLowerLeft);
         }
     }
 
@@ -117,36 +281,81 @@ class CodeGenerator final {
     }
 
     void generate_builtins() {
-        uint32_t void_id = decl_ids[arena.string_pool.add("void")] = spv.TypeVoidNew();
-        uint32_t bool_id = decl_ids[arena.string_pool.add("bool")] = spv.TypeBoolNew();
-        uint32_t float_id = decl_ids[arena.string_pool.add("float")] = spv.TypeFloatNew(32);
-        uint32_t uint_id = decl_ids[arena.string_pool.add("uint")] = spv.TypeIntNew(32, 0);
-        uint32_t int_id = decl_ids[arena.string_pool.add("int")] = spv.TypeIntNew(32, 1);
+        decl_ids[arena.string_pool.add("void")] = spv.TypeVoidNew();
+        decl_ids[arena.string_pool.add("bool")] = spv.TypeBoolNew();
+        decl_ids[arena.string_pool.add("int")] = spv.TypeIntNew(32, 1);
+        decl_ids[arena.string_pool.add("uint")] = spv.TypeIntNew(32, 0);
+        decl_ids[arena.string_pool.add("float")] = spv.TypeFloatNew(32);
+    }
 
-        decl_ids[arena.string_pool.add("float2")] = spv.TypeVectorNew(float_id, 2);
-        decl_ids[arena.string_pool.add("float3")] = spv.TypeVectorNew(float_id, 3);
-        decl_ids[arena.string_pool.add("float4")] = spv.TypeVectorNew(float_id, 4);
+    uint32_t get_constant_int(int32_t value) {
+        auto it = int_constant_ids.find(value);
+        if (it != int_constant_ids.end()) {
+            return it->second;
+        }
 
-        decl_ids[arena.string_pool.add("uint2")] = spv.TypeVectorNew(uint_id, 2);
-        decl_ids[arena.string_pool.add("uint3")] = spv.TypeVectorNew(uint_id, 3);
-        decl_ids[arena.string_pool.add("uint4")] = spv.TypeVectorNew(uint_id, 4);
+        uint32_t id = spv.ConstantNew(decl_ids[arena.string_pool.add("int")], value);
+        int_constant_ids[value] = id;
+        return id;
+    }
 
-        decl_ids[arena.string_pool.add("int2")] = spv.TypeVectorNew(int_id, 2);
-        decl_ids[arena.string_pool.add("int3")] = spv.TypeVectorNew(int_id, 3);
-        decl_ids[arena.string_pool.add("int4")] = spv.TypeVectorNew(int_id, 4);
+    void generate_type_from_info(const TypeInfo& type_info) {
+        std::visit(
+            overloaded{
+                [&](const TypeInfo::Primitive&) {},
+                [&](const TypeInfo::Vector& v) {
+                    uint32_t underlying_type_id = resolve_type(v.element->name);
+                    uint32_t type_id = spv.TypeVectorNew(underlying_type_id, v.size);
+                    decl_ids[type_info.name] = type_id;
+                },
+                [&](const TypeInfo::Matrix& m) {
+                    uint32_t underlying_type_id = resolve_type(m.vector_element->name);
+                    uint32_t type_id = spv.TypeMatrixNew(underlying_type_id, m.columns);
+                    decl_ids[type_info.name] = type_id;
+                },
+                [&](const TypeInfo::Struct& s) {
+                    generate_struct(type_info.name, s);
+                },
+                [&](const TypeInfo::Array& a) {
+                    uint32_t underlying_type_id = resolve_type(a.element->name);
+                    if (a.is_sized) {
+                        uint32_t type_id =
+                            spv.TypeArrayNew(underlying_type_id, get_constant_int(a.size));
+                        decl_ids[type_info.name] = type_id;
+                    } else {
+                        uint32_t type_id = spv.TypeRuntimeArrayNew(underlying_type_id);
+                        decl_ids[type_info.name] = type_id;
+                    }
+                },
+            },
+            type_info.data
+        );
     }
 
     void generate_types() {
-        for (Ref<Decl> decl : arena.decls) {
-            if (decl->is<Decl::Struct>()) {
-                generate_struct(decl->get<Decl::Struct>());
-            }
+        for (Ref<TypeInfo> ti : arena.types) {
+            generate_type_from_info(*ti);
         }
 
         for (Ref<Decl> decl : arena.decls) {
             if (decl->is<Decl::Function>()) {
                 generate_function_types(decl->get<Decl::Function>());
             }
+        }
+
+        for (GlobalInterface& gi : global_interfaces) {
+            uint32_t type_id = resolve_type(gi.type->name);
+            uint32_t pointer_type = spv.TypePointerNew(
+                gi.is_input ? spv::StorageClassInput : spv::StorageClassOutput,
+                type_id
+            );
+            gi.pointer_type = pointer_type;
+
+            spv.Variable(
+                gi.pointer_type,
+                gi.id,
+                gi.is_input ? spv::StorageClassInput : spv::StorageClassOutput
+            );
         }
     }
 
@@ -178,32 +387,23 @@ class CodeGenerator final {
 
         uint32_t offset = 0;
 
-
         for (const TypedIdentifier& member : s.members) {
-            spv.MemberDecorate(
-                decl_ids[s.name.name],
-                n_ops,
-                spv::DecorationOffset,
-                &offset,
-                1
-            );
+            spv.MemberDecorate(decl_ids[s.name.name], n_ops, spv::DecorationOffset, &offset, 1);
 
             offset += get_type_size_offset(offset, **member.type.resolved_type);
             n_ops++;
         }
     }
 
-    void generate_struct(const Decl::Struct& s) {
+    void generate_struct(const PoolStr& name, const TypeInfo::Struct& s) {
         std::vector<uint32_t> ops;
 
-        for (const TypedIdentifier& member : s.members) {
-            ops.push_back(resolve_type(member.type.name.name));
+        for (const Ref<TypeInfo>& member : s.members) {
+            ops.push_back(resolve_type(member->name));
         }
 
-        spv.TypeStruct(decl_ids[s.name.name], ops.data(), ops.size());
+        spv.TypeStruct(decl_ids[name], ops.data(), ops.size());
     }
-
-    void generate_constants() {}
 
     void generate_functions() {
         for (Ref<Decl> decl : arena.decls) {
@@ -248,7 +448,70 @@ class CodeGenerator final {
         return arena.string_pool.add(name);
     }
 
-    void generate_function_types(const Decl::Function& f) {
+    PoolStr clobber(const Decl::Struct& s) {
+        std::string name = "Struct(";
+        bool first = true;
+        for (const TypedIdentifier& member : s.members) {
+            if (!first) {
+                name += ",";
+            }
+            first = false;
+            name += member.type.name.name.c_str();
+        }
+        name += ")";
+
+        return arena.string_pool.add(name);
+    }
+
+    PoolStr clobber(std::vector<PoolStr>& names) {
+        std::string name = "Tuple(";
+        bool first = true;
+        for (const PoolStr& n : names) {
+            if (!first) {
+                name += ",";
+            }
+            first = false;
+            name += n.c_str();
+        }
+        name += ")";
+
+        return arena.string_pool.add(name);
+    }
+
+    void generate_function_types(Decl::Function& f) {
+        // check if entry point
+        // if entry point, it's a void() function
+        bool is_entry_point = false;
+
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Pipeline>()) {
+                Decl::Pipeline& p = decl->get<Decl::Pipeline>();
+                for (PipelineParameter& param : p.params) {
+                    if (param.value.name == f.name.name) {
+                        is_entry_point = true;
+                    }
+                }
+            }
+        }
+
+        if (is_entry_point) {
+            if (std::find_if(decl_ids.begin(), decl_ids.end(), [&](const auto& kvp) {
+                    const PoolStr& t_name = std::get<0>(kvp);
+                    return t_name == "Fn()->(void)";
+                }) != decl_ids.end()) {
+                f.return_type_id = decl_ids[arena.string_pool.add("void")];
+                return;
+            } else {
+                uint32_t return_type_id = resolve_type(arena.string_pool.add("void"));
+
+                uint32_t type_id = spv.TypeFunctionNew(return_type_id, nullptr, 0);
+                f.return_type_id = return_type_id;
+
+                decl_ids[arena.string_pool.add("Fn()->(void)")] = type_id;
+                return;
+            }
+        }
+
         std::vector<uint32_t> ops;
 
         for (const TypedIdentifier& param : f.params) {
@@ -265,17 +528,20 @@ class CodeGenerator final {
 
         if (return_types.size() == 0) {
             return_type = resolve_type(arena.string_pool.add("void"));
-        }
-        else if (return_types.size() == 1) {
+        } else if (return_types.size() == 1) {
             return_type = resolve_type(return_types[0]);
-        }
-        else {
-            // TODO: handle multiple return types
-            for (PoolStr& return_type : return_types) {
-                printf("RETURN TYPE: %s\n", return_type.c_str());
+        } else {
+            std::vector<uint32_t> ops;
+            for (const PoolStr& return_type : return_types) {
+                ops.push_back(resolve_type(return_type));
             }
-            assert(false);
+
+            return_type = spv.TypeStructNew(ops.data(), ops.size());
+
+            decl_ids[clobber(return_types)] = return_type;
         }
+
+        f.return_type_id = return_type;
 
         uint32_t type_id = spv.TypeFunctionNew(return_type, ops.data(), ops.size());
 
@@ -283,18 +549,30 @@ class CodeGenerator final {
     }
 
     void generate_function(const Decl::Function& f) {
+        bool is_entry_point = false;
+
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Pipeline>()) {
+                Decl::Pipeline& p = decl->get<Decl::Pipeline>();
+                for (PipelineParameter& param : p.params) {
+                    if (param.value.name == f.name.name) {
+                        is_entry_point = true;
+                    }
+                }
+            }
+        }
+
         std::vector<uint32_t> ops;
 
-        uint32_t type_id = decl_ids[clobber(f)];
+        uint32_t type_id = is_entry_point ? decl_ids[arena.string_pool.add("Fn()->(void)")]
+                                          : decl_ids[clobber(f)];
 
         uint32_t function_id = decl_ids[f.name.name];
 
-        spv.Function(
-            decl_ids[arena.string_pool.add("void")],
-            function_id,
-            spv::FunctionControlMaskNone,
-            type_id
-        );
+        spv.Function(f.return_type_id, function_id, spv::FunctionControlMaskNone, type_id);
+
+        spv.LabelNew();
+        spv.Return();
 
         spv.FunctionEnd();
     }
