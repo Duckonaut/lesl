@@ -116,7 +116,12 @@ int main(int argc, char* argv[]) {
         std::cout << colorize::bright_green("Type") << " " << typeinfo->name.c_str() << std::endl;
     }
 
-    CodeGenerator codegen(arena);
+    BindingManager binding_manager(
+        BindingManager::TargetAPI::SDL3,
+        BindingManager::BindingAllocationMode::SingleInputMultipleUniform
+    );
+
+    CodeGenerator codegen(arena, binding_manager);
 
     codegen.generate();
 

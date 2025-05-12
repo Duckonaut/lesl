@@ -17,31 +17,65 @@
 #include <unordered_map>
 #include <variant>
 
+enum class StorageClass : uint32_t {
+	Input = spv::StorageClassInput,
+	Output = spv::StorageClassOutput,
+	Uniform = spv::StorageClassUniform,
+	StorageBuffer = spv::StorageClassStorageBuffer,
+};
+
+enum class PipelineStage {
+	Vertex,
+	Fragment,
+};
+
+struct GlobalInterface {
+    StorageClass storage_class;
+    PipelineStage pipeline_stage;
+
+    Ref<TypeInfo> type;
+    uint32_t id;
+    uint32_t pointer_type;
+};
+
 struct BindingManager final {
+    enum class TargetAPI {
+        Vulkan, // arbitrary binding layout for Vulkan
+        SDL3,   // bind resources to the schema expected by SDL3
+    };
     enum class BindingAllocationMode {
         SingleInputMultipleUniform,
         MultiInput,
     };
 
+    TargetAPI target_api;
     BindingAllocationMode mode;
-
-    bool already_allocated_input = false;
 
     uint32_t binding = 0;
     uint32_t set = 0;
     uint32_t location = 0;
 
-    BindingManager(BindingAllocationMode mode) : mode(mode) {}
+    bool vertex_input_allocated = false;
+    bool fragment_input_allocated = false;
+    bool vertex_input_decorated = false;
+    bool fragment_input_decorated = false;
 
-    void decorate(spv_binary::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
+    BindingManager(TargetAPI target_api, BindingAllocationMode mode) : target_api(target_api), mode(mode) {}
+
+    void decorate(spv_binary::BinaryContainer& spv, PipelineStage context, const Decl::Struct& s, uint32_t struct_id) {
         switch (mode) {
             case BindingAllocationMode::SingleInputMultipleUniform:
-                if (already_allocated_input) {
+                if ((context == PipelineStage::Vertex && vertex_input_decorated)
+                    || (context == PipelineStage::Fragment && fragment_input_decorated)) {
                     decorate_as_uniform(spv, s, struct_id);
                 }
                 else {
                     decorate_as_input(spv, s, struct_id);
-                    already_allocated_input = true;
+                    if (context == PipelineStage::Vertex) {
+                        vertex_input_decorated = true;
+                    } else if (context == PipelineStage::Fragment) {
+                        fragment_input_decorated = true;
+                    }
                 }
                 break;
             case BindingAllocationMode::MultiInput:
@@ -64,7 +98,35 @@ struct BindingManager final {
     }
 
     void decorate_as_uniform(spv_binary::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
+    }
 
+    void allocate_variable(
+        spv_binary::BinaryContainer& spv, GlobalInterface& gi, uint32_t type_id
+    ) {
+        uint32_t pointer_type = spv.TypePointerNew((uint32_t)gi.storage_class, type_id);
+        gi.pointer_type = pointer_type;
+        spv.Variable(pointer_type, gi.id, (uint32_t)gi.storage_class);
+    }
+    StorageClass get_input_storage_class(PipelineStage stage) {
+        switch (stage) {
+            case PipelineStage::Vertex:
+                if (vertex_input_allocated) {
+                    return StorageClass::Uniform;
+                } else {
+                    vertex_input_allocated = true;
+                    return StorageClass::Input;
+                }
+                break;
+            case PipelineStage::Fragment:
+                if (fragment_input_allocated) {
+                    return StorageClass::Uniform;
+                } else {
+                    fragment_input_allocated = true;
+                    return StorageClass::Input;
+                }
+                break;
+        }
+        assert(false);
     }
 };
 
@@ -77,19 +139,12 @@ class CodeGenerator final {
     std::unordered_map<PoolStr, uint32_t> decl_ids;
     std::unordered_map<int32_t, uint32_t> int_constant_ids;
 
-    struct GlobalInterface {
-        bool is_input;
-        bool is_vertex;
-        Ref<TypeInfo> type;
-        uint32_t id;
-        uint32_t pointer_type;
-    };
-
     std::vector<GlobalInterface> global_interfaces;
 
-    BindingManager binding_manager;
+    BindingManager& binding_manager;
 
-    CodeGenerator(CompilationArena& arena) : arena(arena) {}
+    CodeGenerator(CompilationArena& arena, BindingManager& binding_manager)
+        : arena(arena), binding_manager(binding_manager) {}
 
     void generate() {
         generate_prelude();
@@ -116,8 +171,8 @@ class CodeGenerator final {
                       << std::endl;
         }
 
-        uint i = 5;
-        uint opn = 0;
+        uint32_t i = 5;
+        uint32_t opn = 0;
         while (i < spv.words.size()) {
             uint32_t inst = spv.words[i];
             uint32_t word_count = (inst >> 16) & 0xffff;
@@ -126,7 +181,7 @@ class CodeGenerator final {
                       << colorize::yellow(inst & 0xffff) << colorize::cyan(" WordCount ")
                       << colorize::yellow(word_count) << ": ";
 
-            for (uint j = 0; j < word_count; j++) {
+            for (uint32_t j = 0; j < word_count; j++) {
                 printf("%08x ", spv.words[i + j]);
             }
 
@@ -205,22 +260,26 @@ class CodeGenerator final {
 
         for (Ref<TypeInfo>& type : vertex_inputs) {
             uint32_t id = spv.get_id();
-            global_interfaces.push_back({ true, true, type, id, 0 });
+            global_interfaces.push_back(
+                { binding_manager.get_input_storage_class(PipelineStage::Vertex), PipelineStage::Vertex, type, id, 0 }
+            );
         }
 
         for (Ref<TypeInfo>& type : vertex_outputs) {
             uint32_t id = spv.get_id();
-            global_interfaces.push_back({ false, true, type, id, 0 });
+            global_interfaces.push_back({ StorageClass::Output, PipelineStage::Vertex, type, id, 0 });
         }
 
         for (Ref<TypeInfo>& type : fragment_inputs) {
             uint32_t id = spv.get_id();
-            global_interfaces.push_back({ true, false, type, id, 0 });
+            global_interfaces.push_back(
+                { binding_manager.get_input_storage_class(PipelineStage::Fragment), PipelineStage::Fragment, type, id, 0 }
+            );
         }
 
         for (Ref<TypeInfo>& type : fragment_outputs) {
             uint32_t id = spv.get_id();
-            global_interfaces.push_back({ false, false, type, id, 0 });
+            global_interfaces.push_back({ StorageClass::Output, PipelineStage::Fragment, type, id, 0 });
         }
     }
 
@@ -264,13 +323,9 @@ class CodeGenerator final {
             std::vector<uint32_t> interfaces;
 
             for (GlobalInterface& gi : global_interfaces) {
-                if (gi.is_input && gi.is_vertex) {
-                    interfaces.push_back(gi.id);
-                }
-            }
-
-            for (GlobalInterface& gi : global_interfaces) {
-                if (!gi.is_input && gi.is_vertex) {
+                if ((gi.storage_class == StorageClass::Input ||
+                     gi.storage_class == StorageClass::Output) &&
+                    gi.pipeline_stage == PipelineStage::Vertex) {
                     interfaces.push_back(gi.id);
                 }
             }
@@ -295,13 +350,9 @@ class CodeGenerator final {
             std::vector<uint32_t> interfaces;
 
             for (GlobalInterface& gi : global_interfaces) {
-                if (gi.is_input && !gi.is_vertex) {
-                    interfaces.push_back(gi.id);
-                }
-            }
-
-            for (GlobalInterface& gi : global_interfaces) {
-                if (!gi.is_input && !gi.is_vertex) {
+                if ((gi.storage_class == StorageClass::Input ||
+                     gi.storage_class == StorageClass::Output) &&
+                    gi.pipeline_stage == PipelineStage::Fragment) {
                     interfaces.push_back(gi.id);
                 }
             }
@@ -400,17 +451,8 @@ class CodeGenerator final {
 
         for (GlobalInterface& gi : global_interfaces) {
             uint32_t type_id = resolve_type(gi.type->name);
-            uint32_t pointer_type = spv.TypePointerNew(
-                gi.is_input ? spv::StorageClassInput : spv::StorageClassOutput,
-                type_id
-            );
-            gi.pointer_type = pointer_type;
 
-            spv.Variable(
-                gi.pointer_type,
-                gi.id,
-                gi.is_input ? spv::StorageClassInput : spv::StorageClassOutput
-            );
+            binding_manager.allocate_variable(spv, gi, type_id);
         }
     }
 
@@ -449,17 +491,23 @@ class CodeGenerator final {
             n_ops++;
         }
 
-        bool is_interface = false;
+        bool is_fragment_interface = false;
+        bool is_vertex_interface = false;
 
         for (const auto& intf : global_interfaces) {
-            if (intf.type == s.resolved_type) {
-                is_interface = true;
-                break;
+            if (intf.type == s.resolved_type && intf.pipeline_stage == PipelineStage::Vertex) {
+                is_vertex_interface = true;
+            } else if (intf.type == s.resolved_type &&
+                       intf.pipeline_stage == PipelineStage::Fragment) {
+                is_fragment_interface = true;
             }
         }
 
-        if (is_interface) {
-            binding_manager.decorate(spv, s, decl_ids[s.name.name]);
+        if (is_vertex_interface) {
+            binding_manager.decorate(spv, PipelineStage::Vertex, s, decl_ids[s.name.name]);
+        }
+        if (is_fragment_interface) {
+            binding_manager.decorate(spv, PipelineStage::Fragment, s, decl_ids[s.name.name]);
         }
     }
 
