@@ -1,0 +1,26 @@
+struct VsIn {
+    float4 position,
+    float4 color
+}
+
+struct FsOut {
+    float4 color
+}
+
+struct ShaderLink {
+    float4 color,
+}
+
+function vertex (VsIn v) -> (ShaderLink o) {
+    o.color = v.color
+    POSITION = v.position
+}
+
+function fragment (ShaderLink i) -> (FsOut o) {
+    o.color = i.color
+}
+
+pipeline Basic {
+    Vertex = vertex,
+    Fragment = fragment,
+}

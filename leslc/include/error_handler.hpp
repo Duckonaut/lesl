@@ -25,6 +25,7 @@ enum class ErrorType {
     InvalidMatrixSize,
     InvalidCompoundBaseType,
     RuntimeSizedArrayInStruct,
+    InvalidFunctionCall,
 };
 
 struct ErrorData {
@@ -100,6 +101,9 @@ struct Error {
                 out << "Runtime sized array is not allowed in struct "
                     << colorize::bold(data.str.to_string())
                     << " as it is not an interface (input or output)";
+                break;
+            case ErrorType::InvalidFunctionCall:
+                out << "Invalid function call";
                 break;
         }
 

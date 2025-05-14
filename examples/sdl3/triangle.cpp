@@ -12,15 +12,15 @@ struct Vertex {
 };
 
 static Vertex vertices[] = {
-    { { 0.0f, 0.5f, 0.0f, -1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-    { { 0.5f, -0.5f, 0.0f, -1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-    { { -0.5f, -0.5f, 0.0f, -1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
+    { { 0.0f, 0.5f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+    { { 0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+    { { -0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } },
 };
 
 class Triangle : public Example {
   public:
     void init(SDL_Window* window, SDL_GPUDevice* device) override {
-        FileData unified_shader = readFile("../../guh.spv");
+        FileData unified_shader = readFile("simple.spv");
 
         SDL_GPUTextureFormat swapchain_format =
             SDL_GetGPUSwapchainTextureFormat(device, window);
@@ -158,7 +158,7 @@ class Triangle : public Example {
 
         SDL_GPUTexture* swapchain;
         Uint32 w, h;
-        if (!SDL_AcquireGPUSwapchainTexture(cmd, window, &swapchain, &w, &h)) {
+        if (!SDL_WaitAndAcquireGPUSwapchainTexture(cmd, window, &swapchain, &w, &h)) {
             SDL_SubmitGPUCommandBuffer(cmd);
             return;
         }

@@ -66,9 +66,10 @@ struct Validator {
                 for (auto decl : arena.decls) {
                     if (decl->is<Decl::Struct>()) {
                         if (decl->get<Decl::Struct>().name.name == type.name.name) {
-                            std::vector<Ref<TypeInfo>> members;
+                            std::vector<TypeInfo::Struct::Member> members;
                             for (auto& member : decl->get<Decl::Struct>().members) {
-                                members.push_back(create_or_get_info(arena, member.type));
+                                members.push_back({ member.name.name,
+                                                    create_or_get_info(arena, member.type) });
                             }
 
                             info = TypeInfo::create_struct(type.name.name, members);
@@ -182,6 +183,26 @@ struct Validator {
         }
 
         // fill in type infos
+
+        // add builtin neccessary types
+
+        arena.alloc(
+            TypeInfo::create_primitive(arena.string_pool, TypeInfo::BuiltinPrimitive::Void)
+        );
+        arena.alloc(
+            TypeInfo::create_primitive(arena.string_pool, TypeInfo::BuiltinPrimitive::Int)
+        );
+        arena.alloc(
+            TypeInfo::create_primitive(arena.string_pool, TypeInfo::BuiltinPrimitive::Uint)
+        );
+        arena.alloc(
+            TypeInfo::create_primitive(arena.string_pool, TypeInfo::BuiltinPrimitive::Float)
+        );
+        arena.alloc(
+            TypeInfo::create_primitive(arena.string_pool, TypeInfo::BuiltinPrimitive::Bool)
+        );
+
+        // fill from refs
         TypeInfoFiller filler(arena);
         for (Ref<Decl> decl : arena.decls) {
             std::visit(
@@ -278,9 +299,6 @@ struct Validator {
         }
     }
     void validate_return(Stmt::Return& r) {
-        if (r.expr) {
-            validate_expr(*r.expr.value());
-        }
     }
     void validate_var(Stmt::Var& v) {
         validate_type(v.typedIdentifier.type);

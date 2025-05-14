@@ -26,6 +26,21 @@ public:
     uint32_t* data() { return words.data(); }
     size_t size() { return words.size(); }
     void clear() { words.clear(); }
+    void insert(std::vector<uint32_t> new_words, uint32_t start) {
+        std::vector<uint32_t> carry;
+        for (int i = start; i < words.size(); i++) {
+            carry.push_back(words[i]);
+        }
+
+        words.resize(start);
+        for (int i = 0; i < new_words.size(); i++) {
+            words.push_back(new_words[i]);
+        }
+
+        for (int i = 0; i < carry.size(); i++) {
+            words.push_back(carry[i]);
+        }
+    }
     uint32_t get_id() { return id_bound++; }
     void push(uint32_t word) { words.push_back(word); }
     void update_bound() { words[3] = id_bound; }

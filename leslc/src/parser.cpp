@@ -245,9 +245,6 @@ Ref<Stmt> Parser::parse_var() {
 Ref<Stmt> Parser::parse_return() {
     Stmt::Return r;
     consume(TokenType::Return);
-    if (current.type != TokenType::RightBrace) {
-        r.expr = parse_expr();
-    }
     return arena.alloc(Stmt{ std::move(r) });
 }
 
@@ -397,7 +394,12 @@ Ref<Expr> Parser::parse_access_or_call_or_list_access_or_field_access() {
                     break;
                 }
             }
-            e = arena.alloc(Expr{ Expr::Call{ e, args } });
+            if (!e->is<Expr::VariableAccess>()) {
+                error_handler.error(ErrorType::InvalidFunctionCall, current.location);
+            } else {
+                const Expr::VariableAccess& var = e->get<Expr::VariableAccess>();
+                e = arena.alloc(Expr{ Expr::Call{ var.name, args } });
+            }
             step();
         } else if (current.type == TokenType::LeftBracket) {
             step();

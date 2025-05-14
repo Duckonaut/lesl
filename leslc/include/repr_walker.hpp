@@ -49,9 +49,6 @@ struct ReprWalker {
         }
     }
     virtual void visit(Stmt::Return& ret) {
-        if (ret.expr) {
-            visit(**ret.expr);
-        }
     }
 
     virtual void visit(Stmt::ExprStmt& exprStmt) {
@@ -72,7 +69,6 @@ struct ReprWalker {
     }
 
     virtual void visit(Expr::Call& call) {
-        visit(*call.name);
         for (auto& arg : call.args) {
             visit(*arg);
         }

@@ -1,11 +1,13 @@
 #pragma once
 
+#include "spirv/unified1/spirv.hpp"
 #include <ref_container.hpp>
 #include "colorize.hpp"
 #include "token.hpp"
 
 #include <cassert>
 #include <vector>
+#include <map>
 #include <variant>
 #include <optional>
 
@@ -41,6 +43,8 @@ struct TypeInfo {
     uint32_t alignment;
     uint32_t id;
 
+    std::map<uint32_t, uint32_t> pointer_type_ids;
+
     enum class BuiltinPrimitive {
         Void,
         Bool,
@@ -64,7 +68,12 @@ struct TypeInfo {
     };
 
     struct Struct {
-        std::vector<Ref<TypeInfo>> members;
+        struct Member {
+            PoolStr name;
+            Ref<TypeInfo> type;
+        };
+
+        std::vector<Member> members;
     };
 
     struct Array {
@@ -133,14 +142,14 @@ struct TypeInfo {
         return type;
     }
 
-    static TypeInfo create_struct(PoolStr name, std::vector<Ref<TypeInfo>> members) {
+    static TypeInfo create_struct(PoolStr name, std::vector<Struct::Member> members) {
         TypeInfo type{ Struct{ members } };
         type.name = name;
         type.size = 0;
         type.alignment = 0;
-        for (const Ref<TypeInfo>& member : members) {
-            type.size += member->size;
-            type.alignment = std::max(type.alignment, member->alignment);
+        for (const auto& member : members) {
+            type.size += member.type->size;
+            type.alignment = std::max(type.alignment, member.type->alignment);
         }
         return type;
     }
@@ -166,6 +175,36 @@ struct TypeInfo {
 
     template <typename T> T& get() {
         return std::get<T>(data);
+    }
+
+    template <typename T> const T& get() const {
+        return std::get<T>(data);
+    }
+
+    Primitive get_underlying_primitive() const {
+        if (is<Primitive>()) {
+            return get<Primitive>();
+        } else if (is<Vector>()) {
+            return get<Vector>().element->get_underlying_primitive();
+        } else if (is<Matrix>()) {
+            return get<Matrix>().vector_element->get_underlying_primitive();
+        } else if (is<Array>()) {
+            return get<Array>().element->get_underlying_primitive();
+        } else {
+            assert(false);
+        }
+    }
+
+    uint32_t get_pointer_type(spv::StorageClass storage_class) const {
+        if (this->pointer_type_ids.contains(storage_class)) {
+            return this->pointer_type_ids.find(static_cast<uint32_t>(storage_class))->second;
+        } else {
+            assert(false);
+        }
+    }
+
+    void add_pointer_type(spv::StorageClass storage_class, uint32_t id) {
+        this->pointer_type_ids.insert({ static_cast<uint32_t>(storage_class), id });
     }
 };
 
@@ -204,7 +243,7 @@ inline std::ostream& operator<<(std::ostream& out, const TypeInfo& type) {
             [&out](const TypeInfo::Struct& struct_) {
                 out << "struct { ";
                 for (size_t i = 0; i < struct_.members.size(); i++) {
-                    out << *struct_.members[i];
+                    out << *struct_.members[i].type << " " << struct_.members[i].name.c_str();
                     if (i + 1 < struct_.members.size()) {
                         out << ", ";
                     }
@@ -244,7 +283,7 @@ struct PipelineParameter {
 
 struct Expr {
     struct Call {
-        Ref<Expr> name;
+        Identifier name;
         std::vector<Ref<Expr>> args;
     };
 
@@ -263,7 +302,6 @@ struct Expr {
 
         Or,
         And,
-        Not,
 
         Assign,
         AddAssign,
@@ -330,7 +368,7 @@ struct Expr {
 
 struct Stmt {
     struct Return {
-        Opt<Ref<Expr>> expr;
+        uint8_t _unused;
     };
 
     struct Var {
@@ -353,6 +391,10 @@ struct Stmt {
     }
 
     template <typename T> T& get() {
+        return std::get<T>(data);
+    }
+
+    template <typename T> const T& get() const {
         return std::get<T>(data);
     }
 };
@@ -502,10 +544,6 @@ struct ReprPrinter {
 
     void print(const Stmt::Return& return_) {
         out << colorize::blue("return");
-        if (return_.expr.has_value()) {
-            out << " ";
-            print_expr(*return_.expr.value());
-        }
     }
 
     void print(const Stmt::Var& var) {
@@ -547,8 +585,7 @@ struct ReprPrinter {
     }
 
     void print_call(const Expr::Call& call) {
-        print_expr(*call.name);
-        out << "(";
+        out << call.name.name.c_str() << "(";
         for (size_t i = 0; i < call.args.size(); i++) {
             print_expr(*call.args[i]);
             if (i + 1 < call.args.size()) {
@@ -600,9 +637,6 @@ struct ReprPrinter {
                 break;
             case Expr::BinaryOp::And:
                 out << " && ";
-                break;
-            case Expr::BinaryOp::Not:
-                out << " ! ";
                 break;
             case Expr::BinaryOp::Assign:
                 out << " = ";
