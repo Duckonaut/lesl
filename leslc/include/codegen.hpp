@@ -11,6 +11,8 @@
 #include "arena.hpp"
 #include "stringpool.hpp"
 
+#include "builtin_functions.hpp"
+
 #include <algorithm>
 #include <bit>
 #include <iostream>
@@ -1017,6 +1019,18 @@ class CodeGenerator final {
         assert(false);
     }
 
+    Opt<Ref<Decl>> try_find_function(const PoolStr& name) {
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Function>()) {
+                Decl::Function& f = decl->get<Decl::Function>();
+                if (f.name.name == name) {
+                    return decl;
+                }
+            }
+        }
+        return std::nullopt;
+    }
+
     void open_scope() {
         variable_scopes.push_back({});
     }
@@ -1038,6 +1052,7 @@ class CodeGenerator final {
     void add_variable(const PoolStr& name, uint32_t id, Ref<TypeInfo> type, Opt<spv::StorageClass> storage_class) {
         variable_scopes.back().variables[name] = { id, type, storage_class };
     }
+
     struct BlockInfo {
         uint32_t statement_count = 0;
         uint32_t label_id = 0;
@@ -1562,22 +1577,61 @@ class CodeGenerator final {
 
     ExprResult generate_expr(const Expr::Call& c, const TypeInfo* expected_type) {
         std::vector<uint32_t> ops;
-        const Decl::Function& fun = find_function(c.name.name);
-        for (int i = 0; i < fun.params.size(); i++) {
-            const auto& arg = c.args[i];
-            const auto& target = fun.params[i].type.resolved_type;
-            ExprResult arg_result = generate_expression(*arg, &**target);
-            ops.push_back(arg_result.load(spv));
+        Opt<Ref<Decl>> fun_decl = try_find_function(c.name.name);
+
+        if (!fun_decl.has_value()) {
+            int function_id = 0;
+            int function_overload_id = 0;
+
+            for (int i = 0; i < builtin_functions.size(); i++) {
+                if (c.name.name == builtin_functions[i].name) {
+                    function_id = i;
+                    break;
+                }
+            }
+
+            const BuiltinFunction& builtin = builtin_functions[function_id];
+
+            if (builtin.overloads.size() > 0) {
+                for (int i = 0; i < builtin.overloads.size(); i++) {
+                    if (builtin.overloads[i].arg_types.size() == c.args.size()) {
+                        function_overload_id = i;
+                        break;
+                    }
+                }
+            }
+
+            const BuiltinOverload& overload = builtin.overloads[function_overload_id];
+
+            std::vector<uint32_t> args;
+            for (int i = 0; i < c.args.size(); i++) {
+                const auto& arg = c.args[i];
+                const auto& target = get_type_info(overload.arg_types[i]);
+                ExprResult arg_result = generate_expression(*arg, &**target);
+                args.push_back(arg_result.load(spv));
+            }
+            uint32_t res =
+                builtin_function(spv, *expected_type, c.name.name, this->glsl_ext, args);
+
+            return { res, *get_type_info(overload.return_type) };
+        } else {
+            const Decl::Function& fun = fun_decl.value()->get<Decl::Function>();
+            for (int i = 0; i < fun.params.size(); i++) {
+                const auto& arg = c.args[i];
+                const auto& target = fun.params[i].type.resolved_type;
+                ExprResult arg_result = generate_expression(*arg, &**target);
+                ops.push_back(arg_result.load(spv));
+            }
+            uint32_t res = spv.get_id();
+            spv.FunctionCall(
+                fun.return_type_id,
+                res,
+                decl_ids[fun.name.name],
+                ops.data(),
+                ops.size()
+            );
+            return { res, *fun.rets[0].type.resolved_type };
         }
-        uint32_t res = spv.get_id();
-        spv.FunctionCall(
-            fun.return_type_id,
-            res,
-            decl_ids[fun.name.name],
-            ops.data(),
-            ops.size()
-        );
-        return { res, *fun.rets[0].type.resolved_type };
     }
 
     ExprResult generate_expr(const Expr::ListAccess& la, const TypeInfo* expected_type) {
