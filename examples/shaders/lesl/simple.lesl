@@ -16,8 +16,12 @@ function vertex (VsIn v) -> (ShaderLink o) {
     POSITION = v.position
 }
 
+function manual_multiply (float4 a, float b) -> (float4 o) {
+    o = a * b
+}
+
 function fragment (ShaderLink i) -> (FsOut o) {
-    o.color = i.color
+    o.color = manual_multiply(i.color, 0.5)
 }
 
 pipeline Basic {

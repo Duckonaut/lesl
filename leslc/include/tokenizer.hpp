@@ -61,7 +61,7 @@ struct Tokenizer final {
         std::string str;
 
         char c = unit.peek();
-        while (std::isalnum(c) && !unit.eof()) {
+        while ((std::isalnum(c) || c == '_') && !unit.eof()) {
             str.push_back(unit.next());
             c = unit.peek();
         }
