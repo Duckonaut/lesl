@@ -420,7 +420,7 @@ Ref<Expr> Parser::parse_primary() {
         step();
         return arena.alloc(std::move(e));
     } else if (current.type == TokenType::Number) {
-        Expr e{ current.value.num };
+        Expr e{ current.value.num, current.location };
         step();
         return arena.alloc(std::move(e));
     } else if (current.type == TokenType::LeftParen) {
@@ -430,6 +430,6 @@ Ref<Expr> Parser::parse_primary() {
         return e;
     } else {
         error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
-        return arena.alloc(Expr{ 0 });
+        return arena.alloc(Expr{ 0, current.location });
     }
 }

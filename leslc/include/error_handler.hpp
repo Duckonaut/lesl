@@ -26,6 +26,25 @@ enum class ErrorType {
     InvalidCompoundBaseType,
     RuntimeSizedArrayInStruct,
     InvalidFunctionCall,
+    UnknownVariable,
+    UnknownFunction,
+
+    IncompatibleTypes,
+    InvalidAssignment,
+    InvalidCompositeArithmetic,
+    InvalidLogicalType,
+    InvalidEqualityComparison,
+    InvalidRelationalComparison,
+    InvalidBinaryOperation,
+    InvalidUnaryOperation,
+    InvalidAccess,
+    InvalidVectorSwizzle,
+    InvalidMatrixAccess,
+    InvalidCall,
+    InvalidVariableAssignment,
+    InvalidArrayIndex,
+    InvalidVectorIndex,
+    InvalidArrayAccess,
 };
 
 struct ErrorData {
@@ -104,6 +123,61 @@ struct Error {
                 break;
             case ErrorType::InvalidFunctionCall:
                 out << "Invalid function call";
+                break;
+            case ErrorType::UnknownVariable:
+                out << "Unknown variable " << colorize::bold(data.str.to_string());
+                break;
+            case ErrorType::UnknownFunction:
+                out << "Unknown function " << colorize::bold(data.str.to_string());
+                break;
+
+            case ErrorType::IncompatibleTypes:
+                out << "Incompatible types in operation";
+                break;
+            case ErrorType::InvalidAssignment:
+                out << "Expression cannot be assigned to";
+                break;
+            case ErrorType::InvalidCompositeArithmetic:
+                out << "Invalid arithmetic operation on composite types";
+                break;
+            case ErrorType::InvalidLogicalType:
+                out << "Types cannot be used in logical operations";
+                break;
+            case ErrorType::InvalidEqualityComparison:
+                out << "Types cannot be compared for equality or inequality";
+                break;
+            case ErrorType::InvalidRelationalComparison:
+                out << "Types cannot be compared for relational operations";
+                break;
+            case ErrorType::InvalidBinaryOperation:
+                out << "Invalid binary operation";
+                break;
+            case ErrorType::InvalidUnaryOperation:
+                out << "Invalid unary operation";
+            case ErrorType::InvalidAccess:
+                out << "Invalid access to a composite type";
+                break;
+            case ErrorType::InvalidVectorSwizzle:
+                out << "Invalid vector swizzle";
+                break;
+            case ErrorType::InvalidMatrixAccess:
+                out << "Invalid matrix access";
+                break;
+            case ErrorType::InvalidCall:
+                out << "Invalid function call";
+                break;
+            case ErrorType::InvalidVariableAssignment:
+                out << "Variable " << colorize::bold(data.str.to_string())
+                    << " cannot be assigned to";
+                break;
+            case ErrorType::InvalidArrayIndex:
+                out << "Invalid array index";
+                break;
+            case ErrorType::InvalidVectorIndex:
+                out << "Invalid vector index";
+                break;
+            case ErrorType::InvalidArrayAccess:
+                out << "This expression cannot be accessed as an array";
                 break;
         }
 

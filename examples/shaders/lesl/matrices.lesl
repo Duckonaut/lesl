@@ -1,0 +1,32 @@
+struct VsIn {
+    float4 position,
+    float4 color
+}
+
+struct FsOut {
+    float4 color
+}
+
+struct ShaderLink {
+    float4 color,
+}
+
+struct Uniforms {
+    float4x3 weird_matrix_a,
+    float3x4 weird_matrix_b,
+}
+
+function vertex (VsIn v, Uniforms u) -> (ShaderLink o) {
+    float4x4 m = u.weird_matrix_a * u.weird_matrix_b
+    o.color = v.color
+    POSITION = float4((m * v.position).xyz, 1.0)
+}
+
+function fragment (ShaderLink i) -> (FsOut o) {
+    o.color = i.color
+}
+
+pipeline Basic {
+    Vertex = vertex,
+    Fragment = fragment,
+}

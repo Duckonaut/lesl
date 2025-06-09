@@ -20,16 +20,9 @@
 #include <unordered_map>
 #include <variant>
 
-enum class StorageClass : uint32_t {
-	Input = spv::StorageClassInput,
-	Output = spv::StorageClassOutput,
-	Uniform = spv::StorageClassUniform,
-	StorageBuffer = spv::StorageClassStorageBuffer,
-};
-
 enum class PipelineStage {
-	Vertex,
-	Fragment,
+    Vertex,
+    Fragment,
 };
 
 struct GlobalInterface {
@@ -44,9 +37,19 @@ struct GlobalInterface {
 
 struct BindingManager final {
     enum class TargetAPI {
-        Vulkan, // arbitrary binding layout for Vulkan
-        SDL3,   // bind resources to the schema expected by SDL3
+        Vulkan,
+        // SDL3 Resource Binding Scheme:
+        // - Vertex Shaders:
+        //   - set 0: sampled textures, followed by storage textures, followed by storage
+        //   buffers
+        //   - set 1: uniform buffers
+        // - Fragment Shaders:
+        //   - set 2: sampled textures, followed by storage textures, followed by storage
+        //   buffers
+        //   - set 2: uniform buffers
+        SDL3,
     };
+
     enum class BindingAllocationMode {
         SingleInputMultipleUniform,
         MultiInput,
@@ -55,9 +58,13 @@ struct BindingManager final {
     TargetAPI target_api;
     BindingAllocationMode mode;
 
-    uint32_t binding = 0;
-    uint32_t set = 0;
-    uint32_t location = 0;
+    uint32_t input_binding = 0;
+    uint32_t output_binding = 0;
+    uint32_t vk_binding = 0;
+    uint32_t sdl3_vertex_big_binding = 0;
+    uint32_t sdl3_vertex_uniform_binding = 0;
+    uint32_t sdl3_fragment_big_binding = 0;
+    uint32_t sdl3_fragment_uniform_binding = 0;
 
     bool vertex_input_allocated = false;
     bool fragment_input_allocated = false;
@@ -93,7 +100,7 @@ struct BindingManager final {
     }
 
     void decorate_as_input(spv_binary::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
-        location = 0;
+        uint32_t location = 0;
 
         spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
 
@@ -102,7 +109,7 @@ struct BindingManager final {
             location++;
         }
 
-        binding++;
+        input_binding++;
     }
 
     void decorate_as_output(
@@ -110,21 +117,60 @@ struct BindingManager final {
         const Decl::Struct& s,
         uint32_t struct_id
     ) {
-        location = 0;
+        uint32_t location = 0;
         spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
         for (uint32_t i = 0; i < s.members.size(); i++) {
             spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
             location++;
         }
-        binding++;
+
+        output_binding++;
     }
 
     void decorate_as_uniform(spv_binary::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
+        spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+    }
+
+    void allocate_interfaces(
+        spv_binary::BinaryContainer& spv,
+        std::vector<GlobalInterface>& interfaces
+    ) {
+        for (GlobalInterface& gi : interfaces) {
+            if (gi.storage_class == StorageClass::Uniform) {
+                allocate_as_uniform(spv, gi);
+            }
+        }
+    }
+
+    void allocate_as_uniform(spv_binary::BinaryContainer& spv, const GlobalInterface& gi) {
+        if (gi.storage_class == StorageClass::Uniform) {
+            if (target_api == TargetAPI::SDL3) {
+                uint32_t set = 1;
+
+                spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
+                spv.Decorate(
+                    gi.id,
+                    spv::DecorationBinding,
+                    &sdl3_vertex_uniform_binding,
+                    1
+                );
+
+                sdl3_vertex_uniform_binding++;
+            } else if (target_api == TargetAPI::Vulkan) {
+                uint32_t set = 0;
+
+                spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
+                spv.Decorate(gi.id, spv::DecorationBinding, &vk_binding, 1);
+
+                vk_binding++;
+            }
+        }
     }
 
     void
     allocate_variable(spv_binary::BinaryContainer& spv, GlobalInterface& gi, uint32_t type_id) {
-        uint32_t pointer_type = gi.type->get_pointer_type((spv::StorageClass)(uint32_t)gi.storage_class);
+        uint32_t pointer_type =
+            gi.type->get_pointer_type((spv::StorageClass)(uint32_t)gi.storage_class);
         gi.pointer_type = pointer_type;
         spv.Variable(pointer_type, gi.id, (uint32_t)gi.storage_class);
     }
@@ -407,7 +453,9 @@ class CodeGenerator final {
             std::vector<uint32_t> interfaces;
 
             for (GlobalInterface& gi : global_interfaces) {
-                if (gi.pipeline_stage == PipelineStage::Vertex) {
+                if (gi.pipeline_stage == PipelineStage::Vertex &&
+                    (gi.storage_class == StorageClass::Input ||
+                     gi.storage_class == StorageClass::Output)) {
                     interfaces.push_back(gi.id);
                 }
             }
@@ -436,7 +484,9 @@ class CodeGenerator final {
             std::vector<uint32_t> interfaces;
 
             for (GlobalInterface& gi : global_interfaces) {
-                if (gi.pipeline_stage == PipelineStage::Fragment) {
+                if (gi.pipeline_stage == PipelineStage::Fragment &&
+                    (gi.storage_class == StorageClass::Input ||
+                     gi.storage_class == StorageClass::Output)) {
                     interfaces.push_back(gi.id);
                 }
             }
@@ -468,6 +518,8 @@ class CodeGenerator final {
                 generate_struct_decorations(decl->get<Decl::Struct>());
             }
         }
+
+        binding_manager.allocate_interfaces(spv, global_interfaces);
 
         BuiltinInfo& position = builtins[arena.string_pool.add("POSITION")];
         uint32_t builtin = spv::BuiltInPosition;
@@ -714,6 +766,30 @@ class CodeGenerator final {
 
         for (const TypedIdentifier& member : s.members) {
             spv.MemberDecorate(decl_ids[s.name.name], n_ops, spv::DecorationOffset, &offset, 1);
+
+            const TypeInfo& member_type_info = **member.type.resolved_type;
+
+            if (member_type_info.is<TypeInfo::Matrix>()) {
+                const TypeInfo::Matrix& m = member_type_info.get<TypeInfo::Matrix>();
+
+                spv.MemberDecorate(
+                    decl_ids[s.name.name],
+                    n_ops,
+                    spv::DecorationColMajor,
+                    nullptr,
+                    0
+                );
+
+                uint32_t stride = 16; // required for Vulkan uniform buffer layout
+
+                spv.MemberDecorate(
+                    decl_ids[s.name.name],
+                    n_ops,
+                    spv::DecorationMatrixStride,
+                    &stride,
+                    1
+                );
+            }
 
             offset += get_type_size_offset(offset, **member.type.resolved_type);
             n_ops++;
@@ -1089,7 +1165,7 @@ class CodeGenerator final {
                 );
                 if (var_stmt.expr) {
                     ExprResult expr_result = generate_expression(**var_stmt.expr, &**var_stmt.typedIdentifier.type.resolved_type);
-                    spv.Store(var_id, expr_result.load(spv));
+                    spv.Store(var_id, expr_result.load(spv, var_stmt.typedIdentifier.type.resolved_type));
                 }
 
                 add_variable(
@@ -1130,18 +1206,151 @@ class CodeGenerator final {
             data;
         Ref<TypeInfo> type;
 
-        uint32_t load(spv_binary::BinaryContainer& spv) const {
+        uint32_t primitive_cast(
+            spv_binary::BinaryContainer& spv,
+            TypeInfo::BuiltinPrimitive current,
+            TypeInfo::BuiltinPrimitive expected,
+            uint32_t expected_type_id,
+            uint32_t value
+        ) const {
+            if (current == expected) {
+                return value;
+            } else if (current == TypeInfo::BuiltinPrimitive::Float &&
+                       expected == TypeInfo::BuiltinPrimitive::Int) {
+                return spv.ConvertFToSNew(expected_type_id, value);
+            } else if (current == TypeInfo::BuiltinPrimitive::Int &&
+                       expected == TypeInfo::BuiltinPrimitive::Uint) {
+                return spv.SatConvertSToUNew(expected_type_id, value);
+            } else if (current == TypeInfo::BuiltinPrimitive::Uint &&
+                       expected == TypeInfo::BuiltinPrimitive::Int) {
+                return spv.SatConvertUToSNew(expected_type_id, value);
+            } else if (current == TypeInfo::BuiltinPrimitive::Float &&
+                       expected == TypeInfo::BuiltinPrimitive::Uint) {
+                return spv.ConvertFToUNew(expected_type_id, value);
+            } else if (current == TypeInfo::BuiltinPrimitive::Int &&
+                       expected == TypeInfo::BuiltinPrimitive::Float) {
+                return spv.ConvertSToFNew(expected_type_id, value);
+            } else if (current == TypeInfo::BuiltinPrimitive::Uint &&
+                       expected == TypeInfo::BuiltinPrimitive::Float) {
+                return spv.ConvertUToFNew(expected_type_id, value);
+            } else {
+                assert(false);
+            }
+        }
+
+        uint32_t load(
+            spv_binary::BinaryContainer& spv,
+            Opt<Ref<TypeInfo>> expected_type = std::nullopt
+        ) const {
+            uint32_t loaded_id = 0;
             if (std::holds_alternative<uint32_t>(data)) {
-                return std::get<uint32_t>(data);
+                loaded_id = std::get<uint32_t>(data);
             } else if (std::holds_alternative<VariableInstance>(data)) {
                 const VariableInstance& var = std::get<VariableInstance>(data);
                 if (var.storage_class) {
-                    return spv.LoadNew((*var.type)->id, var.id);
+                    loaded_id = spv.LoadNew((*var.type)->id, var.id);
                 } else {
-                    return var.id;
+                    loaded_id = var.id;
                 }
             }
-            assert(false); // Should not reach here
+
+            if (!expected_type.has_value()) {
+                return loaded_id;
+            }
+
+            // Try to automatically convert the loaded ID to the expected type
+
+            if (expected_type.value() == type) {
+                return loaded_id;
+            }
+
+            const TypeInfo& expected = *expected_type.value();
+
+            // Rules of conversion:
+            // - Primitives can be converted between eachother in the following order:
+            //   float -> int -> uint
+            //   bools are not convertible and can only be used in boolean expressions
+            // - Primitives can be converted to vectors of any size with the same type
+            //   This can happen after the primitive conversion, so an int -> float -> float4
+            //   automatic conversion is possible All vector elements will be set to the
+            //   converted primitive value
+            // - Vector sizes cannot be converted between eachother.
+            //   Changing a size of a vector is unclear and should be done explicitly
+            //   either via a constructor or a swizzle
+            // - Vectors can be converted to vectors of different types, but same size
+            //   Same rules apply as for primitives, so float4 -> int4 -> uint4
+            // - Matrices cannot be converted between eachother
+
+            if (expected.is<TypeInfo::Array>() || expected.is<TypeInfo::Matrix>() ||
+                expected.is<TypeInfo::Struct>()) {
+                assert(false);
+            }
+
+            if (expected.is<TypeInfo::Primitive>()) {
+                const TypeInfo::Primitive& expected_primitive =
+                    expected.get<TypeInfo::Primitive>();
+                if (type->is<TypeInfo::Primitive>()) {
+                    const TypeInfo::Primitive& current_primitive =
+                        type->get<TypeInfo::Primitive>();
+
+                    return primitive_cast(
+                        spv,
+                        current_primitive.primitive,
+                        expected_primitive.primitive,
+                        expected.id,
+                        loaded_id
+                    );
+                } else if (type->is<TypeInfo::Vector>()) {
+                    assert(false);
+                }
+            } else if (expected.is<TypeInfo::Vector>()) {
+                const TypeInfo::Vector& expected_vector = expected.get<TypeInfo::Vector>();
+                if (type->is<TypeInfo::Vector>()) {
+                    const TypeInfo::Vector& current_vector = type->get<TypeInfo::Vector>();
+                    if (current_vector.size == expected_vector.size &&
+                        current_vector.element->name == expected_vector.element->name) {
+                        return loaded_id;
+                    }
+
+                    if (current_vector.size == expected_vector.size) {
+                        TypeInfo::BuiltinPrimitive underlying_primitive =
+                            current_vector.element->get_underlying_primitive().primitive;
+
+                        TypeInfo::BuiltinPrimitive expected_element =
+                            expected_vector.element->get_underlying_primitive().primitive;
+
+                        return primitive_cast(
+                            spv,
+                            underlying_primitive,
+                            expected_element,
+                            expected.id,
+                            loaded_id
+                        );
+                    } else {
+                        assert(false); // Vector size mismatch
+                    }
+
+                } else if (type->is<TypeInfo::Primitive>()) {
+                    TypeInfo::BuiltinPrimitive expected_primitive =
+                        expected_vector.element->get_underlying_primitive().primitive;
+                    TypeInfo::BuiltinPrimitive current_primitive =
+                        type->get<TypeInfo::Primitive>().primitive;
+
+                    uint32_t converted_id = primitive_cast(
+                        spv,
+                        current_primitive,
+                        expected_primitive,
+                        expected.id,
+                        loaded_id
+                    );
+
+                    std::vector<uint32_t> elements(expected_vector.size, converted_id);
+
+                    return spv
+                        .CompositeConstructNew(expected.id, elements.data(), elements.size());
+                }
+            }
+
             return 0;
         }
     };
@@ -1215,15 +1424,16 @@ class CodeGenerator final {
         OpFamily op_family = get_op_family(*left.type, *right.type);
 
         std::variant<uint32_t, VariableInstance> res;
+        Ref<TypeInfo> return_type = left.type;
         switch (b.op) {
             case Expr::BinaryOp::Add:
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FAddNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FAddNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.IAddNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.IAddNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1233,11 +1443,11 @@ class CodeGenerator final {
             case Expr::BinaryOp::Sub:
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FSubNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FSubNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.ISubNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.ISubNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1247,11 +1457,11 @@ class CodeGenerator final {
             case Expr::BinaryOp::Mul:
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FMulNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FMulNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.IMulNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.IMulNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::VectorScalar:
                         res = spv.VectorTimesScalarNew(left.type->id, left.load(spv), right.load(spv));
@@ -1260,14 +1470,43 @@ class CodeGenerator final {
                         res = spv.MatrixTimesScalarNew(left.type->id, left.load(spv), right.load(spv));
                         break;
                     case OpFamily::MatrixVector:
-                        res = spv.MatrixTimesVectorNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.MatrixTimesVectorNew(right.type->id, left.load(spv), right.load(spv));
+
+                        return_type = right.type;
                         break;
                     case OpFamily::VectorMatrix:
-                        res = spv.VectorTimesMatrixNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.VectorTimesMatrixNew(right.type->id, left.load(spv), right.load(spv));
+
+                        return_type = left.type;
                         break;
-                    case OpFamily::MatrixMatrix:
-                        res = spv.MatrixTimesMatrixNew(left.type->id, left.load(spv), right.load(spv));
+                    case OpFamily::MatrixMatrix: {
+                        const TypeInfo::Matrix& left_matrix =
+                            left.type->get<TypeInfo::Matrix>();
+                        const TypeInfo::Matrix& right_matrix =
+                            right.type->get<TypeInfo::Matrix>();
+
+                        const TypeInfo::Vector& left_vector =
+                            left_matrix.vector_element->get<TypeInfo::Vector>();
+                        const TypeInfo::Vector& right_vector =
+                            right_matrix.vector_element->get<TypeInfo::Vector>();
+
+                        uint32_t left_columns = left_matrix.columns;
+                        uint32_t right_columns = right_matrix.columns;
+                        uint32_t left_rows = left_vector.size;
+                        uint32_t right_rows = right_vector.size;
+
+                        int result_rows = left_rows;
+                        int result_columns = right_columns;
+
+                        std::string type_name = left_vector.element->name.to_string() +
+                                                std::to_string(result_rows) + "x" +
+                                                std::to_string(result_columns);
+
+                        return_type = get_type_info(type_name).value();
+                        res = spv.MatrixTimesMatrixNew(return_type->id, left.load(spv), right.load(spv));
+
                         break;
+                    }
                     default:
                         assert(false);
                         break;
@@ -1276,13 +1515,13 @@ class CodeGenerator final {
             case Expr::BinaryOp::Div:
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FDivNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FDivNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
-                        res = spv.SDivNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.SDivNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Uint:
-                        res = spv.UDivNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.UDivNew(left.type->id, left.load(spv), right.load(spv, left.type));
                     default:
                         assert(false);
                         break;
@@ -1291,10 +1530,10 @@ class CodeGenerator final {
             case Expr::BinaryOp::Mod:
                 switch (op_family) {
                     case OpFamily::Int:
-                        res = spv.SModNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.SModNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Uint:
-                        res = spv.UModNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.UModNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1302,16 +1541,17 @@ class CodeGenerator final {
                 }
                 break;
             case Expr::BinaryOp::Equal:
+                return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FOrdEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.IEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.IEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Bool:
-                        res = spv.LogicalEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.LogicalEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1319,16 +1559,17 @@ class CodeGenerator final {
                 }
                 break;
             case Expr::BinaryOp::NotEqual:
+                return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdNotEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FOrdNotEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.INotEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.INotEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Bool:
-                        res = spv.LogicalNotEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.LogicalNotEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1336,15 +1577,16 @@ class CodeGenerator final {
                 }
                 break;
             case Expr::BinaryOp::Less:
+                return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdLessThanNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FOrdLessThanNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
-                        res = spv.SLessThanNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.SLessThanNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Uint:
-                        res = spv.ULessThanNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.ULessThanNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1352,15 +1594,16 @@ class CodeGenerator final {
                 }
                 break;
             case Expr::BinaryOp::LessEqual:
+                return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdLessThanEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FOrdLessThanEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
-                        res = spv.SLessThanEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.SLessThanEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Uint:
-                        res = spv.ULessThanEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.ULessThanEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1368,15 +1611,16 @@ class CodeGenerator final {
                 }
                 break;
             case Expr::BinaryOp::Greater:
+                return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdGreaterThanNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FOrdGreaterThanNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
-                        res = spv.SGreaterThanNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.SGreaterThanNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Uint:
-                        res = spv.UGreaterThanNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.UGreaterThanNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1384,15 +1628,16 @@ class CodeGenerator final {
                 }
                 break;
             case Expr::BinaryOp::GreaterEqual:
+                return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdGreaterThanEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.FOrdGreaterThanEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Int:
-                        res = spv.SGreaterThanEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.SGreaterThanEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     case OpFamily::Uint:
-                        res = spv.UGreaterThanEqualNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.UGreaterThanEqualNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1401,9 +1646,10 @@ class CodeGenerator final {
                 break;
 
             case Expr::BinaryOp::Or:
+                return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Bool:
-                        res = spv.LogicalOrNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.LogicalOrNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1411,9 +1657,10 @@ class CodeGenerator final {
                 }
                 break;
             case Expr::BinaryOp::And:
+                return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Bool:
-                        res = spv.LogicalAndNew(left.type->id, left.load(spv), right.load(spv));
+                        res = spv.LogicalAndNew(left.type->id, left.load(spv), right.load(spv, left.type));
                         break;
                     default:
                         assert(false);
@@ -1423,7 +1670,7 @@ class CodeGenerator final {
 
             case Expr::BinaryOp::Assign: {
                 VariableInstance& left_var = std::get<VariableInstance>(left.data);
-                spv.Store(left_var.id, right.load(spv));
+                spv.Store(left_var.id, right.load(spv, left_var.type));
                 res = left_var;
                 break;
             }
@@ -1432,11 +1679,11 @@ class CodeGenerator final {
                 VariableInstance& left_var = std::get<VariableInstance>(left.data);
                 switch (op_family) {
                     case OpFamily::Float:
-                        spv.FAdd(left.type->id, add_res, left.load(spv), right.load(spv));
+                        spv.FAdd(left.type->id, add_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        spv.IAdd(left.type->id, add_res, left.load(spv), right.load(spv));
+                        spv.IAdd(left.type->id, add_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     default:
                         assert(false);
@@ -1451,11 +1698,11 @@ class CodeGenerator final {
                 VariableInstance& left_var = std::get<VariableInstance>(left.data);
                 switch (op_family) {
                     case OpFamily::Float:
-                        spv.FSub(left.type->id, sub_res, left.load(spv), right.load(spv));
+                        spv.FSub(left.type->id, sub_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        spv.ISub(left.type->id, sub_res, left.load(spv), right.load(spv));
+                        spv.ISub(left.type->id, sub_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     default:
                         assert(false);
@@ -1470,26 +1717,26 @@ class CodeGenerator final {
                 VariableInstance& left_var = std::get<VariableInstance>(left.data);
                 switch (op_family) {
                     case OpFamily::Float:
-                        spv.FMul(left.type->id, mul_res, left.load(spv), right.load(spv));
+                        spv.FMul(left.type->id, mul_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        spv.IMul(left.type->id, mul_res, left.load(spv), right.load(spv));
+                        spv.IMul(left.type->id, mul_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::VectorScalar:
-                        spv.VectorTimesScalar(left.type->id, mul_res, left.load(spv), right.load(spv));
+                        spv.VectorTimesScalar(left.type->id, mul_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::MatrixScalar:
-                        spv.MatrixTimesScalar(left.type->id, mul_res, left.load(spv), right.load(spv));
+                        spv.MatrixTimesScalar(left.type->id, mul_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::MatrixVector:
-                        spv.MatrixTimesVector(left.type->id, mul_res, left.load(spv), right.load(spv));
+                        spv.MatrixTimesVector(left.type->id, mul_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::VectorMatrix:
-                        spv.VectorTimesMatrix(left.type->id, mul_res, left.load(spv), right.load(spv));
+                        spv.VectorTimesMatrix(left.type->id, mul_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::MatrixMatrix:
-                        spv.MatrixTimesMatrix(left.type->id, mul_res, left.load(spv), right.load(spv));
+                        spv.MatrixTimesMatrix(left.type->id, mul_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     default:
                         assert(false);
@@ -1504,13 +1751,13 @@ class CodeGenerator final {
                 VariableInstance& left_var = std::get<VariableInstance>(left.data);
                 switch (op_family) {
                     case OpFamily::Float:
-                        spv.FDiv(left.type->id, div_res, left.load(spv), right.load(spv));
+                        spv.FDiv(left.type->id, div_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::Int:
-                        spv.SDiv(left.type->id, div_res, left.load(spv), right.load(spv));
+                        spv.SDiv(left.type->id, div_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::Uint:
-                        spv.UDiv(left.type->id, div_res, left.load(spv), right.load(spv));
+                        spv.UDiv(left.type->id, div_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     default:
                         assert(false);
@@ -1525,10 +1772,10 @@ class CodeGenerator final {
                 VariableInstance& left_var = std::get<VariableInstance>(left.data);
                 switch (op_family) {
                     case OpFamily::Int:
-                        spv.SMod(left.type->id, mod_res, left.load(spv), right.load(spv));
+                        spv.SMod(left.type->id, mod_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     case OpFamily::Uint:
-                        spv.UMod(left.type->id, mod_res, left.load(spv), right.load(spv));
+                        spv.UMod(left.type->id, mod_res, left.load(spv), right.load(spv, left_var.type));
                         break;
                     default:
                         assert(false);
@@ -1540,7 +1787,7 @@ class CodeGenerator final {
             }
         }
 
-        return { res, left.type };
+        return { res, return_type };
     }
 
     ExprResult generate_expr(const Expr::Unary& u, const TypeInfo* expected_type) {
@@ -1608,7 +1855,7 @@ class CodeGenerator final {
                 const auto& arg = c.args[i];
                 const auto& target = get_type_info(overload.arg_types[i]);
                 ExprResult arg_result = generate_expression(*arg, &**target);
-                args.push_back(arg_result.load(spv));
+                args.push_back(arg_result.load(spv, target));
             }
             uint32_t res =
                 builtin_function(spv, *expected_type, c.name.name, this->glsl_ext, args);
@@ -1620,7 +1867,7 @@ class CodeGenerator final {
                 const auto& arg = c.args[i];
                 const auto& target = fun.params[i].type.resolved_type;
                 ExprResult arg_result = generate_expression(*arg, &**target);
-                ops.push_back(arg_result.load(spv));
+                ops.push_back(arg_result.load(spv, target));
             }
             uint32_t res = spv.get_id();
             spv.FunctionCall(
@@ -1638,7 +1885,7 @@ class CodeGenerator final {
         ExprResult list = generate_expression(*la.list, nullptr);
         ExprResult index = generate_expression(*la.index, &**get_type_info("int"));
         uint32_t res = spv.get_id();
-        uint32_t index_id = index.load(spv);
+        uint32_t index_id = index.load(spv, get_type_info("int"));
         spv.AccessChain(list.type->id, res, list.load(spv), &index_id, 1);
         assert(list.type->is<TypeInfo::Array>());
         TypeInfo::Array& array = list.type->get<TypeInfo::Array>();
@@ -1647,29 +1894,126 @@ class CodeGenerator final {
 
     ExprResult generate_expr(const Expr::FieldAccess& fa, const TypeInfo* expected_type) {
         ExprResult base = generate_expression(*fa.object, nullptr);
-        VariableInstance base_variable = std::get<VariableInstance>(base.data);
         uint32_t ptr_res = spv.get_id();
 
-        assert(base.type->is<TypeInfo::Struct>());
+        if (base.type->is<TypeInfo::Struct>()) {
+            const TypeInfo::Struct& s = base.type->get<TypeInfo::Struct>();
+            VariableInstance base_variable = std::get<VariableInstance>(base.data);
+            VariableInstance virtual_field_variable;
+            for (int i = 0; i < s.members.size(); i++) {
+                if (s.members[i].name == fa.field.name) {
+                    uint32_t constant_id = get_constant_int(i);
+                    spv.AccessChain(
+                        s.members[i].type->get_pointer_type(*base_variable.storage_class),
+                        ptr_res,
+                        base_variable.id,
+                        &constant_id,
+                        1
+                    );
+                    virtual_field_variable = { ptr_res,
+                                               s.members[i].type,
+                                               base_variable.storage_class };
+                    break;
+                }
+            }
 
-        const TypeInfo::Struct& s = base.type->get<TypeInfo::Struct>();
-        VariableInstance virtual_field_variable;
-        for (int i = 0; i < s.members.size(); i++) {
-            if (s.members[i].name == fa.field.name) {
-                uint32_t constant_id = get_constant_int(i);
-                spv.AccessChain(
-                    s.members[i].type->get_pointer_type(*base_variable.storage_class),
-                    ptr_res,
-                    base_variable.id,
-                    &constant_id,
-                    1
+            return { virtual_field_variable, *virtual_field_variable.type };
+        } else if (base.type->is<TypeInfo::Vector>()) {
+            const TypeInfo::Vector& v = base.type->get<TypeInfo::Vector>();
+            if (fa.field.name.size() == 1) {
+                char index_c = fa.field.name.c_str()[0];
+                uint32_t index = 0;
+                switch (index_c) {
+                    case 'x':
+                    case 'r':
+                        index = 0;
+                        break;
+                    case 'y':
+                    case 'g':
+                        index = 1;
+                        break;
+                    case 'z':
+                    case 'b':
+                        index = 2;
+                        break;
+                    case 'w':
+                    case 'a':
+                        index = 3;
+                        break;
+                    default:
+                        assert(false);
+                }
+
+                bool is_variable = base.data.index() == 1;
+                if (is_variable) {
+                    VariableInstance base_variable = std::get<VariableInstance>(base.data);
+                    uint32_t constant_id = get_constant_int(index);
+
+                    spv.AccessChain(
+                        v.element->get_pointer_type(*base_variable.storage_class),
+                        ptr_res,
+                        base_variable.id,
+                        &constant_id,
+                        1
+                    );
+
+                    VariableInstance virtual_field_variable = {
+                        ptr_res,
+                        v.element,
+                        base_variable.storage_class,
+                    };
+
+                    return { virtual_field_variable, *virtual_field_variable.type };
+                } else {
+                    uint32_t res =
+                        spv.CompositeExtractNew(v.element->id, base.load(spv), &index, 1);
+
+                    return { res, v.element };
+                }
+            } else {
+                // this is a swizzle
+
+                std::vector<uint32_t> indices;
+                for (char c : fa.field.name.to_string()) {
+                    uint32_t index = 0;
+                    switch (c) {
+                        case 'x':
+                        case 'r':
+                            index = 0;
+                            break;
+                        case 'y':
+                        case 'g':
+                            index = 1;
+                            break;
+                        case 'z':
+                        case 'b':
+                            index = 2;
+                            break;
+                        case 'w':
+                        case 'a':
+                            index = 3;
+                            break;
+                        default:
+                            assert(false);
+                    }
+                    indices.push_back(index);
+                }
+
+                Ref<TypeInfo> result_type = *get_type_info(
+                    v.element->name.to_string() + std::to_string(fa.field.name.size())
                 );
-                virtual_field_variable = { ptr_res, s.members[i].type, base_variable.storage_class };
-                break;
+
+                uint32_t res = spv.VectorShuffleNew(
+                    result_type->id,
+                    base.load(spv),
+                    spv.UndefNew(base.type->id),
+                    indices.data(),
+                    indices.size()
+                );
+
+                return { res, result_type };
             }
         }
-
-        return { virtual_field_variable, *virtual_field_variable.type };
     }
 
     ExprResult generate_expr(const Expr::NumberLiteral& nl, const TypeInfo* expected_type) {

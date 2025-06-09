@@ -91,7 +91,11 @@ if (ENABLE_LESLC)
     add_subdirectory(external/SPIRV-Headers)
     add_subdirectory(leslc)
 
-    set(LESLC ${CMAKE_BINARY_DIR}/leslc)
+    if (WIN32)
+        set(LESLC ${CMAKE_BINARY_DIR}/Debug/leslc.exe)
+    else ()
+        set(LESLC ${CMAKE_BINARY_DIR}/Debug/leslc)
+    endif()
 
     function(build_lesl_shader shader_name)
         add_custom_command(
@@ -101,6 +105,8 @@ if (ENABLE_LESLC)
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/lesl/${shader_name}.lesl ${LESLC}
             COMMENT "Building LESL shader ${shader_name}"
         )
+
+        set(${shader_name}_LESL_SPIRV ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_name}.spv PARENT_SCOPE)
     endfunction()
 endif()
 

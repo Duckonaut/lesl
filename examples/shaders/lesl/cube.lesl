@@ -11,18 +11,17 @@ struct ShaderLink {
     float4 color,
 }
 
-function vertex (VsIn v) -> (ShaderLink o) {
-    o.color = v.color
-    POSITION = v.position
+struct Uniforms {
+    float4x4 projection,
 }
 
-function manual_multiply (float4 a, float b) -> (float4 o) {
-    o = a * b
+function vertex (VsIn v, Uniforms u) -> (ShaderLink o) {
+    o.color = v.color
+    POSITION = u.projection * v.position
 }
 
 function fragment (ShaderLink i) -> (FsOut o) {
-    float4 mult = 0.5
-    o.color = i.color * mult
+    o.color = i.color
 }
 
 pipeline Basic {

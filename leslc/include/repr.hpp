@@ -339,6 +339,7 @@ struct Expr {
 
     struct NumberLiteral {
         double value;
+        SourceLocation location;
     };
 
     struct VariableAccess {
@@ -348,7 +349,7 @@ struct Expr {
     std::variant<NumberLiteral, Call, Binary, Unary, ListAccess, FieldAccess, VariableAccess> data;
 
     Expr(Identifier identifier) : data(VariableAccess { identifier }) {}
-    Expr(double number) : data(NumberLiteral { number }) {}
+    Expr(double number, SourceLocation location) : data(NumberLiteral { number, location }) {}
     Expr(Call call) : data(call) {}
     Expr(Binary binary) : data(binary) {}
     Expr(Unary unary) : data(unary) {}
@@ -363,6 +364,29 @@ struct Expr {
 
     template <typename T> T& get() {
         return std::get<T>(data);
+    }
+
+    template <typename T> const T& get() const {
+        return std::get<T>(data);
+    }
+
+    SourceLocation get_location() const {
+        if (is<VariableAccess>()) {
+            return get<VariableAccess>().name.location;
+        } else if (is<NumberLiteral>()) {
+            return get<NumberLiteral>().location;
+        } else if (is<Call>()) {
+            return get<Call>().name.location;
+        } else if (is<Binary>()) {
+            return get<Binary>().lhs->get_location();
+        } else if (is<Unary>()) {
+            return get<Unary>().expr->get_location();
+        } else if (is<ListAccess>()) {
+            return get<ListAccess>().list->get_location();
+        } else if (is<FieldAccess>()) {
+            return get<FieldAccess>().object->get_location();
+        }
+        assert(false);
     }
 };
 
@@ -684,4 +708,12 @@ struct ReprPrinter {
         print_expr(*fieldAccess.object);
         out << "." << fieldAccess.field.name.c_str();
     }
+};
+
+enum class StorageClass : uint32_t {
+    Input = spv::StorageClassInput,
+    Output = spv::StorageClassOutput,
+    Uniform = spv::StorageClassUniform,
+    StorageBuffer = spv::StorageClassStorageBuffer,
+    Function = spv::StorageClassFunction,
 };

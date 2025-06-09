@@ -16,8 +16,24 @@ endfunction()
 
 define_sdl3_example(triangle)
 
-build_spirv_shader(unified_basic)
+build_lesl_shader(triangle)
 
 target_sources(sdl3-triangle PRIVATE
-    ${CMAKE_BINARY_DIR}/shaders/spirv/unified_basic.spv
+    ${triangle_LESL_SPIRV}
+)
+
+define_sdl3_example(cube)
+
+build_lesl_shader(cube)
+
+target_sources(sdl3-cube PRIVATE
+    ${cube_LESL_SPIRV}
+)
+
+define_sdl3_example(matrices)
+
+build_lesl_shader(matrices)
+
+target_sources(sdl3-matrices PRIVATE
+    ${matrices_LESL_SPIRV}
 )
