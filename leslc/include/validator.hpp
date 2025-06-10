@@ -1211,12 +1211,17 @@ struct Validator {
                 return { std::nullopt };
             }
             // swizzle is valid, we can return the type of the swizzle
-            TypeInfo result_type = TypeInfo::create_vector(
-                arena.string_pool,
-                base_type.get<TypeInfo::Vector>().element,
-                field_access.field.name.size()
-            );
-            return { create_or_get_info_ref(std::move(result_type)) };
+            if (field_access.field.name.size() == 1) {
+                // if the vector is of size 1, the swizzle is just the element type
+                return { vector_type.element };
+            } else {
+                TypeInfo result_type = TypeInfo::create_vector(
+                    arena.string_pool,
+                    base_type.get<TypeInfo::Vector>().element,
+                    field_access.field.name.size()
+                );
+                return { create_or_get_info_ref(std::move(result_type)) };
+            }
         } else if (base_type.is<TypeInfo::Matrix>()) {
             // matrix access has no swizzles, instead components are
             // accessed by names like "x0", "y1", "z2", "w3"

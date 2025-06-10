@@ -37,3 +37,11 @@ build_lesl_shader(matrices)
 target_sources(sdl3-matrices PRIVATE
     ${matrices_LESL_SPIRV}
 )
+
+define_sdl3_example(swizzles)
+
+build_lesl_shader(swizzles)
+
+target_sources(sdl3-swizzles PRIVATE
+    ${swizzles_LESL_SPIRV}
+)
