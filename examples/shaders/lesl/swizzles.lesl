@@ -21,7 +21,7 @@ function vertex (VsIn v, Uniforms u) -> (ShaderLink o) {
 }
 
 function fragment (ShaderLink i) -> (FsOut o) {
-    o.color.rgb = i.color.brg
+    o.color.rgb = i.color.brr
     o.color.a = i.color.a
 }
 

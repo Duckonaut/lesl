@@ -24,17 +24,18 @@ struct Uniforms {
     glm::mat4 projection;
 };
 
-class Swizzles : public Example {
+class Multipipeline  : public Example {
   public:
     void init(SDL_Window* window, SDL_GPUDevice* device) override {
-        FileData unified_shader = readFile("../shaders/lesl/swizzles.spv");
+        FileData unified_shader_a = readFile("../shaders/lesl/multipipeline_a.spv");
+        FileData unified_shader_b = readFile("../shaders/lesl/multipipeline_b.spv");
 
         SDL_GPUTextureFormat swapchain_format =
             SDL_GetGPUSwapchainTextureFormat(device, window);
 
         SDL_GPUShaderCreateInfo shaderCreateInfo = {
-            .code_size = unified_shader.size,
-            .code = (Uint8*)unified_shader.data,
+            .code_size = unified_shader_a.size,
+            .code = (Uint8*)unified_shader_a.data,
             .entrypoint = "vertex",
             .format = SDL_GPU_SHADERFORMAT_SPIRV,
             .stage = SDL_GPU_SHADERSTAGE_VERTEX,
@@ -47,7 +48,7 @@ class Swizzles : public Example {
 
         SDL_GPUShader* vertex_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
 
-        shaderCreateInfo.entrypoint = "fragment";
+        shaderCreateInfo.entrypoint = "fragment_a";
         shaderCreateInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
 
         SDL_GPUShader* fragment_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
@@ -102,12 +103,28 @@ class Swizzles : public Example {
             .props = 0,
         };
 
-        pipeline = SDL_CreateGPUGraphicsPipeline(device, &createInfo);
+        pipeline_a = SDL_CreateGPUGraphicsPipeline(device, &createInfo);
+
+        shaderCreateInfo.code_size = unified_shader_b.size;
+        shaderCreateInfo.code = (Uint8*)unified_shader_b.data;
+
+        shaderCreateInfo.entrypoint = "vertex";
+        shaderCreateInfo.stage = SDL_GPU_SHADERSTAGE_VERTEX;
+        vertex_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
+        shaderCreateInfo.entrypoint = "fragment_b";
+        shaderCreateInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+        fragment_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
+
+        createInfo.vertex_shader = vertex_shader;
+        createInfo.fragment_shader = fragment_shader;
+
+        pipeline_b = SDL_CreateGPUGraphicsPipeline(device, &createInfo);
 
         SDL_ReleaseGPUShader(device, vertex_shader);
         SDL_ReleaseGPUShader(device, fragment_shader);
 
-        freeFileData(unified_shader);
+        freeFileData(unified_shader_a);
+        freeFileData(unified_shader_b);
 
         SDL_GPUBufferCreateInfo buffer_create_info = {
             .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
@@ -180,7 +197,7 @@ class Swizzles : public Example {
 
         SDL_GPURenderPass* pass = SDL_BeginGPURenderPass(cmd, &target, 1, nullptr);
 
-        SDL_BindGPUGraphicsPipeline(pass, pipeline);
+        SDL_BindGPUGraphicsPipeline(pass, pipeline_a);
 
         SDL_GPUBufferBinding binding = {
             .buffer = vertex_buffer,
@@ -189,26 +206,26 @@ class Swizzles : public Example {
 
         SDL_BindGPUVertexBuffers(pass, 0, &binding, 1);
 
-        glm::mat4 projection = glm::perspective(
-            glm::radians(45.0f),
-            static_cast<float>(w) / static_cast<float>(h),
-            0.1f,
-            100.0f
+        glm::mat4 proj = glm::scale(
+            glm::translate(glm::identity<glm::mat4>(), glm::vec3(-0.3f, 0, 0)),
+            glm::vec3(0.5f, 0.5f, 0.5f)
         );
 
-        glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f));
+        Uniforms uniforms_a = { proj };
 
-        glm::mat4 model = glm::rotate(
-            glm::mat4(1.0f),
-            static_cast<float>(SDL_GetTicks()) / 1000.0f,
-            glm::vec3(0.0f, 1.0f, 0.0f)
+        SDL_PushGPUVertexUniformData(cmd, 0, &uniforms_a, sizeof(uniforms_a));
+
+        SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+
+        SDL_BindGPUGraphicsPipeline(pass, pipeline_b);
+
+        proj = glm::scale(
+            glm::translate(glm::identity<glm::mat4>(), glm::vec3(0.3f, 0, 0)),
+            glm::vec3(0.5f, 0.5f, 0.5f)
         );
 
-        Uniforms uniforms = {
-            .projection = projection * view * model,
-        };
-
-        SDL_PushGPUVertexUniformData(cmd, 0, &uniforms, sizeof(uniforms));
+        Uniforms uniforms_b = { proj };
+        SDL_PushGPUVertexUniformData(cmd, 0, &uniforms_b, sizeof(uniforms_b));
 
         SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
 
@@ -219,14 +236,16 @@ class Swizzles : public Example {
 
     void quit(SDL_GPUDevice* device) override {
         SDL_ReleaseGPUBuffer(device, vertex_buffer);
-        SDL_ReleaseGPUGraphicsPipeline(device, pipeline);
+        SDL_ReleaseGPUGraphicsPipeline(device, pipeline_a);
+        SDL_ReleaseGPUGraphicsPipeline(device, pipeline_b);
     }
 
   private:
-    SDL_GPUGraphicsPipeline* pipeline;
+    SDL_GPUGraphicsPipeline* pipeline_a;
+    SDL_GPUGraphicsPipeline* pipeline_b;
     SDL_GPUBuffer* vertex_buffer;
 };
 
 Example* createExample() {
-    return new Swizzles();
+    return new Multipipeline();
 }

@@ -45,3 +45,13 @@ build_lesl_shader(swizzles)
 target_sources(sdl3-swizzles PRIVATE
     ${swizzles_LESL_SPIRV}
 )
+
+define_sdl3_example(multipipeline)
+
+build_lesl_shader(multipipeline A multipipeline_a)
+build_lesl_shader(multipipeline B multipipeline_b)
+
+target_sources(sdl3-multipipeline PRIVATE
+    ${multipipeline_a_LESL_SPIRV}
+    ${multipipeline_b_LESL_SPIRV}
+)

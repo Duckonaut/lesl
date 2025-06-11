@@ -27,6 +27,7 @@
 struct Args {
     std::optional<std::string> input;
     std::optional<std::string> output;
+    std::optional<std::string> pipeline;
 };
 
 static Args parse_args(int argc, char* argv[]) {
@@ -47,7 +48,14 @@ static Args parse_args(int argc, char* argv[]) {
                 args.output = argv[i + 1];
                 i++;
             }
-
+        } else if (arg == "--pipeline") {
+            if (i + 1 < argc) {
+                args.pipeline = argv[i + 1];
+                i++;
+            } else {
+                std::cerr << "error: --pipeline requires an argument" << std::endl;
+                exit(1);
+            }
         } else {
             if (args.input.has_value()) {
                 std::cerr << "error: multiple input files specified" << std::endl;
@@ -121,7 +129,7 @@ int main(int argc, char* argv[]) {
         BindingManager::BindingAllocationMode::SingleInputMultipleUniform
     );
 
-    CodeGenerator codegen(arena, binding_manager);
+    CodeGenerator codegen(arena, binding_manager, args.pipeline);
 
     codegen.generate();
 

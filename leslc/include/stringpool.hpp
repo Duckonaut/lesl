@@ -23,6 +23,8 @@ struct PoolStr final {
     bool operator!=(const PoolStr& other) const;
     bool operator==(const char* other) const;
     bool operator!=(const char* other) const;
+    bool operator==(const std::string& other) const;
+    bool operator!=(const std::string& other) const;
 };
 
 namespace std {

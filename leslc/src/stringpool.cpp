@@ -38,6 +38,17 @@ bool PoolStr::operator!=(const char* other) const {
     return !(*this == other);
 }
 
+bool PoolStr::operator==(const std::string& other) const {
+    if (other.size() != size()) {
+        return false;
+    }
+    return std::memcmp(c_str(), other.data(), size()) == 0;
+}
+
+bool PoolStr::operator!=(const std::string& other) const {
+    return !(*this == other);
+}
+
 StringPool::StringPool(size_t capacity)
     : data(new char[capacity]), size(0), capacity(capacity) {
     fragments.reserve(0x1000);

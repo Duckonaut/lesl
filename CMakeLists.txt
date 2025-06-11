@@ -98,15 +98,30 @@ if (ENABLE_LESLC)
     endif()
 
     function(build_lesl_shader shader_name)
+        # Optional arguments: 
+        # 0: custom pipeline name
+        # 1: custom output name
+        set(extra_args ${ARGN})
+        set(shader_output_name ${shader_name})
+        list(LENGTH extra_args extra_args_length)
+        if (extra_args_length GREATER 0)
+            list(GET extra_args 0 pipeline_name)
+            set(EXTRA_LESLC_ARGS --pipeline ${pipeline_name})
+            if (extra_args_length GREATER 1)
+                list(GET extra_args 1 shader_output_name)
+            endif()
+        else ()
+            set(EXTRA_LESLC_ARGS "")
+        endif()
         add_custom_command(
-            OUTPUT ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_name}.spv
+            OUTPUT ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_output_name}.spv
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
-            COMMAND ${LESLC} ${CMAKE_CURRENT_SOURCE_DIR}/shaders/lesl/${shader_name}.lesl -o ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_name}.spv
+            COMMAND ${LESLC} ${CMAKE_CURRENT_SOURCE_DIR}/shaders/lesl/${shader_name}.lesl -o ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_output_name}.spv ${EXTRA_LESLC_ARGS}
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/lesl/${shader_name}.lesl ${LESLC}
-            COMMENT "Building LESL shader ${shader_name}"
+            COMMENT "Building LESL shader ${shader_output_name}"
         )
 
-        set(${shader_name}_LESL_SPIRV ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_name}.spv PARENT_SCOPE)
+        set(${shader_output_name}_LESL_SPIRV ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_output_name}.spv PARENT_SCOPE)
     endfunction()
 endif()
 

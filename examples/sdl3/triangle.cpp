@@ -20,7 +20,7 @@ static Vertex vertices[] = {
 class Triangle : public Example {
   public:
     void init(SDL_Window* window, SDL_GPUDevice* device) override {
-        FileData unified_shader = readFile("simple.spv");
+        FileData unified_shader = readFile("../shaders/lesl/triangle.spv");
 
         SDL_GPUTextureFormat swapchain_format =
             SDL_GetGPUSwapchainTextureFormat(device, window);

@@ -27,6 +27,8 @@ class CodeGenerator final {
     CompilationArena& arena;
     spv_binary::BinaryContainer spv;
 
+    Opt<std::string> pipeline;
+
     uint32_t constants_insert_point;
     uint32_t glsl_ext;
     std::unordered_map<PoolStr, uint32_t> decl_ids;
@@ -43,8 +45,8 @@ class CodeGenerator final {
 
     RefContainer<ExprResult> expr_gen_results;
 
-    CodeGenerator(CompilationArena& arena, BindingManager& binding_manager)
-        : arena(arena), binding_manager(binding_manager) {}
+    CodeGenerator(CompilationArena& arena, BindingManager& binding_manager, Opt<std::string> pipeline)
+        : arena(arena), binding_manager(binding_manager), pipeline(pipeline) {}
 
     void generate() {
         generate_prelude();
@@ -110,6 +112,9 @@ class CodeGenerator final {
         for (Ref<Decl> decl : arena.decls) {
             if (decl->is<Decl::Pipeline>()) {
                 Decl::Pipeline& p = decl->get<Decl::Pipeline>();
+                if (pipeline && p.name.name != pipeline.value()) {
+                    continue;
+                }
                 for (PipelineParameter& param : p.params) {
                     if (param.name.name == "Vertex") {
                         if (std::find(
@@ -226,6 +231,9 @@ class CodeGenerator final {
         for (Ref<Decl> decl : arena.decls) {
             if (decl->is<Decl::Pipeline>()) {
                 Decl::Pipeline& p = decl->get<Decl::Pipeline>();
+                if (pipeline && p.name.name != pipeline.value()) {
+                    continue;
+                }
                 for (PipelineParameter& param : p.params) {
                     if (param.name.name == "Vertex") {
                         if (std::find(
@@ -811,6 +819,32 @@ class CodeGenerator final {
         }
 
         bool is_entry_point = is_vertex_entry_point || is_fragment_entry_point;
+
+        // if it's an entry point, check if it's a part of the currently selected pipeline
+        if (pipeline && is_entry_point) {
+            bool found = false;
+            for (Ref<Decl> decl : arena.decls) {
+                if (decl->is<Decl::Pipeline>()) {
+                    Decl::Pipeline& p = decl->get<Decl::Pipeline>();
+                    if (p.name.name == pipeline.value()) {
+                        for (PipelineParameter& param : p.params) {
+                            if ((param.name.name == "Vertex" || param.name.name == "Fragment"
+                                ) &&
+                                param.value.name == f.name.name) {
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (found) {
+                        break;
+                    }
+                }
+            }
+            if (!found) {
+                return; // skip functions that are not part of the current pipeline
+            }
+        }
 
         std::vector<uint32_t> ops;
 
