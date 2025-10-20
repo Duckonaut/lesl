@@ -1511,7 +1511,6 @@ class CodeGenerator final {
 
         if (!fun_decl.has_value()) {
             int function_id = 0;
-            int function_overload_id = 0;
 
             for (int i = 0; i < builtin_functions.size(); i++) {
                 if (c.name.name == builtin_functions[i].name) {
@@ -1521,29 +1520,64 @@ class CodeGenerator final {
             }
 
             const BuiltinFunction& builtin = builtin_functions[function_id];
-
-            if (builtin.overloads.size() > 0) {
-                for (int i = 0; i < builtin.overloads.size(); i++) {
-                    if (builtin.overloads[i].arg_types.size() == c.args.size()) {
-                        function_overload_id = i;
-                        break;
-                    }
-                }
-            }
-
-            const BuiltinOverload& overload = builtin.overloads[function_overload_id];
+            Opt<Ref<TypeInfo>> first_type = std::nullopt;
 
             std::vector<uint32_t> args;
             for (int i = 0; i < c.args.size(); i++) {
                 const auto& arg = c.args[i];
-                const auto& target = get_type_info(overload.arg_types[i]);
-                auto arg_result = generate_expression(*arg, &**target);
-                args.push_back(arg_result->load(spv, target));
+                switch (builtin.input_kind) {
+                    case BuiltinInputKind::Static: {
+                        const auto& target = get_type_info(builtin.static_output);
+                        auto arg_result = generate_expression(*arg, &**target);
+                        if (i == 0) {
+                            first_type = arg_result->type;
+                        }
+                        args.push_back(arg_result->load(spv, target));
+                        break;
+                    }
+                    case BuiltinInputKind::Vectorized:
+                    case BuiltinInputKind::Packed: {
+                        auto arg_result = generate_expression(*arg, nullptr);
+                        if (i == 0) {
+                            first_type = arg_result->type;
+                        }
+                        args.push_back(arg_result->load(spv, std::nullopt));
+                        break;
+                    }
+                }
             }
             uint32_t res =
                 builtin_function(spv, *expected_type, c.name.name, this->glsl_ext, args);
 
-            return expr_ref({ res, *get_type_info(overload.return_type) });
+            Opt<Ref<TypeInfo>> return_type = std::nullopt;
+
+            switch (builtin.output_kind) {
+                case BuiltinOutputKind::Static: {
+                    return_type = get_type_info(builtin.static_output);
+                    break;
+                }
+                case BuiltinOutputKind::InheritedSingle: {
+                    return_type = get_type_info(TypeInfo::builtin_primitive_str(
+                        (*first_type)->get_underlying_primitive().primitive
+                    ));
+                    break;
+                }
+                case BuiltinOutputKind::StaticVectorized: {
+                    uint32_t vector_size = (*first_type)->get<TypeInfo::Vector>().size;
+
+                    return_type = get_type_info(
+                        TypeInfo::builtin_primitive_str(builtin.static_output_base) +
+                        std::to_string(vector_size)
+                    );
+                    break;
+                }
+                case BuiltinOutputKind::Inherited: {
+                    return_type = first_type;
+                    break;
+                }
+            }
+
+            return expr_ref({ res, *return_type });
         } else {
             const Decl::Function& fun = fun_decl.value()->get<Decl::Function>();
             for (int i = 0; i < fun.params.size(); i++) {

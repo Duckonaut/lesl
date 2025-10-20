@@ -169,6 +169,21 @@ struct TypeInfo {
         return type;
     }
 
+    static const char* builtin_primitive_str(BuiltinPrimitive p) {
+        switch (p) {
+            case BuiltinPrimitive::Void:
+                return "void";
+            case BuiltinPrimitive::Bool:
+                return "bool";
+            case BuiltinPrimitive::Int:
+                return "int";
+            case BuiltinPrimitive::Uint:
+                return "uint";
+            case BuiltinPrimitive::Float:
+                return "float";
+        }
+    }
+
     template <typename T> bool is() const {
         return std::holds_alternative<T>(data);
     }

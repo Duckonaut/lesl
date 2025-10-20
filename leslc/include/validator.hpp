@@ -1288,13 +1288,174 @@ struct Validator {
 
         return std::visit(
             overloaded{
-                [this](Ref<Decl>& decl) -> ExprValidationResult {
+                [this, &call](Ref<Decl>& decl) -> ExprValidationResult {
                     Decl::Function& f = decl->get<Decl::Function>();
+
+                    if (call.args.size() != f.params.size()) {
+                        error_handler.error(
+                            ErrorType::BadCallArgumentCount,
+                            call.name.location
+                        );
+                    } else {
+                        for (int i = 0; i < f.params.size(); i++) {
+                            Opt<Ref<TypeInfo>> expected =
+                                find_type_info(f.params[i].type.name.name.c_str());
+                            Opt<Ref<TypeInfo>> actual = validate_expr(*call.args[i], expected).type;
+
+                            if (expected != std::nullopt && actual != std::nullopt) {
+                                if (!is_type_convertible(*actual, *expected)) {
+                                    error_handler.error(
+                                        ErrorType::BadCallArgument,
+                                        f.params[i].name.name,
+                                        call.args[i]->get_location()
+                                    );
+                                }
+                            }
+                        }
+                    }
+
                     return { f.rets[0].type.resolved_type.value() };
                 },
-                [this](BuiltinFunction& builtin) -> ExprValidationResult {
-                    const char* return_type_name = builtin.overloads[0].return_type;
-                    Opt<Ref<TypeInfo>> return_type = find_type_info(return_type_name);
+                [this, &call](BuiltinFunction& builtin) -> ExprValidationResult {
+                    std::vector<Ref<TypeInfo>> arg_types;
+                    Opt<Ref<TypeInfo>> type_hint = std::nullopt;
+
+                    BuiltinInputKind bik = builtin.input_kind;
+                    BuiltinOutputKind bok = builtin.output_kind;
+
+                    for (auto& arg : call.args) {
+                        ExprValidationResult evr = validate_expr(*arg, type_hint);
+
+                        if (evr.type != std::nullopt) {
+                            arg_types.push_back(*evr.type);
+                        } else {
+                            return { std::nullopt };
+                        }
+                    }
+
+                    switch (bik) {
+                        case BuiltinInputKind::Static:
+                            int input_set = -1;
+                            for (int k = 0; k < builtin.inputs.size(); k++) {
+                                auto& inputs = builtin.inputs[k];
+                                if (inputs.size() != call.args.size()) {
+                                    continue;
+                                }
+                                bool invalid = false;
+                                for (int i = 0; i < inputs.size(); i++) {
+                                    Opt<Ref<TypeInfo>> expected = find_type_info(inputs[i]);
+                                    Opt<Ref<TypeInfo>> actual =
+                                        validate_expr(*call.args[i], expected).type;
+
+                                    if (expected != std::nullopt && actual != std::nullopt) {
+                                        if (!is_type_convertible(*actual, *expected)) {
+                                            invalid = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (!invalid) {
+                                    input_set = k;
+                                    break;
+                                }
+                            }
+                            break;
+                        case BuiltinInputKind::Packed:
+                            uint32_t components = builtin.required_packed_input;
+                            TypeInfo::BuiltinPrimitive pack_primitive =
+                                builtin.base_input_primitive;
+
+                            uint32_t my_components = 0;
+                            for (uint32_t i = 0; i < arg_types.size(); i++) {
+                                Ref<TypeInfo> a = arg_types[i];
+
+                                if (a->is<TypeInfo::Primitive>()) {
+                                    TypeInfo::Primitive& p = a->get<TypeInfo::Primitive>();
+
+                                    if (p.primitive != pack_primitive) {
+                                        error_handler.error(
+                                            ErrorType::BadCallArgument,
+                                            call.args[i]->get_location()
+                                        );
+                                    }
+
+                                    my_components += 1;
+                                }
+                                else if(a->is<TypeInfo::Vector>()) {
+                                    TypeInfo::Vector& v = a->get<TypeInfo::Vector>();
+                                    TypeInfo::BuiltinPrimitive p =
+                                        a->get_underlying_primitive().primitive;
+
+                                    if (p != pack_primitive) {
+                                        error_handler.error(
+                                            ErrorType::BadPackedInputPrimitiveType,
+                                            call.args[i]->get_location()
+                                        );
+                                    }
+
+                                    my_components += v.size;
+                                } else {
+                                    error_handler.error(
+                                        ErrorType::BadPackedInputType,
+                                        call.args[i]->get_location()
+                                    );
+                                }
+                            }
+
+                            if (my_components != components) {
+                                error_handler.error(
+                                    ErrorType::BadPackedInput,
+                                    call.args[0]->get_location()
+                                );
+                            }
+                            break;
+                        case BuiltinInputKind::Vectorized:
+                            TypeInfo::BuiltinPrimitive base_primitive =
+                                arg_types[0]->get_underlying_primitive().primitive;
+                            uint32_t base_size = 0;
+                            if (arg_types[0]->is<TypeInfo::Primitive>()) {
+                                base_size = 1;
+                            } else if (arg_types[0]->is<TypeInfo::Vector>()) {
+                                base_size = arg_types[0]->get<TypeInfo::Vector>().size;
+                            } else {
+                                error_handler.error(
+                                    ErrorType::BadVectorInputType,
+                                    arg_types[0]->name,
+                                    call.args[0]->get_location()
+                                );
+                            }
+
+                            bool accepted = false;
+                            for (uint32_t i = 0; i < builtin.allowed_primitive_inputs.size(); i++) {
+                                if (builtin.allowed_primitive_inputs[i] == base_primitive) {
+                                    accepted = true;
+                                    break;
+                                }
+                            }
+
+                            if (!accepted) {
+                                error_handler.error(
+                                    ErrorType::BadVectorPrimitive,
+                                    arena.string_pool.add(TypeInfo::builtin_primitive_str(base_primitive)),
+                                    call.args[0]->get_location()
+                                );
+                            }
+
+                            for (uint32_t i = 1; i < arg_types.size(); i++) {
+                                Ref<TypeInfo>& t = arg_types[i];
+
+                                if (t != arg_types[0]) {
+                                    error_handler.error(
+                                        ErrorType::BadVectorInputInconsistent,
+                                        call.args[i]->get_location()
+                                    );
+                                }
+                            }
+
+                            break;
+                    }
+
                     return { return_type };
                 },
             },

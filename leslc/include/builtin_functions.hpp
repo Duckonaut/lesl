@@ -13,222 +13,209 @@
 
 #include <vector>
 
-struct BuiltinOverload {
-    std::vector<const char*> arg_types;
-    const char* return_type;
+enum class BuiltinInputKind {
+    Static,
+    Vectorized,
+    Packed,
+};
+
+enum class BuiltinOutputKind {
+    // all overloads have the same output type
+    Static,
+    // output type is the base type of vector arguments
+    InheritedSingle,
+    // output type is a static base type, vectorized to arguments
+    StaticVectorized,
+    // output type is fully inherited
+    Inherited,
 };
 
 struct BuiltinFunction {
     const char* name;
-    std::vector<BuiltinOverload> overloads;
+
+    BuiltinInputKind input_kind;
+    BuiltinOutputKind output_kind;
+
+    // INPUT
+    //  Static
+    std::vector<std::vector<const char*>> inputs;
+    //  Vectorized
+    std::vector<TypeInfo::BuiltinPrimitive> allowed_primitive_inputs;
+    uint32_t min_vector_size;
+    uint32_t max_vector_size;
+    //  Packed
+    TypeInfo::BuiltinPrimitive base_input_primitive;
+    uint32_t required_packed_input;
+
+    // OUTPUT
+    //  Static
+    const char* static_output;
+    //  Vectorized
+    TypeInfo::BuiltinPrimitive static_output_base;
+
+    BuiltinFunction(const char* name) : name(name) {}
+
+    BuiltinFunction& with_static_input(std::vector<std::vector<const char*>>&& inputs) {
+        this->input_kind = BuiltinInputKind::Static;
+        this->inputs = std::move(inputs);
+
+        return *this;
+    }
+
+    BuiltinFunction& with_vectorized_input(
+        std::vector<TypeInfo::BuiltinPrimitive>&& allowed_bases,
+        uint32_t min_vector_size,
+        uint32_t max_vector_size
+    ) {
+        assert(min_vector_size >= 1 && min_vector_size <= 4);
+        assert(max_vector_size >= 1 && max_vector_size <= 4);
+        this->input_kind = BuiltinInputKind::Vectorized;
+
+        this->allowed_primitive_inputs = std::move(allowed_bases);
+        this->min_vector_size = min_vector_size;
+        this->max_vector_size = max_vector_size;
+
+        return *this;
+    }
+
+    BuiltinFunction& with_packed_input(
+        TypeInfo::BuiltinPrimitive base_input_primitive,
+        uint32_t required_packed_inputs
+    ) {
+        assert(required_packed_input >= 1 && required_packed_input <= 4);
+        this->input_kind = BuiltinInputKind::Packed;
+
+        this->base_input_primitive = base_input_primitive;
+        this->required_packed_input = required_packed_inputs;
+
+        return *this;
+    }
+
+    BuiltinFunction& with_static_output(const char* name) {
+        this->output_kind = BuiltinOutputKind::Static;
+
+        this->static_output = name;
+
+        return *this;
+    }
+
+    BuiltinFunction& with_inherited_output() {
+        this->output_kind = BuiltinOutputKind::Inherited;
+
+        return *this;
+    }
+
+    BuiltinFunction& with_static_vectorized_output(TypeInfo::BuiltinPrimitive vectorized_output_base) {
+        this->output_kind = BuiltinOutputKind::StaticVectorized;
+
+        this->static_output_base;
+
+        return *this;
+    }
+
+    BuiltinFunction& with_inherited_single_output() {
+        this->output_kind = BuiltinOutputKind::InheritedSingle;
+
+        return *this;
+    }
 };
 
 inline static const std::vector<BuiltinFunction> builtin_functions = {
     // triganometric functions
-    {
-        "sin",
-        {
-            { { "float" }, "float" },
-            { { "float2" }, "float2" },
-            { { "float3" }, "float3" },
-            { { "float4" }, "float4" },
-        },
-    },
-    {
-        "cos",
-        {
-            { { "float" }, "float" },
-            { { "float2" }, "float2" },
-            { { "float3" }, "float3" },
-            { { "float4" }, "float4" },
-        },
-    },
-    {
-        "tan",
-        {
-            { { "float" }, "float" },
-            { { "float2" }, "float2" },
-            { { "float3" }, "float3" },
-            { { "float4" }, "float4" },
-        },
-    },
+    BuiltinFunction("sin")
+        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 1, 4)
+        .with_inherited_output(),
+    BuiltinFunction("cos")
+        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 1, 4)
+        .with_inherited_output(),
+    BuiltinFunction("tan")
+        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 1, 4)
+        .with_inherited_output(),
     // basic math or vector math
-    {
-        "abs",
-        {
-            { { "int" }, "int" },
-            { { "float" }, "float" },
-        },
-    },
-    {
-        "sqrt",
-        {
-            { { "float" }, "float" },
-        },
-    },
-    {
-        "length",
-        {
-            { { "float2" }, "float" },
-            { { "float3" }, "float" },
-            { { "float4" }, "float" },
-        },
-    },
-    {
-        "dot",
-        {
-            { { "float2", "float2" }, "float" },
-            { { "float3", "float3" }, "float" },
-            { { "float4", "float4" }, "float" },
-        },
-    },
-    {
-        "cross",
-        {
-            { { "float3", "float3" }, "float3" },
-        },
-    },
-    {
-        "normalize",
-        {
-            { { "float2" }, "float2" },
-            { { "float3" }, "float3" },
-            { { "float4" }, "float4" },
-        },
-    },
+    BuiltinFunction("abs")
+        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float, TypeInfo::BuiltinPrimitive::Int }, 1, 1)
+        .with_inherited_output(),
+    BuiltinFunction("sqrt").with_static_input({ { "float" } })
+        .with_static_output("float"),
+    BuiltinFunction("length")
+        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 2, 4)
+        .with_static_output("float"),
+    BuiltinFunction("dot")
+        .with_static_input({
+            { "float2", "float2" },
+            { "float3", "float3" },
+            { "float4", "float4" },
+        })
+        .with_static_output("float"),
+    BuiltinFunction("cross")
+        .with_static_input({
+            { "float3", "float3" },
+        })
+        .with_static_output("float"),
+    BuiltinFunction("normalize")
+        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 2, 4)
+        .with_inherited_output(),
     // interpolation
-    {
-        "clamp",
-        {
-            { { "float", "float", "float" }, "float" },
-            { { "int", "int", "int" }, "int" },
-            { { "uint", "uint", "uint" }, "uint" },
-        },
-    },
-    {
-        "lerp",
-        {
-            { { "float", "float", "float" }, "float" },
-            { { "float2", "float2", "float" }, "float2" },
-            { { "float3", "float3", "float" }, "float3" },
-            { { "float4", "float4", "float" }, "float4" },
-        },
-    },
-    {
-        "smoothstep",
-        {
-            { { "float", "float", "float" }, "float" },
-            { { "float2", "float2", "float" }, "float2" },
-            { { "float3", "float3", "float" }, "float3" },
-            { { "float4", "float4", "float" }, "float4" },
-        },
-    },
+    BuiltinFunction("clamp")
+        .with_static_input({
+            { "float", "float", "float" },
+            { "int", "int", "int" },
+            { "uint", "uint", "uint" },
+        })
+        .with_inherited_output(),
+    BuiltinFunction("lerp")
+        .with_static_input({
+            { "float", "float", "float" },
+            { "float2", "float2", "float" },
+            { "float3", "float3", "float" },
+            { "float3", "float4", "float" },
+        })
+        .with_inherited_output(),
+    BuiltinFunction("smoothstep")
+        .with_static_input({
+            { "float", "float", "float" },
+            { "float2", "float2", "float" },
+            { "float3", "float3", "float" },
+            { "float3", "float4", "float" },
+        })
+        .with_inherited_output(),
     // builtin constructors
-    {
-        "float2",
-        {
-            // constructors
-            { { "float", "float" }, "float2" },
-            { { "float" }, "float2" },
-        },
-    },
-    {
-        "float3",
-        {
-            // constructors
-            { { "float", "float", "float" }, "float3" },
-            { { "float2", "float" }, "float3" },
-            { { "float" }, "float3" },
-        },
-    },
-    {
-        "float4",
-        {
-            // constructors
-            { { "float", "float", "float", "float" }, "float4" },
-            { { "float2 ", " float ", "float" }, "float4" },
-            { { "float3", "float" }, "float4" },
-            { { "float" }, "float4" },
-        },
-    },
-    {
-        "int2",
-        {
-            // constructors
-            { { "int", "int" }, "int2" },
-            { { "int" }, "int2" },
-        },
-    },
-    {
-        "int3",
-        {
-            // constructors
-            { { "int", "int", "int" }, "int3" },
-            { { "int2", "int" }, "int3" },
-            { { "int" }, "int3" },
-        },
-    },
-    {
-        "int4",
-        {
-            // constructors
-            { { "int", "int", "int", "int" }, "int4" },
-            { { "int2 ", " int ", " int" }, "int4" },
-            { { "int3", "int" }, "int4" },
-            { { "int" }, "int4" },
-        },
-    },
-    {
-        "uint2",
-        {
-            // constructors
-            { { "uint", "uint" }, "uint2" },
-            { { "uint" }, "uint2" },
-        },
-    },
-    {
-        "uint3",
-        {
-            // constructors
-            { { "uint", "uint", "uint" }, "uint3" },
-            { { "uint2", "uint" }, "uint3" },
-            { { "uint" }, "uint3" },
-        },
-    },
-    {
-        "uint4",
-        {
-            // constructors
-            { { "uint", "uint", "uint", "uint" }, "uint4" },
-            { { "uint2 ", " uint ", " uint" }, "uint4" },
-            { { "uint3", "uint" }, "uint4" },
-            { { "uint" }, "uint4" },
-        },
-    },
-    {
-        "bool2",
-        {
-            // constructors
-            { { "bool", "bool" }, "bool2" },
-        },
-    },
-    {
-        "bool3",
-        {
-            // constructors
-            { { "bool", "bool", "bool" }, "bool3" },
-            { { "bool2", "bool" }, "bool3" },
-        },
-    },
-    {
-        "bool4",
-        {
-            // constructors
-            { { "bool", "bool", "bool", "bool" }, "bool4" },
-            { { "bool2 ", " bool ", " bool" }, "bool4" },
-            { { "bool3", "bool" }, "bool4" },
-        },
-    },
+    BuiltinFunction("float2")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Float, 2)
+        .with_static_output("float2"),
+    BuiltinFunction("float3")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Float, 3)
+        .with_static_output("float3"),
+    BuiltinFunction("float4")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Float, 4)
+        .with_static_output("float4"),
+    BuiltinFunction("int2")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Int, 2)
+        .with_static_output("int2"),
+    BuiltinFunction("int3")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Int, 3)
+        .with_static_output("int3"),
+    BuiltinFunction("int4")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Int, 4)
+        .with_static_output("int4"),
+    BuiltinFunction("uint2")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Uint, 2)
+        .with_static_output("uint2"),
+    BuiltinFunction("uint3")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Uint, 3)
+        .with_static_output("uint3"),
+    BuiltinFunction("uint4")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Uint, 4)
+        .with_static_output("uint4"),
+    BuiltinFunction("bool2")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Bool, 2)
+        .with_static_output("bool2"),
+    BuiltinFunction("bool3")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Bool, 3)
+        .with_static_output("bool3"),
+    BuiltinFunction("bool4")
+        .with_packed_input(TypeInfo::BuiltinPrimitive::Bool, 4)
+        .with_static_output("bool4"),
 };
 
 inline static uint32_t builtin_function(

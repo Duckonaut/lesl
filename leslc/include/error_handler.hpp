@@ -45,6 +45,15 @@ enum class ErrorType {
     InvalidArrayIndex,
     InvalidVectorIndex,
     InvalidArrayAccess,
+
+    BadCallArgumentCount,
+    BadCallArgument,
+    BadPackedInputType,
+    BadPackedInputPrimitiveType,
+    BadPackedInput,
+    BadVectorPrimitive,
+    BadVectorInputType,
+    BadVectorInputInconsistent,
 };
 
 struct ErrorData {
@@ -178,6 +187,34 @@ struct Error {
                 break;
             case ErrorType::InvalidArrayAccess:
                 out << "This expression cannot be accessed as an array";
+                break;
+            case ErrorType::BadCallArgumentCount:
+                out << "Function parameter count does not match call argument count";
+                break;
+            case ErrorType::BadCallArgument:
+                out << "Call argument for parameter " << colorize::bold(data.str.to_string())
+                    << " has wrong type";
+                break;
+            case ErrorType::BadPackedInputType:
+                out << "Function requires packed input, which only accepts vector and "
+                       "primitive arguments";
+                break;
+            case ErrorType::BadPackedInputPrimitiveType:
+                out << "Function doesn't accept this primitive as component of packed call";
+                break;
+            case ErrorType::BadPackedInput:
+                out << "Component count for packed input is the wrong size";
+                break;
+            case ErrorType::BadVectorPrimitive:
+                out << "Function does not accept primitives or vectors with the underlying "
+                    << colorize::bold(data.str.to_string()) << " type";
+                break;
+            case ErrorType::BadVectorInputType:
+                    out << "Function only accepts primitive and vector types, "
+                        << colorize::bold(data.str.to_string()) << " is not one of them";
+                break;
+            case ErrorType::BadVectorInputInconsistent:
+                out << "Function call argumentrs must all be the same type";
                 break;
         }
 
