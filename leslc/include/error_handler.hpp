@@ -52,6 +52,7 @@ enum class ErrorType {
     BadPackedInputPrimitiveType,
     BadPackedInput,
     BadVectorPrimitive,
+    BadVectorSize,
     BadVectorInputType,
     BadVectorInputInconsistent,
 };
@@ -208,6 +209,9 @@ struct Error {
             case ErrorType::BadVectorPrimitive:
                 out << "Function does not accept primitives or vectors with the underlying "
                     << colorize::bold(data.str.to_string()) << " type";
+                break;
+            case ErrorType::BadVectorSize:
+                out << "Function call argument vector is the wrong size";
                 break;
             case ErrorType::BadVectorInputType:
                     out << "Function only accepts primitive and vector types, "

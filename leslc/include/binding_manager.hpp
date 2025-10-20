@@ -32,7 +32,7 @@ struct BindingManager final {
         // - Fragment Shaders:
         //   - set 2: sampled textures, followed by storage textures, followed by storage
         //   buffers
-        //   - set 2: uniform buffers
+        //   - set 3: uniform buffers
         SDL3,
     };
 
@@ -57,35 +57,45 @@ struct BindingManager final {
     bool vertex_input_decorated = false;
     bool fragment_input_decorated = false;
 
-    BindingManager(TargetAPI target_api, BindingAllocationMode mode) : target_api(target_api), mode(mode) {}
+    BindingManager(TargetAPI target_api, BindingAllocationMode mode)
+        : target_api(target_api), mode(mode) {}
 
-    void decorate(spv_binary::BinaryContainer& spv, PipelineStage context, const Decl::Struct& s, uint32_t struct_id, bool input) {
+    void decorate(
+        spv_binary::BinaryContainer& spv,
+        PipelineStage context,
+        const Decl::Struct& s,
+        uint32_t struct_id,
+        bool input
+    ) {
         if (input) {
-        switch (mode) {
-            case BindingAllocationMode::SingleInputMultipleUniform:
-                if ((context == PipelineStage::Vertex && vertex_input_decorated)
-                    || (context == PipelineStage::Fragment && fragment_input_decorated)) {
-                    decorate_as_uniform(spv, s, struct_id);
-                }
-                else {
-                    decorate_as_input(spv, s, struct_id);
-                    if (context == PipelineStage::Vertex) {
-                        vertex_input_decorated = true;
-                    } else if (context == PipelineStage::Fragment) {
-                        fragment_input_decorated = true;
+            switch (mode) {
+                case BindingAllocationMode::SingleInputMultipleUniform:
+                    if ((context == PipelineStage::Vertex && vertex_input_decorated) ||
+                        (context == PipelineStage::Fragment && fragment_input_decorated)) {
+                        decorate_as_uniform(spv, s, struct_id);
+                    } else {
+                        decorate_as_input(spv, s, struct_id);
+                        if (context == PipelineStage::Vertex) {
+                            vertex_input_decorated = true;
+                        } else if (context == PipelineStage::Fragment) {
+                            fragment_input_decorated = true;
+                        }
                     }
-                }
-                break;
-            case BindingAllocationMode::MultiInput:
-                decorate_as_input(spv, s, struct_id);
-                break;
-        }
+                    break;
+                case BindingAllocationMode::MultiInput:
+                    decorate_as_input(spv, s, struct_id);
+                    break;
+            }
         } else {
             decorate_as_output(spv, s, struct_id);
         }
     }
 
-    void decorate_as_input(spv_binary::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
+    void decorate_as_input(
+        spv_binary::BinaryContainer& spv,
+        const Decl::Struct& s,
+        uint32_t struct_id
+    ) {
         uint32_t location = 0;
 
         spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
@@ -113,7 +123,11 @@ struct BindingManager final {
         output_binding++;
     }
 
-    void decorate_as_uniform(spv_binary::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
+    void decorate_as_uniform(
+        spv_binary::BinaryContainer& spv,
+        const Decl::Struct& s,
+        uint32_t struct_id
+    ) {
         spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
     }
 
@@ -131,17 +145,32 @@ struct BindingManager final {
     void allocate_as_uniform(spv_binary::BinaryContainer& spv, const GlobalInterface& gi) {
         if (gi.storage_class == StorageClass::Uniform) {
             if (target_api == TargetAPI::SDL3) {
-                uint32_t set = 1;
+                if (gi.pipeline_stage == PipelineStage::Fragment) {
+                    uint32_t set = 3;
 
-                spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
-                spv.Decorate(
-                    gi.id,
-                    spv::DecorationBinding,
-                    &sdl3_vertex_uniform_binding,
-                    1
-                );
+                    spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
+                    spv.Decorate(
+                        gi.id,
+                        spv::DecorationBinding,
+                        &sdl3_fragment_uniform_binding,
+                        1
+                    );
 
-                sdl3_vertex_uniform_binding++;
+                    sdl3_fragment_uniform_binding++;
+                    return;
+                } else {
+                    uint32_t set = 1;
+
+                    spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
+                    spv.Decorate(
+                        gi.id,
+                        spv::DecorationBinding,
+                        &sdl3_vertex_uniform_binding,
+                        1
+                    );
+
+                    sdl3_vertex_uniform_binding++;
+                }
             } else if (target_api == TargetAPI::Vulkan) {
                 uint32_t set = 0;
 

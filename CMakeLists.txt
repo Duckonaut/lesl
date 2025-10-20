@@ -134,14 +134,14 @@ if (ENABLE_EXAMPLES)
     FetchContent_Declare(
         glm
         GIT_REPOSITORY https://github.com/g-truc/glm.git
-        GIT_TAG bf71a834948186f4097caa076cd2663c69a10e1e #refs/tags/1.0.1
+        GIT_TAG 1.0.2
     )
     FetchContent_MakeAvailable(glm)
 
     FetchContent_Declare(
         SDL
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-        GIT_TAG main
+        GIT_TAG release-3.2.24
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
     )

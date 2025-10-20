@@ -55,3 +55,11 @@ target_sources(sdl3-multipipeline PRIVATE
     ${multipipeline_a_LESL_SPIRV}
     ${multipipeline_b_LESL_SPIRV}
 )
+
+define_sdl3_example(time)
+
+build_lesl_shader(time)
+
+target_sources(sdl3-time PRIVATE
+    ${time_LESL_SPIRV}
+)

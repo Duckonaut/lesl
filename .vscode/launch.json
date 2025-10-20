@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "codelldb",
+      "request": "launch",
+      "name": "Compile current shader",
+      "preLaunchTask": "Compile",
+      "program": "${workspaceFolder}/build/Debug/leslc",
+      "args": [
+        "${file}",
+        "-o",
+        "${workspaceFolder}/build/shaders/lesl/${fileBasenameNoExtension}.spv"
+      ]
+    },
+    {
+      "type": "codelldb",
+      "request": "launch",
+      "name": "Launch current example",
+      "preLaunchTask": "Compile",
+      "program": "${workspaceFolder}/build/Debug/sdl3-${fileBasenameNoExtension}",
+      "args": []
+    }
+  ]
+}

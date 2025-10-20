@@ -82,7 +82,7 @@ struct BuiltinFunction {
         TypeInfo::BuiltinPrimitive base_input_primitive,
         uint32_t required_packed_inputs
     ) {
-        assert(required_packed_input >= 1 && required_packed_input <= 4);
+        assert(required_packed_inputs >= 1 && required_packed_inputs <= 4);
         this->input_kind = BuiltinInputKind::Packed;
 
         this->base_input_primitive = base_input_primitive;
@@ -105,7 +105,8 @@ struct BuiltinFunction {
         return *this;
     }
 
-    BuiltinFunction& with_static_vectorized_output(TypeInfo::BuiltinPrimitive vectorized_output_base) {
+    BuiltinFunction&
+    with_static_vectorized_output(TypeInfo::BuiltinPrimitive vectorized_output_base) {
         this->output_kind = BuiltinOutputKind::StaticVectorized;
 
         this->static_output_base;
@@ -131,53 +132,96 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
     BuiltinFunction("tan")
         .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 1, 4)
         .with_inherited_output(),
+    BuiltinFunction("asin")
+        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 1, 4)
+        .with_inherited_output(),
+    BuiltinFunction("acos")
+        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 1, 4)
+        .with_inherited_output(),
+    BuiltinFunction("atan")
+        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 1, 4)
+        .with_inherited_output(),
+    BuiltinFunction("atan2")
+        .with_static_input({ { "float", "float" } })
+        .with_static_output("float"),
     // basic math or vector math
     BuiltinFunction("abs")
-        .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float, TypeInfo::BuiltinPrimitive::Int }, 1, 1)
+        .with_vectorized_input(
+            { TypeInfo::BuiltinPrimitive::Float, TypeInfo::BuiltinPrimitive::Int },
+            1,
+            4
+        )
         .with_inherited_output(),
-    BuiltinFunction("sqrt").with_static_input({ { "float" } })
-        .with_static_output("float"),
+    BuiltinFunction("sqrt").with_static_input({ { "float" } }).with_static_output("float"),
     BuiltinFunction("length")
         .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 2, 4)
         .with_static_output("float"),
     BuiltinFunction("dot")
-        .with_static_input({
-            { "float2", "float2" },
-            { "float3", "float3" },
-            { "float4", "float4" },
-        })
+        .with_static_input(
+            {
+                { "float2", "float2" },
+                { "float3", "float3" },
+                { "float4", "float4" },
+            }
+        )
         .with_static_output("float"),
     BuiltinFunction("cross")
-        .with_static_input({
-            { "float3", "float3" },
-        })
+        .with_static_input(
+            {
+                { "float3", "float3" },
+            }
+        )
         .with_static_output("float"),
     BuiltinFunction("normalize")
         .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 2, 4)
         .with_inherited_output(),
     // interpolation
     BuiltinFunction("clamp")
-        .with_static_input({
-            { "float", "float", "float" },
-            { "int", "int", "int" },
-            { "uint", "uint", "uint" },
-        })
+        .with_static_input(
+            {
+                { "float", "float", "float" },
+                { "int", "int", "int" },
+                { "uint", "uint", "uint" },
+            }
+        )
+        .with_inherited_output(),
+    BuiltinFunction("max")
+        .with_static_input(
+            {
+                { "float", "float" },
+                { "int", "int" },
+                { "uint", "uint" },
+            }
+        )
+        .with_inherited_output(),
+    BuiltinFunction("min")
+        .with_static_input(
+            {
+                { "float", "float" },
+                { "int", "int" },
+                { "uint", "uint" },
+            }
+        )
         .with_inherited_output(),
     BuiltinFunction("lerp")
-        .with_static_input({
-            { "float", "float", "float" },
-            { "float2", "float2", "float" },
-            { "float3", "float3", "float" },
-            { "float3", "float4", "float" },
-        })
+        .with_static_input(
+            {
+                { "float", "float", "float" },
+                { "float2", "float2", "float" },
+                { "float3", "float3", "float" },
+                { "float3", "float4", "float" },
+            }
+        )
         .with_inherited_output(),
     BuiltinFunction("smoothstep")
-        .with_static_input({
-            { "float", "float", "float" },
-            { "float2", "float2", "float" },
-            { "float3", "float3", "float" },
-            { "float3", "float4", "float" },
-        })
+        .with_static_input(
+            {
+                { "float", "float", "float" },
+                { "float2", "float2", "float" },
+                { "float3", "float3", "float" },
+                { "float3", "float4", "float" },
+            }
+        )
         .with_inherited_output(),
     // builtin constructors
     BuiltinFunction("float2")
@@ -234,6 +278,14 @@ inline static uint32_t builtin_function(
         return spv.ExtInstNew(res_type, glsl_std_id, GLSLstd450Cos, args.data(), args.size());
     } else if (name == "tan") {
         return spv.ExtInstNew(res_type, glsl_std_id, GLSLstd450Tan, args.data(), args.size());
+    } else if (name == "asin") {
+        return spv.ExtInstNew(res_type, glsl_std_id, GLSLstd450Asin, args.data(), args.size());
+    } else if (name == "acos") {
+        return spv.ExtInstNew(res_type, glsl_std_id, GLSLstd450Acos, args.data(), args.size());
+    } else if (name == "atan") {
+        return spv.ExtInstNew(res_type, glsl_std_id, GLSLstd450Atan, args.data(), args.size());
+    } else if (name == "atan2") {
+        return spv.ExtInstNew(res_type, glsl_std_id, GLSLstd450Atan2, args.data(), args.size());
     } else if (name == "sqrt") {
         return spv.ExtInstNew(res_type, glsl_std_id, GLSLstd450Sqrt, args.data(), args.size());
     } else if (name == "length") {
@@ -269,6 +321,60 @@ inline static uint32_t builtin_function(
                     res_type,
                     glsl_std_id,
                     GLSLstd450SClamp,
+                    args.data(),
+                    args.size()
+                );
+        }
+    } else if (name == "max") {
+        switch (primitive) {
+            case TypeInfo::BuiltinPrimitive::Float:
+                return spv.ExtInstNew(
+                    res_type,
+                    glsl_std_id,
+                    GLSLstd450FMax,
+                    args.data(),
+                    args.size()
+                );
+            case TypeInfo::BuiltinPrimitive::Uint:
+                return spv.ExtInstNew(
+                    res_type,
+                    glsl_std_id,
+                    GLSLstd450UMax,
+                    args.data(),
+                    args.size()
+                );
+            case TypeInfo::BuiltinPrimitive::Int:
+                return spv.ExtInstNew(
+                    res_type,
+                    glsl_std_id,
+                    GLSLstd450SMax,
+                    args.data(),
+                    args.size()
+                );
+        }
+    } else if (name == "min") {
+        switch (primitive) {
+            case TypeInfo::BuiltinPrimitive::Float:
+                return spv.ExtInstNew(
+                    res_type,
+                    glsl_std_id,
+                    GLSLstd450FMin,
+                    args.data(),
+                    args.size()
+                );
+            case TypeInfo::BuiltinPrimitive::Uint:
+                return spv.ExtInstNew(
+                    res_type,
+                    glsl_std_id,
+                    GLSLstd450UMin,
+                    args.data(),
+                    args.size()
+                );
+            case TypeInfo::BuiltinPrimitive::Int:
+                return spv.ExtInstNew(
+                    res_type,
+                    glsl_std_id,
+                    GLSLstd450SMin,
                     args.data(),
                     args.size()
                 );

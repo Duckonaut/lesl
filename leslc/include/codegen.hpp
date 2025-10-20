@@ -39,13 +39,18 @@ class CodeGenerator final {
     std::vector<uint32_t> constant_block;
 
     std::vector<GlobalInterface> global_interfaces;
+    std::unordered_map<PoolStr, uint32_t> function_variables;
     std::vector<VariableScope> variable_scopes;
 
     BindingManager& binding_manager;
 
     RefContainer<ExprResult> expr_gen_results;
 
-    CodeGenerator(CompilationArena& arena, BindingManager& binding_manager, Opt<std::string> pipeline)
+    CodeGenerator(
+        CompilationArena& arena,
+        BindingManager& binding_manager,
+        Opt<std::string> pipeline
+    )
         : arena(arena), binding_manager(binding_manager), pipeline(pipeline) {}
 
     void generate() {
@@ -168,50 +173,58 @@ class CodeGenerator final {
 
         for (TypedIdentifier& type : vertex_inputs) {
             uint32_t id = spv.get_id();
-            global_interfaces.push_back({
-                binding_manager.get_input_storage_class(PipelineStage::Vertex),
-                PipelineStage::Vertex,
-                type.type.resolved_type.value(),
-                type.name.name,
-                id,
-                0,
-            });
+            global_interfaces.push_back(
+                {
+                    binding_manager.get_input_storage_class(PipelineStage::Vertex),
+                    PipelineStage::Vertex,
+                    type.type.resolved_type.value(),
+                    type.name.name,
+                    id,
+                    0,
+                }
+            );
         }
 
         for (TypedIdentifier& type : vertex_outputs) {
             uint32_t id = spv.get_id();
-            global_interfaces.push_back({
-                StorageClass::Output,
-                PipelineStage::Vertex,
-                type.type.resolved_type.value(),
-                type.name.name,
-                id,
-                0,
-            });
+            global_interfaces.push_back(
+                {
+                    StorageClass::Output,
+                    PipelineStage::Vertex,
+                    type.type.resolved_type.value(),
+                    type.name.name,
+                    id,
+                    0,
+                }
+            );
         }
 
         for (TypedIdentifier& type : fragment_inputs) {
             uint32_t id = spv.get_id();
-            global_interfaces.push_back({
-                binding_manager.get_input_storage_class(PipelineStage::Fragment),
-                PipelineStage::Fragment,
-                type.type.resolved_type.value(),
-                type.name.name,
-                id,
-                0,
-            });
+            global_interfaces.push_back(
+                {
+                    binding_manager.get_input_storage_class(PipelineStage::Fragment),
+                    PipelineStage::Fragment,
+                    type.type.resolved_type.value(),
+                    type.name.name,
+                    id,
+                    0,
+                }
+            );
         }
 
         for (TypedIdentifier& type : fragment_outputs) {
             uint32_t id = spv.get_id();
-            global_interfaces.push_back({
-                StorageClass::Output,
-                PipelineStage::Fragment,
-                type.type.resolved_type.value(),
-                type.name.name,
-                id,
-                0,
-            });
+            global_interfaces.push_back(
+                {
+                    StorageClass::Output,
+                    PipelineStage::Fragment,
+                    type.type.resolved_type.value(),
+                    type.name.name,
+                    id,
+                    0,
+                }
+            );
         }
     }
 
@@ -363,7 +376,6 @@ class CodeGenerator final {
 
         uint32_t float4_id = spv.TypeVectorNew(decl_ids[arena.string_pool.add("float")], 4);
         decl_ids[arena.string_pool.add("float4")] = float4_id;
-            
 
         uint32_t float4_output_ptr = spv.TypePointerNew(spv::StorageClassOutput, float4_id);
         float4_type_info_ref.value()->add_pointer_type(
@@ -372,11 +384,7 @@ class CodeGenerator final {
         );
 
         BuiltinInfo& position = builtins[arena.string_pool.add("POSITION")];
-        spv.Variable(
-            float4_output_ptr,
-            position.id,
-            spv::StorageClassOutput
-        );
+        spv.Variable(float4_output_ptr, position.id, spv::StorageClassOutput);
         position.type_id = float4_id;
         position.pointer_type_id = float4_output_ptr;
         position.storage_class = spv::StorageClassOutput;
@@ -400,7 +408,11 @@ class CodeGenerator final {
 
         uint32_t id = spv.get_id();
         int_constant_ids[value] = id;
-        constant_encode(decl_ids[arena.string_pool.add("int")], id, std::bit_cast<uint32_t>(value));
+        constant_encode(
+            decl_ids[arena.string_pool.add("int")],
+            id,
+            std::bit_cast<uint32_t>(value)
+        );
         return id;
     }
 
@@ -424,7 +436,11 @@ class CodeGenerator final {
 
         uint32_t id = spv.get_id();
         float_constant_ids[value] = id;
-        constant_encode(decl_ids[arena.string_pool.add("float")], id, std::bit_cast<uint32_t>(value));
+        constant_encode(
+            decl_ids[arena.string_pool.add("float")],
+            id,
+            std::bit_cast<uint32_t>(value)
+        );
         return id;
     }
 
@@ -432,10 +448,8 @@ class CodeGenerator final {
         spv.insert(constant_block, constants_insert_point);
     }
 
-    uint32_t try_add_storage_class_pointer(
-        TypeInfo& type_info,
-        spv::StorageClass storage_class
-    ) {
+    uint32_t
+    try_add_storage_class_pointer(TypeInfo& type_info, spv::StorageClass storage_class) {
         uint32_t id = 0;
         if (type_info.pointer_type_ids.find(static_cast<uint32_t>(storage_class)) ==
             type_info.pointer_type_ids.end()) {
@@ -632,14 +646,16 @@ class CodeGenerator final {
         }
 
         if (is_vertex_input_interface) {
-            binding_manager.decorate(spv, PipelineStage::Vertex, s, decl_ids[s.name.name], true);
+            binding_manager
+                .decorate(spv, PipelineStage::Vertex, s, decl_ids[s.name.name], true);
         }
         if (is_vertex_output_interface) {
             binding_manager
                 .decorate(spv, PipelineStage::Vertex, s, decl_ids[s.name.name], false);
         }
         if (is_fragment_input_interface && !is_vertex_output_interface) {
-            binding_manager.decorate(spv, PipelineStage::Fragment, s, decl_ids[s.name.name], true);
+            binding_manager
+                .decorate(spv, PipelineStage::Fragment, s, decl_ids[s.name.name], true);
         }
         if (is_fragment_output_interface) {
             binding_manager
@@ -828,8 +844,8 @@ class CodeGenerator final {
                     Decl::Pipeline& p = decl->get<Decl::Pipeline>();
                     if (p.name.name == pipeline.value()) {
                         for (PipelineParameter& param : p.params) {
-                            if ((param.name.name == "Vertex" || param.name.name == "Fragment"
-                                ) &&
+                            if ((param.name.name == "Vertex" ||
+                                 param.name.name == "Fragment") &&
                                 param.value.name == f.name.name) {
                                 found = true;
                                 break;
@@ -863,7 +879,12 @@ class CodeGenerator final {
         if (!is_entry_point) {
             for (const auto& param : f.params) {
                 uint32_t param_id = spv.FunctionParameterNew((*param.type.resolved_type)->id);
-                add_variable(param.name.name, param_id, *param.type.resolved_type, std::nullopt);
+                add_variable(
+                    param.name.name,
+                    param_id,
+                    *param.type.resolved_type,
+                    std::nullopt
+                );
             }
 
             label_id = spv.LabelNew();
@@ -874,15 +895,31 @@ class CodeGenerator final {
                     spv::StorageClassFunction
                 );
 
-                add_variable(ret.name.name, variable_id, *ret.type.resolved_type, spv::StorageClassFunction);
+                add_variable(
+                    ret.name.name,
+                    variable_id,
+                    *ret.type.resolved_type,
+                    spv::StorageClassFunction
+                );
                 return_variable = find_variable(ret.name.name);
             }
         } else {
             for (auto& gi : global_interfaces) {
                 if (gi.pipeline_stage == PipelineStage::Vertex && is_vertex_entry_point) {
-                    add_variable(gi.name, gi.id, gi.type, static_cast<spv::StorageClass>(gi.storage_class));
-                } else if (gi.pipeline_stage == PipelineStage::Fragment && is_fragment_entry_point) {
-                    add_variable(gi.name, gi.id, gi.type, static_cast<spv::StorageClass>(gi.storage_class));
+                    add_variable(
+                        gi.name,
+                        gi.id,
+                        gi.type,
+                        static_cast<spv::StorageClass>(gi.storage_class)
+                    );
+                } else if (gi.pipeline_stage == PipelineStage::Fragment &&
+                           is_fragment_entry_point) {
+                    add_variable(
+                        gi.name,
+                        gi.id,
+                        gi.type,
+                        static_cast<spv::StorageClass>(gi.storage_class)
+                    );
                 }
             }
 
@@ -902,7 +939,13 @@ class CodeGenerator final {
                     builtin.second.storage_class
                 );
             }
+
+            label_id = spv.LabelNew();
         }
+
+        function_variables.clear();
+
+        preallocate_function_variables(f.stmts);
 
         if (f.rets.size() > 0 && !is_entry_point) {
             generate_executable_block(f.stmts, return_variable, label_id);
@@ -965,8 +1008,28 @@ class CodeGenerator final {
         return std::nullopt;
     }
 
-    void add_variable(const PoolStr& name, uint32_t id, Ref<TypeInfo> type, Opt<spv::StorageClass> storage_class) {
+    void add_variable(
+        const PoolStr& name,
+        uint32_t id,
+        Ref<TypeInfo> type,
+        Opt<spv::StorageClass> storage_class
+    ) {
         variable_scopes.back().variables[name] = { id, type, storage_class };
+    }
+
+    void preallocate_function_variables(const std::vector<Ref<Stmt>>& stmts) {
+        for (const Ref<Stmt>& stmt : stmts) {
+            if (stmt->is<Stmt::Var>()) {
+                const Stmt::Var& var_stmt = stmt->get<Stmt::Var>();
+                uint32_t var_id = spv.VariableNew(
+                    (*var_stmt.typedIdentifier.type.resolved_type)
+                        ->get_pointer_type(spv::StorageClassFunction),
+                    spv::StorageClassFunction
+                );
+
+                function_variables[var_stmt.typedIdentifier.name.name] = var_id;
+            }
+        }
     }
 
     struct BlockInfo {
@@ -974,7 +1037,11 @@ class CodeGenerator final {
         uint32_t label_id = 0;
     };
 
-    BlockInfo generate_executable_block(const std::vector<Ref<Stmt>>& stmts, Opt<VariableInstance> return_variable, Opt<uint32_t> known_label_id) {
+    BlockInfo generate_executable_block(
+        const std::vector<Ref<Stmt>>& stmts,
+        Opt<VariableInstance> return_variable,
+        Opt<uint32_t> known_label_id
+    ) {
         BlockInfo block_info;
         bool has_return = false;
         if (known_label_id.has_value()) {
@@ -999,13 +1066,16 @@ class CodeGenerator final {
                 }
             } else if (stmt->is<Stmt::Var>()) {
                 const Stmt::Var& var_stmt = stmt->get<Stmt::Var>();
-                uint32_t var_id = spv.VariableNew(
-                    (*var_stmt.typedIdentifier.type.resolved_type)->get_pointer_type(spv::StorageClassFunction),
-                    spv::StorageClassFunction
-                );
+                uint32_t var_id = function_variables[var_stmt.typedIdentifier.name.name];
                 if (var_stmt.expr) {
-                    Ref<ExprResult> expr_result = generate_expression(**var_stmt.expr, &**var_stmt.typedIdentifier.type.resolved_type);
-                    spv.Store(var_id, expr_result->load(spv, var_stmt.typedIdentifier.type.resolved_type));
+                    Ref<ExprResult> expr_result = generate_expression(
+                        **var_stmt.expr,
+                        &**var_stmt.typedIdentifier.type.resolved_type
+                    );
+                    spv.Store(
+                        var_id,
+                        expr_result->load(spv, var_stmt.typedIdentifier.type.resolved_type)
+                    );
                 }
 
                 add_variable(
@@ -1023,10 +1093,7 @@ class CodeGenerator final {
         if (!has_return) {
             if (return_variable) {
                 uint32_t return_value_id = return_variable->id;
-                uint32_t value = spv.LoadNew(
-                    (*return_variable->type)->id,
-                    return_variable->id
-                );
+                uint32_t value = spv.LoadNew((*return_variable->type)->id, return_variable->id);
                 spv.ReturnValue(value);
             } else {
                 spv.Return();
@@ -1038,9 +1105,11 @@ class CodeGenerator final {
         return block_info;
     }
 
-
     Ref<ExprResult> generate_expression(const Expr& expr, const TypeInfo* expected_type) {
-        return std::visit([this, expected_type](const auto& e) { return this->generate_expr(e, expected_type); },
+        return std::visit(
+            [this, expected_type](const auto& e) {
+                return this->generate_expr(e, expected_type);
+            },
             expr.data
         );
     }
@@ -1076,6 +1145,8 @@ class CodeGenerator final {
                     return OpFamily::Uint;
                 case TypeInfo::BuiltinPrimitive::Bool:
                     return OpFamily::Bool;
+                case TypeInfo::BuiltinPrimitive::Void:
+                    assert(false);
             }
         } else if (a.is<TypeInfo::Vector>() && b.is<TypeInfo::Vector>()) {
             switch (a_primitive.primitive) {
@@ -1087,6 +1158,8 @@ class CodeGenerator final {
                     return OpFamily::Uint;
                 case TypeInfo::BuiltinPrimitive::Bool:
                     return OpFamily::Bool;
+                case TypeInfo::BuiltinPrimitive::Void:
+                    assert(false);
             }
         } else if (a.is<TypeInfo::Vector>() && b.is<TypeInfo::Primitive>()) {
             return OpFamily::VectorScalar;
@@ -1099,6 +1172,8 @@ class CodeGenerator final {
         } else if (a.is<TypeInfo::Matrix>() && b.is<TypeInfo::Vector>()) {
             return OpFamily::MatrixVector;
         }
+
+        assert(false);
     }
 
     Ref<ExprResult> expr_ref(ExprResult&& result) {
@@ -1118,12 +1193,38 @@ class CodeGenerator final {
             case Expr::BinaryOp::Add:
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FAddNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FAddNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.IAddNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.IAddNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
+                    case OpFamily::VectorScalar: {
+                        auto& vec_type = left->type->get<TypeInfo::Vector>();
+                        if (vec_type.element->get_underlying_primitive().primitive ==
+                            TypeInfo::BuiltinPrimitive::Float) {
+                            res = spv.FAddNew(
+                                left->type->id,
+                                left->load(spv),
+                                right->load(spv, left->type)
+                            );
+                        } else {
+                            res = spv.IAddNew(
+                                left->type->id,
+                                left->load(spv),
+                                right->load(spv, left->type)
+                            );
+                        }
+                        break;
+                    }
                     default:
                         assert(false);
                         break;
@@ -1132,12 +1233,38 @@ class CodeGenerator final {
             case Expr::BinaryOp::Sub:
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FSubNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FSubNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.ISubNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.ISubNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
+                    case OpFamily::VectorScalar: {
+                        auto& vec_type = left->type->get<TypeInfo::Vector>();
+                        if (vec_type.element->get_underlying_primitive().primitive ==
+                            TypeInfo::BuiltinPrimitive::Float) {
+                            res = spv.FSubNew(
+                                left->type->id,
+                                left->load(spv),
+                                right->load(spv, left->type)
+                            );
+                        } else {
+                            res = spv.ISubNew(
+                                left->type->id,
+                                left->load(spv),
+                                right->load(spv, left->type)
+                            );
+                        }
+                        break;
+                    }
                     default:
                         assert(false);
                         break;
@@ -1146,25 +1273,49 @@ class CodeGenerator final {
             case Expr::BinaryOp::Mul:
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FMulNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FMulNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.IMulNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.IMulNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::VectorScalar:
-                        res = spv.VectorTimesScalarNew(left->type->id, left->load(spv), right->load(spv));
+                        res = spv.VectorTimesScalarNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv)
+                        );
                         break;
                     case OpFamily::MatrixScalar:
-                        res = spv.MatrixTimesScalarNew(left->type->id, left->load(spv), right->load(spv));
+                        res = spv.MatrixTimesScalarNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv)
+                        );
                         break;
                     case OpFamily::MatrixVector:
-                        res = spv.MatrixTimesVectorNew(right->type->id, left->load(spv), right->load(spv));
+                        res = spv.MatrixTimesVectorNew(
+                            right->type->id,
+                            left->load(spv),
+                            right->load(spv)
+                        );
 
                         return_type = right->type;
                         break;
                     case OpFamily::VectorMatrix:
-                        res = spv.VectorTimesMatrixNew(right->type->id, left->load(spv), right->load(spv));
+                        res = spv.VectorTimesMatrixNew(
+                            right->type->id,
+                            left->load(spv),
+                            right->load(spv)
+                        );
 
                         return_type = left->type;
                         break;
@@ -1192,7 +1343,11 @@ class CodeGenerator final {
                                                 std::to_string(result_columns);
 
                         return_type = get_type_info(type_name).value();
-                        res = spv.MatrixTimesMatrixNew(return_type->id, left->load(spv), right->load(spv));
+                        res = spv.MatrixTimesMatrixNew(
+                            return_type->id,
+                            left->load(spv),
+                            right->load(spv)
+                        );
 
                         break;
                     }
@@ -1204,13 +1359,25 @@ class CodeGenerator final {
             case Expr::BinaryOp::Div:
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FDivNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FDivNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
-                        res = spv.SDivNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.SDivNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Uint:
-                        res = spv.UDivNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.UDivNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                     default:
                         assert(false);
                         break;
@@ -1218,11 +1385,26 @@ class CodeGenerator final {
                 break;
             case Expr::BinaryOp::Mod:
                 switch (op_family) {
+                    case OpFamily::Float:
+                        res = spv.FModNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
+                        break;
                     case OpFamily::Int:
-                        res = spv.SModNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.SModNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Uint:
-                        res = spv.UModNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.UModNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1233,14 +1415,26 @@ class CodeGenerator final {
                 return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FOrdEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.IEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.IEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Bool:
-                        res = spv.LogicalEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.LogicalEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1251,14 +1445,26 @@ class CodeGenerator final {
                 return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdNotEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FOrdNotEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        res = spv.INotEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.INotEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Bool:
-                        res = spv.LogicalNotEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.LogicalNotEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1269,13 +1475,25 @@ class CodeGenerator final {
                 return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdLessThanNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FOrdLessThanNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
-                        res = spv.SLessThanNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.SLessThanNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Uint:
-                        res = spv.ULessThanNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.ULessThanNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1286,13 +1504,25 @@ class CodeGenerator final {
                 return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdLessThanEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FOrdLessThanEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
-                        res = spv.SLessThanEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.SLessThanEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Uint:
-                        res = spv.ULessThanEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.ULessThanEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1303,13 +1533,25 @@ class CodeGenerator final {
                 return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdGreaterThanNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FOrdGreaterThanNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
-                        res = spv.SGreaterThanNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.SGreaterThanNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Uint:
-                        res = spv.UGreaterThanNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.UGreaterThanNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1320,13 +1562,25 @@ class CodeGenerator final {
                 return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Float:
-                        res = spv.FOrdGreaterThanEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.FOrdGreaterThanEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
-                        res = spv.SGreaterThanEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.SGreaterThanEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Uint:
-                        res = spv.UGreaterThanEqualNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.UGreaterThanEqualNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1338,7 +1592,11 @@ class CodeGenerator final {
                 return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Bool:
-                        res = spv.LogicalOrNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.LogicalOrNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1349,7 +1607,11 @@ class CodeGenerator final {
                 return_type = get_type_info("bool").value();
                 switch (op_family) {
                     case OpFamily::Bool:
-                        res = spv.LogicalAndNew(left->type->id, left->load(spv), right->load(spv, left->type));
+                        res = spv.LogicalAndNew(
+                            left->type->id,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1366,11 +1628,21 @@ class CodeGenerator final {
                 uint32_t add_res = spv.get_id();
                 switch (op_family) {
                     case OpFamily::Float:
-                        spv.FAdd(left->type->id, add_res, left->load(spv), right->load(spv, left->type));
+                        spv.FAdd(
+                            left->type->id,
+                            add_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        spv.IAdd(left->type->id, add_res, left->load(spv), right->load(spv, left->type));
+                        spv.IAdd(
+                            left->type->id,
+                            add_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1384,11 +1656,21 @@ class CodeGenerator final {
                 uint32_t sub_res = spv.get_id();
                 switch (op_family) {
                     case OpFamily::Float:
-                        spv.FSub(left->type->id, sub_res, left->load(spv), right->load(spv, left->type));
+                        spv.FSub(
+                            left->type->id,
+                            sub_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        spv.ISub(left->type->id, sub_res, left->load(spv), right->load(spv, left->type));
+                        spv.ISub(
+                            left->type->id,
+                            sub_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1402,26 +1684,61 @@ class CodeGenerator final {
                 uint32_t mul_res = spv.get_id();
                 switch (op_family) {
                     case OpFamily::Float:
-                        spv.FMul(left->type->id, mul_res, left->load(spv), right->load(spv, left->type));
+                        spv.FMul(
+                            left->type->id,
+                            mul_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
                     case OpFamily::Uint:
-                        spv.IMul(left->type->id, mul_res, left->load(spv), right->load(spv, left->type));
+                        spv.IMul(
+                            left->type->id,
+                            mul_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::VectorScalar:
-                        spv.VectorTimesScalar(left->type->id, mul_res, left->load(spv), right->load(spv, left->type));
+                        spv.VectorTimesScalar(
+                            left->type->id,
+                            mul_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::MatrixScalar:
-                        spv.MatrixTimesScalar(left->type->id, mul_res, left->load(spv), right->load(spv, left->type));
+                        spv.MatrixTimesScalar(
+                            left->type->id,
+                            mul_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::MatrixVector:
-                        spv.MatrixTimesVector(left->type->id, mul_res, left->load(spv), right->load(spv, left->type));
+                        spv.MatrixTimesVector(
+                            left->type->id,
+                            mul_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::VectorMatrix:
-                        spv.VectorTimesMatrix(left->type->id, mul_res, left->load(spv), right->load(spv, left->type));
+                        spv.VectorTimesMatrix(
+                            left->type->id,
+                            mul_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::MatrixMatrix:
-                        spv.MatrixTimesMatrix(left->type->id, mul_res, left->load(spv), right->load(spv, left->type));
+                        spv.MatrixTimesMatrix(
+                            left->type->id,
+                            mul_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1435,13 +1752,28 @@ class CodeGenerator final {
                 uint32_t div_res = spv.get_id();
                 switch (op_family) {
                     case OpFamily::Float:
-                        spv.FDiv(left->type->id, div_res, left->load(spv), right->load(spv, left->type));
+                        spv.FDiv(
+                            left->type->id,
+                            div_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Int:
-                        spv.SDiv(left->type->id, div_res, left->load(spv), right->load(spv, left->type));
+                        spv.SDiv(
+                            left->type->id,
+                            div_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Uint:
-                        spv.UDiv(left->type->id, div_res, left->load(spv), right->load(spv, left->type));
+                        spv.UDiv(
+                            left->type->id,
+                            div_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1455,10 +1787,20 @@ class CodeGenerator final {
                 uint32_t mod_res = spv.get_id();
                 switch (op_family) {
                     case OpFamily::Int:
-                        spv.SMod(left->type->id, mod_res, left->load(spv), right->load(spv, left->type));
+                        spv.SMod(
+                            left->type->id,
+                            mod_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     case OpFamily::Uint:
-                        spv.UMod(left->type->id, mod_res, left->load(spv), right->load(spv, left->type));
+                        spv.UMod(
+                            left->type->id,
+                            mod_res,
+                            left->load(spv),
+                            right->load(spv, left->type)
+                        );
                         break;
                     default:
                         assert(false);
@@ -1478,7 +1820,7 @@ class CodeGenerator final {
         TypeInfo::BuiltinPrimitive underlying_primitive =
             inner->type->get_underlying_primitive().primitive;
         uint32_t res = spv.get_id();
-        switch (u.op) { 
+        switch (u.op) {
             case Expr::UnaryOp::Neg:
                 switch (underlying_primitive) {
                     case TypeInfo::BuiltinPrimitive::Float:
@@ -1527,12 +1869,50 @@ class CodeGenerator final {
                 const auto& arg = c.args[i];
                 switch (builtin.input_kind) {
                     case BuiltinInputKind::Static: {
-                        const auto& target = get_type_info(builtin.static_output);
-                        auto arg_result = generate_expression(*arg, &**target);
-                        if (i == 0) {
-                            first_type = arg_result->type;
+                        if (first_type == std::nullopt) {
+                            auto arg_result = generate_expression(*arg, nullptr);
+                            if (i == 0) {
+                                first_type = arg_result->type;
+                            }
+                            args.push_back(arg_result->load(spv));
+                        } else {
+                            switch (builtin.input_kind) {
+                                case BuiltinInputKind::Static: {
+                                    int best_fit_index = -1;
+                                    for (int j = 0; j < builtin.inputs.size(); j++) {
+                                        if (*first_type ==
+                                            get_type_info(builtin.inputs[j][0]).value()) {
+                                            best_fit_index = j;
+                                            break;
+                                        }
+                                    }
+                                    if (best_fit_index == -1) {
+                                        assert(false);
+                                    }
+
+                                    auto arg_result = generate_expression(
+                                        *arg,
+                                        &**get_type_info(builtin.inputs[best_fit_index][i])
+                                    );
+
+                                    args.push_back(arg_result->load(
+                                        spv,
+                                        get_type_info(builtin.inputs[best_fit_index][i])
+                                    ));
+                                    break;
+                                }
+                                case BuiltinInputKind::Vectorized: {
+                                    // Functions with a single argument only!
+                                    assert(false);
+                                    break;
+                                }
+                                case BuiltinInputKind::Packed: {
+                                    auto arg_result = generate_expression(*arg, nullptr);
+                                    args.push_back(arg_result->load(spv, std::nullopt));
+                                    break;
+                                }
+                            }
                         }
-                        args.push_back(arg_result->load(spv, target));
                         break;
                     }
                     case BuiltinInputKind::Vectorized:
@@ -1557,9 +1937,11 @@ class CodeGenerator final {
                     break;
                 }
                 case BuiltinOutputKind::InheritedSingle: {
-                    return_type = get_type_info(TypeInfo::builtin_primitive_str(
-                        (*first_type)->get_underlying_primitive().primitive
-                    ));
+                    return_type = get_type_info(
+                        TypeInfo::builtin_primitive_str(
+                            (*first_type)->get_underlying_primitive().primitive
+                        )
+                    );
                     break;
                 }
                 case BuiltinOutputKind::StaticVectorized: {
@@ -1735,7 +2117,8 @@ class CodeGenerator final {
         }
     }
 
-    Ref<ExprResult> generate_expr(const Expr::NumberLiteral& nl, const TypeInfo* expected_type) {
+    Ref<ExprResult>
+    generate_expr(const Expr::NumberLiteral& nl, const TypeInfo* expected_type) {
         double v = nl.value;
         bool could_be_int = v == static_cast<int>(v);
         bool could_be_uint = v == static_cast<uint32_t>(v);
@@ -1745,23 +2128,28 @@ class CodeGenerator final {
                 const TypeInfo::Primitive& primitive =
                     expected_type->get<TypeInfo::Primitive>();
                 if (primitive.primitive == TypeInfo::BuiltinPrimitive::Int && could_be_int) {
-                    return expr_ref({
-                        get_constant_int(static_cast<int>(v)),
-                        *get_type_info("int"),
-                    });
+                    return expr_ref(
+                        {
+                            get_constant_int(static_cast<int>(v)),
+                            *get_type_info("int"),
+                        }
+                    );
                 } else if (primitive.primitive == TypeInfo::BuiltinPrimitive::Uint &&
                            could_be_uint) {
-                    return expr_ref({
-                        get_constant_uint(static_cast<uint32_t>(v)),
-                        *get_type_info("uint"),
-                    });
+                    return expr_ref(
+                        {
+                            get_constant_uint(static_cast<uint32_t>(v)),
+                            *get_type_info("uint"),
+                        }
+                    );
                 }
             }
         }
         return expr_ref({ get_constant_float(v), *get_type_info("float") });
     }
 
-    Ref<ExprResult> generate_expr(const Expr::VariableAccess& va, const TypeInfo* expected_type) {
+    Ref<ExprResult>
+    generate_expr(const Expr::VariableAccess& va, const TypeInfo* expected_type) {
         VariableInstance var = *find_variable(va.name.name);
         return expr_ref({ var, *var.type });
     }

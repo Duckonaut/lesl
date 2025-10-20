@@ -10,7 +10,6 @@
 
 #include <algorithm>
 #include <array>
-#include <unordered_map>
 #include <variant>
 
 struct Validator {
@@ -110,7 +109,7 @@ struct Validator {
 
                             is_matrix = true;
 
-                            // base type 
+                            // base type
                             name =
                                 name.substr(0, name.size() - 3) + std::to_string(matrix_rows);
 
@@ -193,7 +192,8 @@ struct Validator {
         variables.pop_back();
     }
 
-    void add_variable(const PoolStr& name, Ref<TypeInfo> type, Opt<StorageClass> storage_class) {
+    void
+    add_variable(const PoolStr& name, Ref<TypeInfo> type, Opt<StorageClass> storage_class) {
         variables.back().push_back(Variable(name, type, storage_class));
     }
 
@@ -306,7 +306,11 @@ struct Validator {
         open_scope();
         for (TypedIdentifier& param : f.params) {
             validate_type(param.type);
-            add_variable(param.name.name, param.type.resolved_type.value(), StorageClass::Input);
+            add_variable(
+                param.name.name,
+                param.type.resolved_type.value(),
+                StorageClass::Input
+            );
         }
         for (TypedIdentifier& ret : f.rets) {
             validate_type(ret.type);
@@ -341,7 +345,8 @@ struct Validator {
             });
 
         if (has_runtime_array && !s.is_interface) {
-            error_handler.error(ErrorType::RuntimeSizedArrayInStruct, s.name.name, s.name.location);
+            error_handler
+                .error(ErrorType::RuntimeSizedArrayInStruct, s.name.name, s.name.location);
         }
 
         // check for duplicate members
@@ -390,12 +395,15 @@ struct Validator {
             assert(false);
         }
     }
-    void validate_return(Stmt::Return& r) {
-    }
+    void validate_return(Stmt::Return& r) {}
     void validate_var(Stmt::Var& v) {
         validate_type(v.typedIdentifier.type);
 
-        add_variable(v.typedIdentifier.name.name, v.typedIdentifier.type.resolved_type.value(), StorageClass::Function);
+        add_variable(
+            v.typedIdentifier.name.name,
+            v.typedIdentifier.type.resolved_type.value(),
+            StorageClass::Function
+        );
 
         if (v.expr) {
             validate_expr(*v.expr.value());
@@ -536,8 +544,11 @@ struct Validator {
         }
     }
 
-    ExprValidationResult
-    validate_binary(Expr::Binary& binary, Opt<Ref<TypeInfo>> expected_type = std::nullopt, bool assignable = false) {
+    ExprValidationResult validate_binary(
+        Expr::Binary& binary,
+        Opt<Ref<TypeInfo>> expected_type = std::nullopt,
+        bool assignable = false
+    ) {
         bool will_be_assigned =
             binary.op == Expr::BinaryOp::Assign || binary.op == Expr::BinaryOp::AddAssign ||
             binary.op == Expr::BinaryOp::SubAssign || binary.op == Expr::BinaryOp::MulAssign ||
@@ -558,6 +569,15 @@ struct Validator {
         }
 
         switch (binary.op) {
+            case Expr::BinaryOp::Assign:
+                if (*left.type != *right.type) {
+                    error_handler.error(
+                        ErrorType::IncompatibleTypes,
+                        binary.lhs->get_location()
+                    );
+                }
+
+                return { left.type };
             case Expr::BinaryOp::Add:
             case Expr::BinaryOp::Sub:
             case Expr::BinaryOp::Div:
@@ -675,7 +695,8 @@ struct Validator {
                     int left_columns = left_type.get<TypeInfo::Matrix>().columns;
                     int right_columns = right_type.get<TypeInfo::Matrix>().columns;
                     const TypeInfo::Vector& left_vector_element =
-                        left_type.get<TypeInfo::Matrix>().vector_element->get<TypeInfo::Vector>();
+                        left_type.get<TypeInfo::Matrix>().vector_element->get<TypeInfo::Vector>(
+                        );
                     const TypeInfo::Vector& right_vector_element =
                         right_type.get<TypeInfo::Matrix>()
                             .vector_element->get<TypeInfo::Vector>();
@@ -694,7 +715,7 @@ struct Validator {
 
                     // the result type can be different from either left or right,
                     // so we need to create a new type info for it
-                    
+
                     TypeInfo result_type = TypeInfo::create_matrix(
                         arena.string_pool,
                         left_type.get<TypeInfo::Matrix>().vector_element,
@@ -961,8 +982,11 @@ struct Validator {
         }
     }
 
-    ExprValidationResult
-    validate_unary(Expr::Unary& unary, Opt<Ref<TypeInfo>> expected_type = std::nullopt, bool assignable = false) {
+    ExprValidationResult validate_unary(
+        Expr::Unary& unary,
+        Opt<Ref<TypeInfo>> expected_type = std::nullopt,
+        bool assignable = false
+    ) {
         ExprValidationResult inner = validate_expr(*unary.expr, expected_type);
 
         if (assignable) {
@@ -1040,7 +1064,8 @@ struct Validator {
 
             return is_primitive_convertible(from_primitive, to_primitive);
         } else if (from->is<TypeInfo::Vector>() && to->is<TypeInfo::Vector>()) {
-            // allow implicit conversions between vectors of the same size and primitive types like the previous case
+            // allow implicit conversions between vectors of the same size and primitive types
+            // like the previous case
             if (from->get<TypeInfo::Vector>().size == to->get<TypeInfo::Vector>().size) {
                 TypeInfo::BuiltinPrimitive from_primitive =
                     from->get<TypeInfo::Vector>().element->get_underlying_primitive().primitive;
@@ -1166,7 +1191,7 @@ struct Validator {
         Opt<Ref<TypeInfo>> expected_type = std::nullopt,
         bool assignable = false
     ) {
-        ExprValidationResult base = validate_expr(*field_access.object, expected_type);
+        ExprValidationResult base = validate_expr(*field_access.object);
 
         if (!base.type) {
             return { std::nullopt };
@@ -1230,8 +1255,7 @@ struct Validator {
             std::string name = field_access.field.name.to_string();
 
             const TypeInfo::Vector& vector_element =
-                matrix_type.vector_element->get<TypeInfo::Vector>(
-                );
+                matrix_type.vector_element->get<TypeInfo::Vector>();
 
             char end_char = 'x' + (vector_element.size - 1);
 
@@ -1264,6 +1288,56 @@ struct Validator {
         if (assignable) {
             error_handler.error(ErrorType::InvalidAssignment, number.location);
             return { std::nullopt };
+        }
+
+        if (expected_type.has_value()) {
+            const TypeInfo& expected = *expected_type.value();
+
+            if (expected.is<TypeInfo::Primitive>()) {
+                auto wanted_primitive = expected.get<TypeInfo::Primitive>().primitive;
+
+                if (wanted_primitive == TypeInfo::BuiltinPrimitive::Int ||
+                    wanted_primitive == TypeInfo::BuiltinPrimitive::Uint ||
+                    wanted_primitive == TypeInfo::BuiltinPrimitive::Float) {
+                    return { expected_type.value() };
+                } else {
+                    error_handler.error(
+                        ErrorType::IncompatibleTypes,
+                        number.location
+                    );
+                    return { std::nullopt };
+                }
+            } else if (expected.is<TypeInfo::Vector>()) {
+                TypeInfo::Vector vec = expected.get<TypeInfo::Vector>();
+                TypeInfo::BuiltinPrimitive element_primitive =
+                    vec.element->get_underlying_primitive().primitive;
+
+                if (element_primitive == TypeInfo::BuiltinPrimitive::Int ||
+                    element_primitive == TypeInfo::BuiltinPrimitive::Uint ||
+                    element_primitive == TypeInfo::BuiltinPrimitive::Float) {
+                    return { expected_type.value() };
+                } else {
+                    error_handler.error(
+                        ErrorType::IncompatibleTypes,
+                        number.location
+                    );
+                    return { std::nullopt };
+                }
+            } else {
+                error_handler.error(
+                    ErrorType::IncompatibleTypes,
+                    number.location
+                );
+                return { std::nullopt };
+            }
+        } else {
+            // assume float by default
+            TypeInfo type = TypeInfo::create_primitive(
+                arena.string_pool,
+                TypeInfo::BuiltinPrimitive::Float
+            );
+
+            return { create_or_get_info_ref(std::move(type)) };
         }
     }
 
@@ -1300,7 +1374,8 @@ struct Validator {
                         for (int i = 0; i < f.params.size(); i++) {
                             Opt<Ref<TypeInfo>> expected =
                                 find_type_info(f.params[i].type.name.name.c_str());
-                            Opt<Ref<TypeInfo>> actual = validate_expr(*call.args[i], expected).type;
+                            Opt<Ref<TypeInfo>> actual =
+                                validate_expr(*call.args[i], expected).type;
 
                             if (expected != std::nullopt && actual != std::nullopt) {
                                 if (!is_type_convertible(*actual, *expected)) {
@@ -1333,9 +1408,13 @@ struct Validator {
                         }
                     }
 
+                    int vector_size = -1;
+                    int static_input_set = -1;
+                    Opt<TypeInfo::BuiltinPrimitive> chosen_primitive;
+
                     switch (bik) {
-                        case BuiltinInputKind::Static:
-                            int input_set = -1;
+                        case BuiltinInputKind::Static: {
+                            static_input_set = -1;
                             for (int k = 0; k < builtin.inputs.size(); k++) {
                                 auto& inputs = builtin.inputs[k];
                                 if (inputs.size() != call.args.size()) {
@@ -1356,12 +1435,14 @@ struct Validator {
                                 }
 
                                 if (!invalid) {
-                                    input_set = k;
+                                    static_input_set = k;
                                     break;
                                 }
                             }
+
                             break;
-                        case BuiltinInputKind::Packed:
+                        }
+                        case BuiltinInputKind::Packed: {
                             uint32_t components = builtin.required_packed_input;
                             TypeInfo::BuiltinPrimitive pack_primitive =
                                 builtin.base_input_primitive;
@@ -1381,8 +1462,7 @@ struct Validator {
                                     }
 
                                     my_components += 1;
-                                }
-                                else if(a->is<TypeInfo::Vector>()) {
+                                } else if (a->is<TypeInfo::Vector>()) {
                                     TypeInfo::Vector& v = a->get<TypeInfo::Vector>();
                                     TypeInfo::BuiltinPrimitive p =
                                         a->get_underlying_primitive().primitive;
@@ -1409,15 +1489,17 @@ struct Validator {
                                     call.args[0]->get_location()
                                 );
                             }
+
+                            chosen_primitive = pack_primitive;
                             break;
+                        }
                         case BuiltinInputKind::Vectorized:
                             TypeInfo::BuiltinPrimitive base_primitive =
                                 arg_types[0]->get_underlying_primitive().primitive;
-                            uint32_t base_size = 0;
                             if (arg_types[0]->is<TypeInfo::Primitive>()) {
-                                base_size = 1;
+                                vector_size = 1;
                             } else if (arg_types[0]->is<TypeInfo::Vector>()) {
-                                base_size = arg_types[0]->get<TypeInfo::Vector>().size;
+                                vector_size = arg_types[0]->get<TypeInfo::Vector>().size;
                             } else {
                                 error_handler.error(
                                     ErrorType::BadVectorInputType,
@@ -1427,7 +1509,8 @@ struct Validator {
                             }
 
                             bool accepted = false;
-                            for (uint32_t i = 0; i < builtin.allowed_primitive_inputs.size(); i++) {
+                            for (uint32_t i = 0; i < builtin.allowed_primitive_inputs.size();
+                                 i++) {
                                 if (builtin.allowed_primitive_inputs[i] == base_primitive) {
                                     accepted = true;
                                     break;
@@ -1437,8 +1520,25 @@ struct Validator {
                             if (!accepted) {
                                 error_handler.error(
                                     ErrorType::BadVectorPrimitive,
-                                    arena.string_pool.add(TypeInfo::builtin_primitive_str(base_primitive)),
+                                    arena.string_pool.add(
+                                        TypeInfo::builtin_primitive_str(base_primitive)
+                                    ),
                                     call.args[0]->get_location()
+                                );
+                            }
+
+                            if (vector_size < builtin.min_vector_size ||
+                                vector_size > builtin.max_vector_size) {
+                                error_handler.error(
+                                    ErrorType::BadVectorSize,
+                                    call.args[0]->get_location()
+                                );
+                            }
+
+                            if (arg_types.size() != 1) {
+                                error_handler.error(
+                                    ErrorType::BadCallArgumentCount,
+                                    call.name.location
                                 );
                             }
 
@@ -1453,10 +1553,56 @@ struct Validator {
                                 }
                             }
 
+                            chosen_primitive = base_primitive;
+
                             break;
                     }
 
-                    return { return_type };
+                    switch (bok) {
+                        case BuiltinOutputKind::Static:
+                            // always the same
+                            return { find_type_info(builtin.static_output) };
+                        case BuiltinOutputKind::InheritedSingle:
+                            // primitive of the first argument
+                            return {
+                                find_type_info(TypeInfo::builtin_primitive_str(*chosen_primitive
+                                )),
+                            };
+                            break;
+                        case BuiltinOutputKind::StaticVectorized:
+                            // always same primitive, size of the first argument
+                            if (bik == BuiltinInputKind::Vectorized) {
+                                return { find_type_info(
+                                    TypeInfo::builtin_primitive_str(builtin.static_output_base)
+                                ) };
+                            } else if (bik == BuiltinInputKind::Static) {
+                                auto& input_set = builtin.inputs[static_input_set];
+                                Ref<TypeInfo> first_arg_type = arg_types[0];
+
+                                int vec_size = 1;
+                                if (first_arg_type->is<TypeInfo::Vector>()) {
+                                    vec_size = first_arg_type->get<TypeInfo::Vector>().size;
+                                }
+
+                                TypeInfo result_type = TypeInfo::create_vector(
+                                    arena.string_pool,
+                                    *find_type_info(
+                                        TypeInfo::builtin_primitive_str(
+                                            builtin.static_output_base
+                                        )
+                                    ),
+                                    vec_size
+                                );
+
+                                return { create_or_get_info_ref(std::move(result_type)) };
+                            }
+
+                            assert(false);
+                            break;
+
+                        case BuiltinOutputKind::Inherited:
+                            return { arg_types[0] };
+                    }
                 },
             },
             func
@@ -1488,7 +1634,10 @@ struct Validator {
         if (!(*index.type)->is<TypeInfo::Primitive>() ||
             (*index.type)->get_underlying_primitive().primitive !=
                 TypeInfo::BuiltinPrimitive::Int) {
-            error_handler.error(ErrorType::InvalidArrayIndex, list_access.index->get_location());
+            error_handler.error(
+                ErrorType::InvalidArrayIndex,
+                list_access.index->get_location()
+            );
             return { std::nullopt };
         }
 
