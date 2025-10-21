@@ -1,9 +1,6 @@
 #pragma once
 
-#include "log.hpp"
-#include "utils.hpp"
 #include "spirv/1.0/spirv.hpp"
-#include "spirv/1.0/GLSL.std.450.h"
 
 #include "spirv_binary_container.hpp"
 
@@ -51,7 +48,7 @@ class CodeGenerator final {
         BindingManager& binding_manager,
         Opt<std::string> pipeline
     )
-        : arena(arena), binding_manager(binding_manager), pipeline(pipeline) {}
+        : arena(arena), pipeline(pipeline), binding_manager(binding_manager) {}
 
     void generate() {
         generate_prelude();
@@ -234,6 +231,7 @@ class CodeGenerator final {
             id,
             0,
             0,
+            spv::StorageClassOutput,
         };
     }
 
@@ -576,7 +574,7 @@ class CodeGenerator final {
         spv.Name(decl_ids[s.name.name], s.name.name.c_str());
     }
 
-    uint32_t get_type_size_offset(uint32_t previous_offset, const TypeInfo& type_info) {
+    uint32_t get_type_size_offset(uint32_t, const TypeInfo& type_info) {
         uint32_t size = type_info.size;
         uint32_t alignment = type_info.alignment;
 
@@ -598,8 +596,6 @@ class CodeGenerator final {
             const TypeInfo& member_type_info = **member.type.resolved_type;
 
             if (member_type_info.is<TypeInfo::Matrix>()) {
-                const TypeInfo::Matrix& m = member_type_info.get<TypeInfo::Matrix>();
-
                 spv.MemberDecorate(
                     decl_ids[s.name.name],
                     n_ops,
@@ -685,7 +681,7 @@ class CodeGenerator final {
         spv.Name(decl_ids[f.name.name], f.name.name.c_str());
     }
 
-    void generate_function_decorations(const Decl::Function& f) {}
+    void generate_function_decorations(const Decl::Function&) {}
 
     PoolStr clobber(const Decl::Function& f) {
         std::string name = "Fn(";
@@ -1055,7 +1051,6 @@ class CodeGenerator final {
             if (stmt->is<Stmt::Return>()) {
                 has_return = true;
                 if (return_variable) {
-                    uint32_t return_value_id = return_variable->id;
                     uint32_t value = spv.LoadNew(
                         (*return_variable->type)->get_pointer_type(spv::StorageClassFunction),
                         return_variable->id
@@ -1086,13 +1081,12 @@ class CodeGenerator final {
                 );
             } else if (stmt->is<Stmt::ExprStmt>()) {
                 const Stmt::ExprStmt& expr_stmt = stmt->get<Stmt::ExprStmt>();
-                Ref<ExprResult> expr_result = generate_expression(*expr_stmt.expr, nullptr);
+                Ref<ExprResult> _ = generate_expression(*expr_stmt.expr, nullptr);
             }
         }
 
         if (!has_return) {
             if (return_variable) {
-                uint32_t return_value_id = return_variable->id;
                 uint32_t value = spv.LoadNew((*return_variable->type)->id, return_variable->id);
                 spv.ReturnValue(value);
             } else {
@@ -1133,7 +1127,6 @@ class CodeGenerator final {
         }
 
         TypeInfo::Primitive a_primitive = a.get_underlying_primitive();
-        TypeInfo::Primitive b_primitive = b.get_underlying_primitive();
 
         if (a.is<TypeInfo::Primitive>() && b.is<TypeInfo::Primitive>()) {
             switch (a_primitive.primitive) {
@@ -1327,13 +1320,9 @@ class CodeGenerator final {
 
                         const TypeInfo::Vector& left_vector =
                             left_matrix.vector_element->get<TypeInfo::Vector>();
-                        const TypeInfo::Vector& right_vector =
-                            right_matrix.vector_element->get<TypeInfo::Vector>();
 
-                        uint32_t left_columns = left_matrix.columns;
                         uint32_t right_columns = right_matrix.columns;
                         uint32_t left_rows = left_vector.size;
-                        uint32_t right_rows = right_vector.size;
 
                         int result_rows = left_rows;
                         int result_columns = right_columns;
@@ -1980,7 +1969,7 @@ class CodeGenerator final {
         }
     }
 
-    Ref<ExprResult> generate_expr(const Expr::ListAccess& la, const TypeInfo* expected_type) {
+    Ref<ExprResult> generate_expr(const Expr::ListAccess& la, const TypeInfo*) {
         Ref<ExprResult> list = generate_expression(*la.list, nullptr);
         Ref<ExprResult> index = generate_expression(*la.index, &**get_type_info("int"));
         uint32_t res = spv.get_id();
@@ -1991,7 +1980,7 @@ class CodeGenerator final {
         return expr_ref({ res, array.element });
     }
 
-    Ref<ExprResult> generate_expr(const Expr::FieldAccess& fa, const TypeInfo* expected_type) {
+    Ref<ExprResult> generate_expr(const Expr::FieldAccess& fa, const TypeInfo*) {
         Ref<ExprResult> base = generate_expression(*fa.object, nullptr);
         uint32_t ptr_res = spv.get_id();
 
@@ -2115,6 +2104,8 @@ class CodeGenerator final {
                 return expr_ref({ res, result_type });
             }
         }
+
+        assert(false && "Field access on non-struct/non-vector type");
     }
 
     Ref<ExprResult>
@@ -2149,7 +2140,7 @@ class CodeGenerator final {
     }
 
     Ref<ExprResult>
-    generate_expr(const Expr::VariableAccess& va, const TypeInfo* expected_type) {
+    generate_expr(const Expr::VariableAccess& va, const TypeInfo*) {
         VariableInstance var = *find_variable(va.name.name);
         return expr_ref({ var, *var.type });
     }

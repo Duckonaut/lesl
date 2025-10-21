@@ -155,7 +155,7 @@ class Time : public Example {
         SDL_SubmitGPUCommandBuffer(cmd);
     }
 
-    void event(SDL_Event* event) override {}
+    void event(SDL_Event*) override {}
 
     void update() override {
         SDL_Time ticks = SDL_GetTicks();
