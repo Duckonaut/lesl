@@ -4,15 +4,19 @@
 #include <variant>
 
 struct ReprWalker {
-    public:
-        virtual void poop() {}
-    virtual void visit(TypedIdentifier& typedIdentifier) {}
+  public:
+    virtual void visit(TypedIdentifier&) {}
 
     virtual void visit(Decl& decl) {
-        std::visit([this](auto& decl) { this->visit(decl); }, decl.data);
+        std::visit(
+            [this](auto& decl) {
+                this->visit(decl);
+            },
+            decl.data
+        );
     }
 
-    virtual void visit(Decl::Import& import) {}
+    virtual void visit(Decl::Import&) {}
     virtual void visit(Decl::Function& function) {
         for (auto& param : function.params) {
             visit(param);
@@ -36,10 +40,15 @@ struct ReprWalker {
             visit(stage);
         }
     }
-    virtual void visit(PipelineParameter& pipelineParameter) {}
+    virtual void visit(PipelineParameter&) {}
 
     virtual void visit(Stmt& stmt) {
-        std::visit([this](auto& stmt) { this->visit(stmt); }, stmt.data);
+        std::visit(
+            [this](auto& stmt) {
+                this->visit(stmt);
+            },
+            stmt.data
+        );
     }
 
     virtual void visit(Stmt::Var& var) {
@@ -48,15 +57,19 @@ struct ReprWalker {
             visit(**var.expr);
         }
     }
-    virtual void visit(Stmt::Return& ret) {
-    }
+    virtual void visit(Stmt::Return&) {}
 
     virtual void visit(Stmt::ExprStmt& exprStmt) {
         visit(*exprStmt.expr);
     }
 
     virtual void visit(Expr& expr) {
-        std::visit([this](auto& expr) { this->visit(expr); }, expr.data);
+        std::visit(
+            [this](auto& expr) {
+                this->visit(expr);
+            },
+            expr.data
+        );
     }
 
     virtual void visit(Expr::Binary& binary) {
@@ -83,6 +96,6 @@ struct ReprWalker {
         visit(*fieldAccess.object);
     }
 
-    virtual void visit(Expr::NumberLiteral& number) {}
-    virtual void visit(Expr::VariableAccess& identifier) {}
+    virtual void visit(Expr::NumberLiteral&) {}
+    virtual void visit(Expr::VariableAccess&) {}
 };

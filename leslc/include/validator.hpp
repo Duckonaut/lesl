@@ -1,7 +1,6 @@
 #pragma once
 
 #include "arena.hpp"
-#include "log.hpp"
 #include "ref_container.hpp"
 #include "repr.hpp"
 #include "repr_walker.hpp"
@@ -395,7 +394,7 @@ struct Validator {
             assert(false);
         }
     }
-    void validate_return(Stmt::Return& r) {}
+    void validate_return(Stmt::Return&) {}
     void validate_var(Stmt::Var& v) {
         validate_type(v.typedIdentifier.type);
 
@@ -693,14 +692,9 @@ struct Validator {
                            right_type.is<TypeInfo::Matrix>()) {
                     // only allow matrix multiplication for matrices with compatible sizes
                     int left_columns = left_type.get<TypeInfo::Matrix>().columns;
-                    int right_columns = right_type.get<TypeInfo::Matrix>().columns;
-                    const TypeInfo::Vector& left_vector_element =
-                        left_type.get<TypeInfo::Matrix>().vector_element->get<TypeInfo::Vector>(
-                        );
                     const TypeInfo::Vector& right_vector_element =
                         right_type.get<TypeInfo::Matrix>()
                             .vector_element->get<TypeInfo::Vector>();
-                    int left_rows = left_vector_element.size;
                     int right_rows = right_vector_element.size;
 
                     if (left_columns != right_rows) {
@@ -710,7 +704,6 @@ struct Validator {
                         );
                     }
 
-                    int result_rows = right_rows;
                     int result_columns = left_columns;
 
                     // the result type can be different from either left or right,
@@ -730,7 +723,6 @@ struct Validator {
 
                     int left_columns = left_type.get<TypeInfo::Matrix>().columns;
                     int right_size = right_type.get<TypeInfo::Vector>().size;
-                    int left_rows = left_type.get<TypeInfo::Matrix>().vector_element->size;
 
                     if (left_columns != right_size) {
                         error_handler.error(
@@ -1188,7 +1180,7 @@ struct Validator {
 
     ExprValidationResult validate_field_access(
         Expr::FieldAccess& field_access,
-        Opt<Ref<TypeInfo>> expected_type = std::nullopt,
+        Opt<Ref<TypeInfo>> = std::nullopt,
         bool assignable = false
     ) {
         ExprValidationResult base = validate_expr(*field_access.object);
@@ -1343,7 +1335,7 @@ struct Validator {
 
     ExprValidationResult validate_call(
         Expr::Call& call,
-        Opt<Ref<TypeInfo>> expected_type = std::nullopt,
+        Opt<Ref<TypeInfo>> = std::nullopt,
         bool assignable = false
     ) {
         if (assignable) {
@@ -1576,7 +1568,6 @@ struct Validator {
                                     TypeInfo::builtin_primitive_str(builtin.static_output_base)
                                 ) };
                             } else if (bik == BuiltinInputKind::Static) {
-                                auto& input_set = builtin.inputs[static_input_set];
                                 Ref<TypeInfo> first_arg_type = arg_types[0];
 
                                 int vec_size = 1;
@@ -1612,7 +1603,7 @@ struct Validator {
     ExprValidationResult validate_list_access(
         Expr::ListAccess& list_access,
         Opt<Ref<TypeInfo>> expected_type = std::nullopt,
-        bool assignable = false
+        bool = false
     ) {
         ExprValidationResult base = validate_expr(*list_access.list, expected_type, false);
         if (!base.type) {

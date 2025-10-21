@@ -556,9 +556,7 @@ class CodeGenerator final {
         }
 
         for (GlobalInterface& gi : global_interfaces) {
-            uint32_t type_id = resolve_type(gi.type->name);
-
-            binding_manager.allocate_variable(spv, gi, type_id);
+            binding_manager.allocate_variable(spv, gi);
         }
     }
 

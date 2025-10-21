@@ -581,7 +581,7 @@ struct ReprPrinter {
         );
     }
 
-    void print(const Stmt::Return& return_) {
+    void print(const Stmt::Return&) {
         out << colorize::blue("return");
     }
 

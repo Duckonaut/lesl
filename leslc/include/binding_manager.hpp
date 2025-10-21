@@ -1,25 +1,12 @@
 #pragma once
 
-#include "log.hpp"
-#include "utils.hpp"
 #include "spirv/1.0/spirv.hpp"
-#include "spirv/1.0/GLSL.std.450.h"
 
 #include "spirv_binary_container.hpp"
 
 #include "repr.hpp"
-#include "arena.hpp"
-#include "stringpool.hpp"
 
-#include "builtin_functions.hpp"
 #include "codegen_helpers.hpp"
-
-#include <algorithm>
-#include <bit>
-#include <iostream>
-#include <ostream>
-#include <unordered_map>
-#include <variant>
 
 struct BindingManager final {
     enum class TargetAPI {
@@ -72,7 +59,7 @@ struct BindingManager final {
                 case BindingAllocationMode::SingleInputMultipleUniform:
                     if ((context == PipelineStage::Vertex && vertex_input_decorated) ||
                         (context == PipelineStage::Fragment && fragment_input_decorated)) {
-                        decorate_as_uniform(spv, s, struct_id);
+                        decorate_as_uniform(spv, struct_id);
                     } else {
                         decorate_as_input(spv, s, struct_id);
                         if (context == PipelineStage::Vertex) {
@@ -125,7 +112,6 @@ struct BindingManager final {
 
     void decorate_as_uniform(
         spv_binary::BinaryContainer& spv,
-        const Decl::Struct& s,
         uint32_t struct_id
     ) {
         spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
@@ -183,7 +169,7 @@ struct BindingManager final {
     }
 
     void
-    allocate_variable(spv_binary::BinaryContainer& spv, GlobalInterface& gi, uint32_t type_id) {
+    allocate_variable(spv_binary::BinaryContainer& spv, GlobalInterface& gi) {
         uint32_t pointer_type =
             gi.type->get_pointer_type((spv::StorageClass)(uint32_t)gi.storage_class);
         gi.pointer_type = pointer_type;

@@ -1,22 +1,12 @@
 #pragma once
 
-#include "log.hpp"
-#include "utils.hpp"
 #include "spirv/1.0/spirv.hpp"
-#include "spirv/1.0/GLSL.std.450.h"
 
 #include "spirv_binary_container.hpp"
 
 #include "repr.hpp"
-#include "arena.hpp"
 #include "stringpool.hpp"
 
-#include "builtin_functions.hpp"
-
-#include <algorithm>
-#include <bit>
-#include <iostream>
-#include <ostream>
 #include <unordered_map>
 #include <variant>
 
@@ -41,7 +31,7 @@ struct VariableInstance {
     Opt<Ref<TypeInfo>> type;
 
     VariableInstance() : id(0), storage_class(std::nullopt), type(std::nullopt) {}
-    VariableInstance(uint32_t id, Ref<TypeInfo> type, Opt<spv::StorageClass> storage_class) : id(id), type(type), storage_class(storage_class) {}
+    VariableInstance(uint32_t id, Ref<TypeInfo> type, Opt<spv::StorageClass> storage_class) : id(id), storage_class(storage_class), type(type) {}
 };
 
 struct VariableScope {
