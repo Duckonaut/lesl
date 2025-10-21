@@ -23,6 +23,9 @@ function vertex (VsIn v) -> (ShaderLink o) {
 function fragment (ShaderLink i, Uniforms u) -> (FsOut o) {
     float2 uv = i.uv
     float t = u.data.x * 120.0
+    float aspect = u.data.y / u.data.z
+    uv.x *= aspect
+    uv.x -= (aspect - 1.0) / 2
 
     float angle = (-atan2(uv.y - 0.5, uv.x - 0.5) + 3.14) % 6.28
     float dist = length(uv - 0.5)
@@ -31,13 +34,15 @@ function fragment (ShaderLink i, Uniforms u) -> (FsOut o) {
     float minutes_handle_progress = (t % 3600.0) / 3600.0
     float hours_handle_progress = (t % (3600.0 * 12.0)) / (3600.0 * 12.0)
 
-    float f = 0.01 - dist * 0.05
+    float f = 0.01 - pow(dist * 0.05, 1.2)
 
     float v = max(0.0, sin((angle - (seconds_handle_progress * 6.28) + 6.28) % 6.28) - (1.0 - f)) / f
             + max(0.0, sin((angle - (minutes_handle_progress * 6.28) + 6.28) % 6.28) - (1.0 - f)) / f
             + max(0.0, sin((angle - (hours_handle_progress * 6.28) + 6.28) % 6.28) - (1.0 - f)) / f
 
     v = clamp(v, 0.0, 1.0)
+
+    v = pow(v, 0.3)
 
     float4 a = float4(1.0 - v, 1.0 - v, 1.0 - v, 1.0)
 

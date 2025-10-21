@@ -190,8 +190,11 @@ class Time : public Example {
 
         SDL_BindGPUVertexBuffers(pass, 0, &binding, 1);
 
+        float screen_width = static_cast<float>(w);
+        float screen_height = static_cast<float>(h);
+
         Uniforms uniforms_data = {
-            .data = { time, 0, 0, 0 },
+            .data = { time, screen_width, screen_height, 0 },
         };
 
         SDL_PushGPUFragmentUniformData(cmd, 0, &uniforms_data, sizeof(Uniforms));
