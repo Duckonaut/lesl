@@ -546,6 +546,26 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
         .with_packed_input(TypeInfo::BuiltinPrimitive::Bool, 4)
         .with_static_output("bool4")
         .with_custom_encoding(composite_constructor),
+    // image sampling
+    BuiltinFunction("sample2D")
+        .with_static_input(
+            {
+                { "sampler2D", "float2" },
+            }
+        )
+        .with_static_output("float4")
+        .with_custom_encoding([](spv_binary::BinaryContainer& spv,
+                                 const TypeInfo& res_type_info,
+                                 const PoolStr&,
+                                 uint32_t,
+                                 std::vector<uint32_t> args) {
+            uint32_t res_type = res_type_info.id;
+            return spv.ImageSampleImplicitLodNew(
+                res_type,
+                args[0],
+                args[1]
+            );
+        }),
 };
 
 inline static uint32_t builtin_function(

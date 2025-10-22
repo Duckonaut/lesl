@@ -22,3 +22,6 @@ struct FileData {
 
 FileData readFile(const char* path);
 void freeFileData(FileData data);
+
+uint8_t* readImageRGBA(const char* path, uint32_t* width, uint32_t* height);
+void freeImageData(uint8_t* data);

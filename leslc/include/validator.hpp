@@ -409,6 +409,15 @@ struct Validator {
         }
     }
     void validate_type(TypeRef& type) {
+        // check if is image sampler
+
+        if (type.name.name == "sampler2D") {
+            type.resolved_type = create_or_get_info_ref(TypeInfo::create_image_sampler(
+                arena.string_pool
+            ));
+            return;
+        }
+
         // validate array sizes
         uint32_t array_depth_total = type.array_sizes.size();
         for (uint32_t i = 0; i < array_depth_total; i++) {

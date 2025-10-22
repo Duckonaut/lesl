@@ -1,0 +1,29 @@
+struct VsIn {
+    float4 position,
+    float2 uv
+}
+
+struct FsOut {
+    float4 color
+}
+
+struct ShaderLink {
+    float2 uv,
+}
+
+function vertex (VsIn v) -> (ShaderLink o) {
+    o.uv = v.uv
+    POSITION = v.position
+}
+
+function fragment (ShaderLink i, sampler2D mainTex) -> (FsOut o) {
+    float2 uv = i.uv
+    uv.y = 1.0 - uv.y
+
+    o.color = float4(sample2D(mainTex, uv).rgb, 1.0)
+}
+
+pipeline Basic {
+    Vertex = vertex,
+    Fragment = fragment,
+}

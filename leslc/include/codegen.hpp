@@ -172,7 +172,7 @@ class CodeGenerator final {
             uint32_t id = spv.get_id();
             global_interfaces.push_back(
                 {
-                    binding_manager.get_input_storage_class(PipelineStage::Vertex),
+                    binding_manager.get_input_storage_class(**type.type.resolved_type, PipelineStage::Vertex),
                     PipelineStage::Vertex,
                     type.type.resolved_type.value(),
                     type.name.name,
@@ -200,7 +200,7 @@ class CodeGenerator final {
             uint32_t id = spv.get_id();
             global_interfaces.push_back(
                 {
-                    binding_manager.get_input_storage_class(PipelineStage::Fragment),
+                    binding_manager.get_input_storage_class(**type.type.resolved_type, PipelineStage::Fragment),
                     PipelineStage::Fragment,
                     type.type.resolved_type.value(),
                     type.name.name,
@@ -528,6 +528,25 @@ class CodeGenerator final {
                         try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                         try_add_storage_class_pointer(type_info, spv::StorageClassUniform);
                     }
+                },
+                [&](const TypeInfo::ImageSampler&) {
+                    uint32_t type_id = spv.TypeImageNew(
+                        decl_ids[arena.string_pool.add("float")],
+                        spv::Dim2D,
+                        0,
+                        0,
+                        0,
+                        1,
+                        spv::ImageFormatUnknown
+                    );
+
+                    uint32_t sampled_type_id = spv.TypeSampledImageNew(type_id);
+
+                    decl_ids[type_info.name] = sampled_type_id;
+
+                    type_info.id = decl_ids[type_info.name];
+
+                    try_add_storage_class_pointer(type_info, spv::StorageClassUniformConstant);
                 },
             },
             type_info.data
@@ -1913,8 +1932,6 @@ class CodeGenerator final {
                     }
                 }
             }
-            uint32_t res =
-                builtin_function(spv, *expected_type, c.name.name, this->glsl_ext, args);
 
             Opt<Ref<TypeInfo>> return_type = std::nullopt;
 
@@ -1945,6 +1962,9 @@ class CodeGenerator final {
                     break;
                 }
             }
+
+            uint32_t res =
+                builtin_function(spv, **return_type, c.name.name, this->glsl_ext, args);
 
             return expr_ref({ res, *return_type });
         } else {
@@ -2137,8 +2157,7 @@ class CodeGenerator final {
         return expr_ref({ get_constant_float(v), *get_type_info("float") });
     }
 
-    Ref<ExprResult>
-    generate_expr(const Expr::VariableAccess& va, const TypeInfo*) {
+    Ref<ExprResult> generate_expr(const Expr::VariableAccess& va, const TypeInfo*) {
         VariableInstance var = *find_variable(va.name.name);
         return expr_ref({ var, *var.type });
     }

@@ -3,10 +3,12 @@
 #include "log.hpp"
 
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_main.h>
 #include <cstddef>
 #include <string>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 #ifdef RELEASE
 #define WINDOW_TITLE PROJECT_NAME
@@ -140,4 +142,38 @@ FileData readFile(const char *path) {
 
 void freeFileData(FileData data) {
     SDL_free(data.data);
+}
+
+uint8_t* readImageRGBA(const char* path, uint32_t* out_width, uint32_t* out_height) {
+    const char* base_path = SDL_GetBasePath();
+
+    if (!base_path) {
+        Log::error("failed to get base path");
+        return nullptr;
+    }
+
+    std::string full_path;
+    if (path[0] == '/') {
+        full_path = path;
+    }
+    else {
+        full_path = std::string(base_path) + path;
+    }
+
+    int width, height, channels;
+    uint8_t* data = stbi_load(full_path.c_str(), &width, &height, &channels, 4);
+
+    if (!data) {
+        Log::error("failed to read image %s", full_path.c_str());
+        return nullptr;
+    }
+
+    *out_width = static_cast<uint32_t>(width);
+    *out_height = static_cast<uint32_t>(height);
+
+    return data;
+}
+
+void freeImageData(uint8_t* data) {
+    stbi_image_free(data);
 }

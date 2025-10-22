@@ -11,6 +11,10 @@ function(define_sdl3_example example-name)
         SDL3::SDL3
     )
 
+    target_include_directories(sdl3-${example-name} PUBLIC
+        ../external/stb/
+    )
+
     target_compile_definitions(sdl3-${example-name} PUBLIC SDL_MAIN_USE_CALLBACKS)
 endfunction()
 
@@ -62,4 +66,12 @@ build_lesl_shader(time)
 
 target_sources(sdl3-time PRIVATE
     ${time_LESL_SPIRV}
+)
+
+define_sdl3_example(texture)
+
+build_lesl_shader(texture)
+
+target_sources(sdl3-texture PRIVATE
+    ${texture_LESL_SPIRV}
 )

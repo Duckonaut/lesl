@@ -125,6 +125,9 @@ struct BindingManager final {
             if (gi.storage_class == StorageClass::Uniform) {
                 allocate_as_uniform(spv, gi);
             }
+            else if (gi.storage_class == StorageClass::ImageSampler) {
+                allocate_as_image_sampler(spv, gi);
+            }
         }
     }
 
@@ -168,6 +171,44 @@ struct BindingManager final {
         }
     }
 
+    void allocate_as_image_sampler(
+        spv_binary::BinaryContainer& spv,
+        const GlobalInterface& gi
+    ) {
+        if (gi.storage_class == StorageClass::ImageSampler) {
+            if (target_api == TargetAPI::SDL3) {
+                if (gi.pipeline_stage == PipelineStage::Fragment) {
+                    uint32_t set = 2;
+
+                    spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
+                    spv.Decorate(
+                        gi.id,
+                        spv::DecorationBinding,
+                        &sdl3_fragment_big_binding,
+                        1
+                    );
+
+                    sdl3_fragment_big_binding++;
+                    return;
+                } else {
+                    uint32_t set = 0;
+
+                    spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
+                    spv.Decorate(gi.id, spv::DecorationBinding, &sdl3_vertex_big_binding, 1);
+
+                    sdl3_vertex_big_binding++;
+                }
+            } else if (target_api == TargetAPI::Vulkan) {
+                uint32_t set = 0;
+
+                spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
+                spv.Decorate(gi.id, spv::DecorationBinding, &vk_binding, 1);
+
+                vk_binding++;
+            }
+        }
+    }
+
     void
     allocate_variable(spv_binary::BinaryContainer& spv, GlobalInterface& gi) {
         uint32_t pointer_type =
@@ -176,9 +217,13 @@ struct BindingManager final {
         spv.Variable(pointer_type, gi.id, (uint32_t)gi.storage_class);
     }
 
-    StorageClass get_input_storage_class(PipelineStage stage) {
+    StorageClass get_input_storage_class(const TypeInfo& type_info, PipelineStage stage) {
         switch (stage) {
             case PipelineStage::Vertex:
+                if (type_info.is<TypeInfo::ImageSampler>()) {
+                    return StorageClass::ImageSampler;
+                }
+
                 if (vertex_input_allocated) {
                     return StorageClass::Uniform;
                 } else {
@@ -187,6 +232,10 @@ struct BindingManager final {
                 }
                 break;
             case PipelineStage::Fragment:
+                if (type_info.is<TypeInfo::ImageSampler>()) {
+                    return StorageClass::ImageSampler;
+                }
+
                 if (fragment_input_allocated) {
                     return StorageClass::Uniform;
                 } else {

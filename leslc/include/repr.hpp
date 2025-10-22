@@ -82,7 +82,13 @@ struct TypeInfo {
         uint32_t size;
     };
 
-    std::variant<Primitive, Struct, Array, Vector, Matrix> data;
+    struct ImageSampler {
+        // Placeholder for future image type representation.
+        // TODO: dimension, multisampled
+        uint8_t _unused;
+    };
+
+    std::variant<Primitive, Struct, Array, Vector, Matrix, ImageSampler> data;
 
     TypeInfo() : name(), size(0), alignment(0), id(0) {}
     TypeInfo(Primitive&& primitive) : data(primitive) {}
@@ -90,6 +96,7 @@ struct TypeInfo {
     TypeInfo(Array&& array) : data(array) {}
     TypeInfo(Vector&& vector) : data(vector) {}
     TypeInfo(Matrix&& matrix) : data(matrix) {}
+    TypeInfo(ImageSampler&& image_sampler) : data(image_sampler) {}
 
     static TypeInfo create_primitive(StringPool& pool, BuiltinPrimitive primitive) {
         TypeInfo type{ Primitive{ primitive } };
@@ -166,6 +173,14 @@ struct TypeInfo {
             type.size = 0;
         }
         type.alignment = element->alignment;
+        return type;
+    }
+
+    static TypeInfo create_image_sampler(StringPool& pool) {
+        TypeInfo type{ ImageSampler{ } };
+        type.name = pool.add("sampler2D");
+        type.size = 0;
+        type.alignment = 0;
         return type;
     }
 
@@ -272,6 +287,9 @@ inline std::ostream& operator<<(std::ostream& out, const TypeInfo& type) {
                 } else {
                     out << "[]";
                 }
+            },
+            [&out](const TypeInfo::ImageSampler& image_sampler) {
+                out << "sampler2D";
             },
         },
         type.data
@@ -729,6 +747,7 @@ enum class StorageClass : uint32_t {
     Input = spv::StorageClassInput,
     Output = spv::StorageClassOutput,
     Uniform = spv::StorageClassUniform,
+    ImageSampler = spv::StorageClassUniformConstant,
     StorageBuffer = spv::StorageClassStorageBuffer,
     Function = spv::StorageClassFunction,
 };
