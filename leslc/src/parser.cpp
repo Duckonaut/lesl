@@ -219,6 +219,8 @@ std::vector<Ref<Stmt>> Parser::parse_stmt_block() {
         } else if (current.type == TokenType::Identifier &&
                    next.type == TokenType::Identifier) {
             stmts.push_back(parse_var());
+        } else if (current.type == TokenType::If) {
+            stmts.push_back(parse_if_stmt());
         } else {
             stmts.push_back(parse_expr_stmt());
         }
@@ -246,6 +248,20 @@ Ref<Stmt> Parser::parse_return() {
     Stmt::Return r;
     consume(TokenType::Return);
     return arena.alloc(Stmt{ std::move(r) });
+}
+
+Ref<Stmt> Parser::parse_if_stmt() {
+    consume(TokenType::If);
+    Ref<Expr> condition = parse_expr();
+    std::vector<Ref<Stmt>> then_branch = parse_stmt_block();
+    if (current.type == TokenType::Else) {
+        step();
+        std::vector<Ref<Stmt>> else_branch = parse_stmt_block();
+
+        return arena.alloc(Stmt{ condition, then_branch, else_branch });
+    } else {
+        return arena.alloc(Stmt{ condition, then_branch, std::nullopt });
+    }
 }
 
 Ref<Stmt> Parser::parse_expr_stmt() {
@@ -359,12 +375,14 @@ Ref<Expr> Parser::parse_factor_expr() {
 Ref<Expr> Parser::parse_unary() {
     if (current.type == TokenType::Minus) {
         step();
-        return arena.alloc(Expr{
-            Expr::Unary{
-                Expr::UnaryOp::Neg,
-                parse_unary(),
-            },
-        });
+        return arena.alloc(
+            Expr{
+                Expr::Unary{
+                    Expr::UnaryOp::Neg,
+                    parse_unary(),
+                },
+            }
+        );
     } else if (current.type == TokenType::Bang) {
         step();
         return arena.alloc(Expr{ Expr::Unary{ Expr::UnaryOp::Not, parse_unary() } });

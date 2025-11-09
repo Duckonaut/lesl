@@ -11,8 +11,7 @@
 #include <variant>
 #include <optional>
 
-template <typename T>
-using Opt = std::optional<T>;
+template <typename T> using Opt = std::optional<T>;
 
 template <class... Ts> struct overloaded : Ts... {
     using Ts::operator()...;
@@ -161,7 +160,8 @@ struct TypeInfo {
         return type;
     }
 
-    static TypeInfo create_array(StringPool& pool, Ref<TypeInfo> element, bool is_sized, uint32_t size) {
+    static TypeInfo
+    create_array(StringPool& pool, Ref<TypeInfo> element, bool is_sized, uint32_t size) {
         TypeInfo type{ Array{ element, is_sized, size } };
         type.name = pool.add(
             std::string(element->name.c_str()) +
@@ -177,7 +177,7 @@ struct TypeInfo {
     }
 
     static TypeInfo create_image_sampler(StringPool& pool) {
-        TypeInfo type{ ImageSampler{ } };
+        TypeInfo type{ ImageSampler{} };
         type.name = pool.add("sampler2D");
         type.size = 0;
         type.alignment = 0;
@@ -297,7 +297,8 @@ inline std::ostream& operator<<(std::ostream& out, const TypeInfo& type) {
     return out;
 }
 
-// Vastly simplified version of the structure of TypeInfo. We can resolve everything except nested arrays with just an Identifier.
+// Vastly simplified version of the structure of TypeInfo. We can resolve everything except
+// nested arrays with just an Identifier.
 struct TypeRef {
     Identifier name;
     std::vector<int32_t> array_sizes;
@@ -379,10 +380,11 @@ struct Expr {
         Identifier name;
     };
 
-    std::variant<NumberLiteral, Call, Binary, Unary, ListAccess, FieldAccess, VariableAccess> data;
+    std::variant<NumberLiteral, Call, Binary, Unary, ListAccess, FieldAccess, VariableAccess>
+        data;
 
-    Expr(Identifier identifier) : data(VariableAccess { identifier }) {}
-    Expr(double number, SourceLocation location) : data(NumberLiteral { number, location }) {}
+    Expr(Identifier identifier) : data(VariableAccess{ identifier }) {}
+    Expr(double number, SourceLocation location) : data(NumberLiteral{ number, location }) {}
     Expr(Call call) : data(call) {}
     Expr(Binary binary) : data(binary) {}
     Expr(Unary unary) : data(unary) {}
@@ -437,11 +439,21 @@ struct Stmt {
         Ref<Expr> expr;
     };
 
-    std::variant<Return, Var, ExprStmt> data;
+    struct IfStmt {
+        Ref<Expr> condition;
+        std::vector<Ref<Stmt>> then_branch;
+        Opt<std::vector<Ref<Stmt>>> else_branch;
+    };
+
+    std::variant<Return, Var, ExprStmt, IfStmt> data;
 
     Stmt(Return return_) : data(return_) {}
     Stmt(Var var) : data(var) {}
-    Stmt(Ref<Expr> expr) : data(ExprStmt { expr }) {}
+    Stmt(Ref<Expr> expr) : data(ExprStmt{ expr }) {}
+    Stmt(Ref<Expr> condition,
+         std::vector<Ref<Stmt>> then_branch,
+         Opt<std::vector<Ref<Stmt>>> else_branch)
+        : data(IfStmt{ condition, then_branch, else_branch }) {}
 
     template <typename T> bool is() const {
         return std::holds_alternative<T>(data);
@@ -593,7 +605,10 @@ struct ReprPrinter {
                 },
                 [this](const Stmt::ExprStmt& expr) {
                     print_expr(*expr.expr);
-                }
+                },
+                [this](const Stmt::IfStmt& ifStmt) {
+                    print(ifStmt);
+                },
             },
             stmt.data
         );
@@ -609,6 +624,33 @@ struct ReprPrinter {
         if (var.expr) {
             out << " = ";
             print_expr(**var.expr);
+        }
+    }
+
+    void print(const Stmt::IfStmt& ifStmt) {
+        out << colorize::blue("if") << " (";
+        print_expr(*ifStmt.condition);
+        out << ") {\n";
+        indent++;
+        for (const Ref<Stmt>& stmt : ifStmt.then_branch) {
+            print_indent();
+            print(*stmt);
+            out << "\n";
+        }
+        indent--;
+        print_indent();
+        out << "}";
+        if (ifStmt.else_branch) {
+            out << " " << colorize::blue("else") << " {\n";
+            indent++;
+            for (const Ref<Stmt>& stmt : *ifStmt.else_branch) {
+                print_indent();
+                print(*stmt);
+                out << "\n";
+            }
+            indent--;
+            print_indent();
+            out << "}";
         }
     }
 

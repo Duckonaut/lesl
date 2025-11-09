@@ -55,6 +55,7 @@ enum class ErrorType {
     BadVectorSize,
     BadVectorInputType,
     BadVectorInputInconsistent,
+    ConditionNotBool,
 };
 
 struct ErrorData {
@@ -219,6 +220,9 @@ struct Error {
                 break;
             case ErrorType::BadVectorInputInconsistent:
                 out << "Function call argumentrs must all be the same type";
+                break;
+            case ErrorType::ConditionNotBool:
+                out << "Condition expression must be of type bool";
                 break;
         }
 

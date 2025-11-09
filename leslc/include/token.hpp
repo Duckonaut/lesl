@@ -52,6 +52,8 @@ enum class TokenType {
     Pipeline,
     Import,
     Return,
+    If,
+    Else,
 
     EndOfFile,
     Error,
@@ -137,6 +139,10 @@ inline const char* token_type_to_string(TokenType type) {
             return "Import";
         case TokenType::Return:
             return "Return";
+        case TokenType::If:
+            return "If";
+        case TokenType::Else:
+            return "Else";
         case TokenType::EndOfFile:
             return "EndOfFile";
         case TokenType::Error:

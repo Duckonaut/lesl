@@ -29,6 +29,7 @@ struct Parser final {
     std::vector<Ref<Stmt>> parse_stmt_block();
     Ref<Stmt> parse_return();
     Ref<Stmt> parse_var();
+    Ref<Stmt> parse_if_stmt();
     Ref<Stmt> parse_expr_stmt();
 
     Ref<Expr> parse_expr();

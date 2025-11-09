@@ -1,0 +1,45 @@
+struct VsIn {
+    float4 position,
+    float2 uv
+}
+
+struct FsOut {
+    float4 color
+}
+
+struct Uniforms {
+    float4 data
+}
+
+struct ShaderLink {
+    float2 uv,
+}
+
+function vertex (VsIn v) -> (ShaderLink o) {
+    o.uv = v.uv
+    POSITION = v.position
+}
+
+function fragment (ShaderLink i, Uniforms u) -> (FsOut o) {
+    float2 uv = i.uv
+    float t = u.data.x
+    if uv.x < 0.5 {
+        float f = cos(uv.x * 20.0 + t)
+        o.color = float4(f, f, f, 1.0)
+    }
+    else {
+        if (uv.y > 0.5) {
+            float f = cos(uv.y * 20.0 + t)
+            o.color = float4(f, f, f, 1.0)
+        }
+        else {
+            float f = cos(uv.y * 40.0 + t)
+            o.color = float4(f, f, f, 1.0)
+        }
+    }
+}
+
+pipeline Basic {
+    Vertex = vertex,
+    Fragment = fragment,
+}

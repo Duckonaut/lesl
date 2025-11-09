@@ -63,6 +63,18 @@ struct ReprWalker {
         visit(*exprStmt.expr);
     }
 
+    virtual void visit(Stmt::IfStmt& ifStmt) {
+        visit(*ifStmt.condition);
+        for (auto& stmt : ifStmt.then_branch) {
+            visit(*stmt);
+        }
+        if (ifStmt.else_branch) {
+            for (auto& stmt : *ifStmt.else_branch) {
+                visit(*stmt);
+            }
+        }
+    }
+
     virtual void visit(Expr& expr) {
         std::visit(
             [this](auto& expr) {

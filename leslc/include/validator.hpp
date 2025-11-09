@@ -80,8 +80,9 @@ struct Validator {
                         if (decl->get<Decl::Struct>().name.name == type.name.name) {
                             std::vector<TypeInfo::Struct::Member> members;
                             for (auto& member : decl->get<Decl::Struct>().members) {
-                                members.push_back({ member.name.name,
-                                                    create_or_get_info(arena, member.type) });
+                                members.push_back(
+                                    { member.name.name, create_or_get_info(arena, member.type) }
+                                );
                             }
 
                             info = TypeInfo::create_struct(type.name.name, members);
@@ -289,14 +290,18 @@ struct Validator {
     void add_builtin_variables() {
         add_variable(
             arena.string_pool.add("POSITION"),
-            create_or_get_info_ref(TypeInfo::create_vector(
-                arena.string_pool,
-                create_or_get_info_ref(TypeInfo::create_primitive(
+            create_or_get_info_ref(
+                TypeInfo::create_vector(
                     arena.string_pool,
-                    TypeInfo::BuiltinPrimitive::Float
-                )),
-                4
-            )),
+                    create_or_get_info_ref(
+                        TypeInfo::create_primitive(
+                            arena.string_pool,
+                            TypeInfo::BuiltinPrimitive::Float
+                        )
+                    ),
+                    4
+                )
+            ),
             StorageClass::Output
         );
     }
@@ -390,6 +395,8 @@ struct Validator {
             validate_var(stmt.get<Stmt::Var>());
         } else if (stmt.is<Stmt::ExprStmt>()) {
             validate_expr(*stmt.get<Stmt::ExprStmt>().expr);
+        } else if (stmt.is<Stmt::IfStmt>()) {
+            validate_if(stmt.get<Stmt::IfStmt>());
         } else {
             assert(false);
         }
@@ -408,13 +415,33 @@ struct Validator {
             validate_expr(*v.expr.value());
         }
     }
+    void validate_if(Stmt::IfStmt& if_stmt) {
+        ExprValidationResult condition_result = validate_expr(*if_stmt.condition);
+
+        if (!condition_result.type.has_value() || condition_result.type.value()->name != "bool") {
+            error_handler.error(ErrorType::ConditionNotBool, if_stmt.condition->get_location());
+        }
+
+        open_scope();
+        for (Ref<Stmt>& stmt : if_stmt.then_branch) {
+            validate_stmt(*stmt);
+        }
+        close_scope();
+
+        if (if_stmt.else_branch.has_value()) {
+            open_scope();
+            for (Ref<Stmt>& stmt : if_stmt.else_branch.value()) {
+                validate_stmt(*stmt);
+            }
+            close_scope();
+        }
+    }
     void validate_type(TypeRef& type) {
         // check if is image sampler
 
         if (type.name.name == "sampler2D") {
-            type.resolved_type = create_or_get_info_ref(TypeInfo::create_image_sampler(
-                arena.string_pool
-            ));
+            type.resolved_type =
+                create_or_get_info_ref(TypeInfo::create_image_sampler(arena.string_pool));
             return;
         }
 
@@ -816,10 +843,12 @@ struct Validator {
 
                         TypeInfo result_type = TypeInfo::create_vector(
                             arena.string_pool,
-                            create_or_get_info_ref(TypeInfo::create_primitive(
-                                arena.string_pool,
-                                TypeInfo::BuiltinPrimitive::Bool
-                            )),
+                            create_or_get_info_ref(
+                                TypeInfo::create_primitive(
+                                    arena.string_pool,
+                                    TypeInfo::BuiltinPrimitive::Bool
+                                )
+                            ),
                             left_type.get<TypeInfo::Vector>().size
                         );
 
@@ -883,10 +912,12 @@ struct Validator {
 
                     TypeInfo result_type = TypeInfo::create_vector(
                         arena.string_pool,
-                        create_or_get_info_ref(TypeInfo::create_primitive(
-                            arena.string_pool,
-                            TypeInfo::BuiltinPrimitive::Bool
-                        )),
+                        create_or_get_info_ref(
+                            TypeInfo::create_primitive(
+                                arena.string_pool,
+                                TypeInfo::BuiltinPrimitive::Bool
+                            )
+                        ),
                         left_type.get<TypeInfo::Vector>().size
                     );
 
@@ -956,10 +987,12 @@ struct Validator {
 
                     TypeInfo result_type = TypeInfo::create_vector(
                         arena.string_pool,
-                        create_or_get_info_ref(TypeInfo::create_primitive(
-                            arena.string_pool,
-                            TypeInfo::BuiltinPrimitive::Bool
-                        )),
+                        create_or_get_info_ref(
+                            TypeInfo::create_primitive(
+                                arena.string_pool,
+                                TypeInfo::BuiltinPrimitive::Bool
+                            )
+                        ),
                         left_type.get<TypeInfo::Vector>().size
                     );
 
@@ -1040,14 +1073,14 @@ struct Validator {
 
         // allow implicit conversions between int, uint and float
         if ((from == TypeInfo::BuiltinPrimitive::Int &&
-             (to == TypeInfo::BuiltinPrimitive::Uint || to == TypeInfo::BuiltinPrimitive::Float)
-            ) ||
+             (to == TypeInfo::BuiltinPrimitive::Uint ||
+              to == TypeInfo::BuiltinPrimitive::Float)) ||
             (from == TypeInfo::BuiltinPrimitive::Uint &&
-             (to == TypeInfo::BuiltinPrimitive::Int || to == TypeInfo::BuiltinPrimitive::Float)
-            ) ||
+             (to == TypeInfo::BuiltinPrimitive::Int ||
+              to == TypeInfo::BuiltinPrimitive::Float)) ||
             (from == TypeInfo::BuiltinPrimitive::Float &&
-             (to == TypeInfo::BuiltinPrimitive::Int || to == TypeInfo::BuiltinPrimitive::Uint)
-            )) {
+             (to == TypeInfo::BuiltinPrimitive::Int ||
+              to == TypeInfo::BuiltinPrimitive::Uint))) {
             return true;
         }
 
@@ -1302,10 +1335,7 @@ struct Validator {
                     wanted_primitive == TypeInfo::BuiltinPrimitive::Float) {
                     return { expected_type.value() };
                 } else {
-                    error_handler.error(
-                        ErrorType::IncompatibleTypes,
-                        number.location
-                    );
+                    error_handler.error(ErrorType::IncompatibleTypes, number.location);
                     return { std::nullopt };
                 }
             } else if (expected.is<TypeInfo::Vector>()) {
@@ -1318,17 +1348,11 @@ struct Validator {
                     element_primitive == TypeInfo::BuiltinPrimitive::Float) {
                     return { expected_type.value() };
                 } else {
-                    error_handler.error(
-                        ErrorType::IncompatibleTypes,
-                        number.location
-                    );
+                    error_handler.error(ErrorType::IncompatibleTypes, number.location);
                     return { std::nullopt };
                 }
             } else {
-                error_handler.error(
-                    ErrorType::IncompatibleTypes,
-                    number.location
-                );
+                error_handler.error(ErrorType::IncompatibleTypes, number.location);
                 return { std::nullopt };
             }
         } else {
@@ -1566,8 +1590,9 @@ struct Validator {
                         case BuiltinOutputKind::InheritedSingle:
                             // primitive of the first argument
                             return {
-                                find_type_info(TypeInfo::builtin_primitive_str(*chosen_primitive
-                                )),
+                                find_type_info(
+                                    TypeInfo::builtin_primitive_str(*chosen_primitive)
+                                ),
                             };
                             break;
                         case BuiltinOutputKind::StaticVectorized:

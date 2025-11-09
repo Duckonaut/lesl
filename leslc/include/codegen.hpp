@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ref_container.hpp"
 #include "spirv/1.0/spirv.hpp"
 
 #include "spirv_binary_container.hpp"
@@ -36,8 +37,9 @@ class CodeGenerator final {
     std::vector<uint32_t> constant_block;
 
     std::vector<GlobalInterface> global_interfaces;
-    std::unordered_map<PoolStr, uint32_t> function_variables;
-    std::vector<VariableScope> variable_scopes;
+
+    VariableScopeTree variable_scope_tree;
+    std::vector<int32_t> current_variable_scope_path;
 
     BindingManager& binding_manager;
 
@@ -172,7 +174,10 @@ class CodeGenerator final {
             uint32_t id = spv.get_id();
             global_interfaces.push_back(
                 {
-                    binding_manager.get_input_storage_class(**type.type.resolved_type, PipelineStage::Vertex),
+                    binding_manager.get_input_storage_class(
+                        **type.type.resolved_type,
+                        PipelineStage::Vertex
+                    ),
                     PipelineStage::Vertex,
                     type.type.resolved_type.value(),
                     type.name.name,
@@ -200,7 +205,10 @@ class CodeGenerator final {
             uint32_t id = spv.get_id();
             global_interfaces.push_back(
                 {
-                    binding_manager.get_input_storage_class(**type.type.resolved_type, PipelineStage::Fragment),
+                    binding_manager.get_input_storage_class(
+                        **type.type.resolved_type,
+                        PipelineStage::Fragment
+                    ),
                     PipelineStage::Fragment,
                     type.type.resolved_type.value(),
                     type.name.name,
@@ -888,7 +896,11 @@ class CodeGenerator final {
 
         Opt<uint32_t> label_id;
 
-        open_scope();
+        variable_scope_tree.clear();
+        current_variable_scope_path.clear();
+
+        Ref<VariableScopeNode> function_scope_node = variable_scope_tree.root;
+
         if (!is_entry_point) {
             for (const auto& param : f.params) {
                 uint32_t param_id = spv.FunctionParameterNew((*param.type.resolved_type)->id);
@@ -956,17 +968,13 @@ class CodeGenerator final {
             label_id = spv.LabelNew();
         }
 
-        function_variables.clear();
-
-        preallocate_function_variables(f.stmts);
+        preallocate_function_variables_recursive(function_scope_node, f.stmts);
 
         if (f.rets.size() > 0 && !is_entry_point) {
-            generate_executable_block(f.stmts, return_variable, label_id);
+            generate_executable_block(f.stmts, return_variable, label_id, true);
         } else {
-            generate_executable_block(f.stmts, std::nullopt, label_id);
+            generate_executable_block(f.stmts, std::nullopt, label_id, true);
         }
-
-        close_scope();
 
         spv.FunctionEnd();
     }
@@ -1004,19 +1012,39 @@ class CodeGenerator final {
     }
 
     void open_scope() {
-        variable_scopes.push_back({});
+        current_variable_scope_path.push_back(0);
+    }
+
+    void advance_scope() {
+        current_variable_scope_path.back()++;
     }
 
     void close_scope() {
-        variable_scopes.pop_back();
+        current_variable_scope_path.pop_back();
     }
 
     Opt<VariableInstance> find_variable(const PoolStr& name) {
-        for (int i = variable_scopes.size() - 1; i >= 0; i--) {
-            auto it = variable_scopes[i].variables.find(name);
-            if (it != variable_scopes[i].variables.end()) {
+        std::vector<int32_t> path = current_variable_scope_path;
+
+        Ref<VariableScopeNode> node = variable_scope_tree.get_at(path).value();
+        while (true) {
+            auto it = node->variables.find(name);
+            if (it != node->variables.end()) {
                 return it->second;
             }
+
+            if (path.size() == 0) {
+                break;
+            }
+
+            path.pop_back();
+            Opt<Ref<VariableScopeNode>> parent_node = node->parent;
+
+            if (!parent_node.has_value()) {
+                break;
+            }
+
+            node = parent_node.value();
         }
         return std::nullopt;
     }
@@ -1027,10 +1055,16 @@ class CodeGenerator final {
         Ref<TypeInfo> type,
         Opt<spv::StorageClass> storage_class
     ) {
-        variable_scopes.back().variables[name] = { id, type, storage_class };
+        Ref<VariableScopeNode> node =
+            variable_scope_tree.get_at(current_variable_scope_path).value();
+
+        node->variables[name] = { id, type, storage_class };
     }
 
-    void preallocate_function_variables(const std::vector<Ref<Stmt>>& stmts) {
+    void preallocate_function_variables_recursive(
+        Ref<VariableScopeNode> current_node,
+        const std::vector<Ref<Stmt>>& stmts
+    ) {
         for (const Ref<Stmt>& stmt : stmts) {
             if (stmt->is<Stmt::Var>()) {
                 const Stmt::Var& var_stmt = stmt->get<Stmt::Var>();
@@ -1040,7 +1074,25 @@ class CodeGenerator final {
                     spv::StorageClassFunction
                 );
 
-                function_variables[var_stmt.typedIdentifier.name.name] = var_id;
+                current_node->variables[var_stmt.typedIdentifier.name.name] = {
+                    var_id,
+                    *var_stmt.typedIdentifier.type.resolved_type,
+                    spv::StorageClassFunction
+                };
+            } else if (stmt->is<Stmt::IfStmt>()) {
+                const Stmt::IfStmt& if_stmt = stmt->get<Stmt::IfStmt>();
+
+                Ref<VariableScopeNode> then_node =
+                    variable_scope_tree.create_node(current_node);
+
+                preallocate_function_variables_recursive(then_node, if_stmt.then_branch);
+
+                // Create a new child scope for the 'else' branch if it exists
+                if (if_stmt.else_branch) {
+                    Ref<VariableScopeNode> else_node =
+                        variable_scope_tree.create_node(current_node);
+                    preallocate_function_variables_recursive(else_node, *if_stmt.else_branch);
+                }
             }
         }
     }
@@ -1053,7 +1105,8 @@ class CodeGenerator final {
     BlockInfo generate_executable_block(
         const std::vector<Ref<Stmt>>& stmts,
         Opt<VariableInstance> return_variable,
-        Opt<uint32_t> known_label_id
+        Opt<uint32_t> known_label_id,
+        bool is_root = false
     ) {
         BlockInfo block_info;
         bool has_return = false;
@@ -1062,7 +1115,6 @@ class CodeGenerator final {
         } else {
             block_info.label_id = spv.LabelNew();
         }
-        open_scope();
 
         for (const Ref<Stmt>& stmt : stmts) {
             if (stmt->is<Stmt::Return>()) {
@@ -1078,7 +1130,7 @@ class CodeGenerator final {
                 }
             } else if (stmt->is<Stmt::Var>()) {
                 const Stmt::Var& var_stmt = stmt->get<Stmt::Var>();
-                uint32_t var_id = function_variables[var_stmt.typedIdentifier.name.name];
+                uint32_t var_id = find_variable(var_stmt.typedIdentifier.name.name).value().id;
                 if (var_stmt.expr) {
                     Ref<ExprResult> expr_result = generate_expression(
                         **var_stmt.expr,
@@ -1089,20 +1141,58 @@ class CodeGenerator final {
                         expr_result->load(spv, var_stmt.typedIdentifier.type.resolved_type)
                     );
                 }
-
-                add_variable(
-                    var_stmt.typedIdentifier.name.name,
-                    var_id,
-                    *var_stmt.typedIdentifier.type.resolved_type,
-                    spv::StorageClassFunction
-                );
             } else if (stmt->is<Stmt::ExprStmt>()) {
                 const Stmt::ExprStmt& expr_stmt = stmt->get<Stmt::ExprStmt>();
                 Ref<ExprResult> _ = generate_expression(*expr_stmt.expr, nullptr);
+            } else if (stmt->is<Stmt::IfStmt>()) {
+                const Stmt::IfStmt& if_stmt = stmt->get<Stmt::IfStmt>();
+                Ref<ExprResult> condition =
+                    generate_expression(*if_stmt.condition, &(*get_type_info("bool").value()));
+
+                uint32_t then_label = spv.get_id();
+                uint32_t else_label = spv.get_id();
+                uint32_t merge_label = spv.get_id();
+
+                spv.SelectionMerge(merge_label, spv::SelectionControlMaskNone);
+                spv.BranchConditional(
+                    condition->load(spv, get_type_info("bool")),
+                    then_label,
+                    else_label,
+                    nullptr,
+                    0
+                );
+
+                // then block
+                spv.Label(then_label);
+                open_scope();
+                generate_executable_block(if_stmt.then_branch, return_variable, then_label);
+                spv.Branch(merge_label);
+
+                spv.Label(else_label);
+                if (if_stmt.else_branch) {
+                    advance_scope();
+                    generate_executable_block(
+                        *if_stmt.else_branch,
+                        return_variable,
+                        else_label
+                    );
+                    spv.Branch(merge_label);
+                } else {
+                    spv.Branch(merge_label);
+                }
+
+                close_scope();
+
+                spv.Label(merge_label);
+
+                uint32_t next_block_label = spv.get_id();
+
+                spv.Branch(next_block_label);
+                spv.Label(next_block_label);
             }
         }
 
-        if (!has_return) {
+        if (!has_return && is_root) {
             if (return_variable) {
                 uint32_t value = spv.LoadNew((*return_variable->type)->id, return_variable->id);
                 spv.ReturnValue(value);
@@ -1110,8 +1200,6 @@ class CodeGenerator final {
                 spv.Return();
             }
         }
-
-        close_scope();
 
         return block_info;
     }
@@ -1422,7 +1510,7 @@ class CodeGenerator final {
                 switch (op_family) {
                     case OpFamily::Float:
                         res = spv.FOrdEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
@@ -1430,14 +1518,14 @@ class CodeGenerator final {
                     case OpFamily::Int:
                     case OpFamily::Uint:
                         res = spv.IEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Bool:
                         res = spv.LogicalEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
@@ -1452,7 +1540,7 @@ class CodeGenerator final {
                 switch (op_family) {
                     case OpFamily::Float:
                         res = spv.FOrdNotEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
@@ -1460,14 +1548,14 @@ class CodeGenerator final {
                     case OpFamily::Int:
                     case OpFamily::Uint:
                         res = spv.INotEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Bool:
                         res = spv.LogicalNotEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
@@ -1482,21 +1570,21 @@ class CodeGenerator final {
                 switch (op_family) {
                     case OpFamily::Float:
                         res = spv.FOrdLessThanNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Int:
                         res = spv.SLessThanNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Uint:
                         res = spv.ULessThanNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
@@ -1511,21 +1599,21 @@ class CodeGenerator final {
                 switch (op_family) {
                     case OpFamily::Float:
                         res = spv.FOrdLessThanEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Int:
                         res = spv.SLessThanEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Uint:
                         res = spv.ULessThanEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
@@ -1540,21 +1628,21 @@ class CodeGenerator final {
                 switch (op_family) {
                     case OpFamily::Float:
                         res = spv.FOrdGreaterThanNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Int:
                         res = spv.SGreaterThanNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Uint:
                         res = spv.UGreaterThanNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
@@ -1569,21 +1657,21 @@ class CodeGenerator final {
                 switch (op_family) {
                     case OpFamily::Float:
                         res = spv.FOrdGreaterThanEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Int:
                         res = spv.SGreaterThanEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
                         break;
                     case OpFamily::Uint:
                         res = spv.UGreaterThanEqualNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
@@ -1599,7 +1687,7 @@ class CodeGenerator final {
                 switch (op_family) {
                     case OpFamily::Bool:
                         res = spv.LogicalOrNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );
@@ -1614,7 +1702,7 @@ class CodeGenerator final {
                 switch (op_family) {
                     case OpFamily::Bool:
                         res = spv.LogicalAndNew(
-                            left->type->id,
+                            return_type->id,
                             left->load(spv),
                             right->load(spv, left->type)
                         );

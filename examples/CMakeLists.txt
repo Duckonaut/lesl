@@ -75,3 +75,11 @@ build_lesl_shader(texture)
 target_sources(sdl3-texture PRIVATE
     ${texture_LESL_SPIRV}
 )
+
+define_sdl3_example(if)
+
+build_lesl_shader(if)
+
+target_sources(sdl3-if PRIVATE
+    ${if_LESL_SPIRV}
+)

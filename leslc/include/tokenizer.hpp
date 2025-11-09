@@ -76,6 +76,10 @@ struct Tokenizer final {
             token.type = TokenType::Import;
         } else if (str == "return") {
             token.type = TokenType::Return; 
+        } else if (str == "if") {
+            token.type = TokenType::If;
+        } else if (str == "else") {
+            token.type = TokenType::Else;
         }
 
         if (token.type == TokenType::Identifier) {
