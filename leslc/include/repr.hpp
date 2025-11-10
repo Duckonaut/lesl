@@ -3,6 +3,7 @@
 #include "spirv/unified1/spirv.hpp"
 #include <ref_container.hpp>
 #include "colorize.hpp"
+#include "stringpool.hpp"
 #include "token.hpp"
 
 #include <cassert>
@@ -220,6 +221,8 @@ struct TypeInfo {
             return get<Matrix>().vector_element->get_underlying_primitive();
         } else if (is<Array>()) {
             return get<Array>().element->get_underlying_primitive();
+        } else if (is<Struct>() || is<ImageSampler>()) {
+            return Primitive{ BuiltinPrimitive::Void };
         } else {
             assert(false);
         }
@@ -445,15 +448,37 @@ struct Stmt {
         Opt<std::vector<Ref<Stmt>>> else_branch;
     };
 
-    std::variant<Return, Var, ExprStmt, IfStmt> data;
+    struct For {
+        PoolStr iterator_name;
+        Ref<Expr> start;
+        Ref<Expr> end;
+        Opt<Ref<Expr>> step;
+        std::vector<Ref<Stmt>> body;
+    };
+
+    struct Break {
+        uint8_t _unused;
+    };
+
+    struct Continue {
+        uint8_t _unused;
+    };
+
+    std::variant<Return, Var, ExprStmt, IfStmt, For, Break, Continue> data;
 
     Stmt(Return return_) : data(return_) {}
     Stmt(Var var) : data(var) {}
     Stmt(Ref<Expr> expr) : data(ExprStmt{ expr }) {}
-    Stmt(Ref<Expr> condition,
-         std::vector<Ref<Stmt>> then_branch,
-         Opt<std::vector<Ref<Stmt>>> else_branch)
+    Stmt(
+        Ref<Expr> condition,
+        std::vector<Ref<Stmt>> then_branch,
+        Opt<std::vector<Ref<Stmt>>> else_branch
+    )
         : data(IfStmt{ condition, then_branch, else_branch }) {}
+    Stmt(PoolStr iterator_name, Ref<Expr> start, Ref<Expr> end, Opt<Ref<Expr>> step, std::vector<Ref<Stmt>> body)
+        : data(For{ iterator_name, start, end, step, body }) {}
+    Stmt(Break break_) : data(break_) {}
+    Stmt(Continue continue_) : data(continue_) {}
 
     template <typename T> bool is() const {
         return std::holds_alternative<T>(data);
@@ -609,6 +634,15 @@ struct ReprPrinter {
                 [this](const Stmt::IfStmt& ifStmt) {
                     print(ifStmt);
                 },
+                [this](const Stmt::For& forStmt) {
+                    print(forStmt);
+                },
+                [this](const Stmt::Continue& continue_) {
+                    print(continue_);
+                },
+                [this](const Stmt::Break& break_) {
+                    print(break_);
+                },
             },
             stmt.data
         );
@@ -652,6 +686,36 @@ struct ReprPrinter {
             print_indent();
             out << "}";
         }
+    }
+
+    void print(const Stmt::For& forStmt) {
+        out << colorize::blue("for") << " " << forStmt.iterator_name.c_str() << " = ";
+        print_expr(*forStmt.start);
+        out << ":";
+        print_expr(*forStmt.end);
+        if (forStmt.step.has_value()) {
+            out << ":";
+            print_expr(*forStmt.step.value());
+        }
+
+        out << " {\n";
+        indent++;
+        for (const Ref<Stmt>& stmt : forStmt.body) {
+            print_indent();
+            print(*stmt);
+            out << "\n";
+        }
+        indent--;
+        print_indent();
+        out << "}";
+    }
+
+    void print(const Stmt::Continue&) {
+        out << colorize::blue("continue");
+    }
+
+    void print(const Stmt::Break&) {
+        out << colorize::blue("break");
     }
 
     void print_expr(const Expr& expr) {

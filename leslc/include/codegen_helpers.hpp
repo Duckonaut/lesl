@@ -34,10 +34,16 @@ struct VariableInstance {
     VariableInstance(uint32_t id, Ref<TypeInfo> type, Opt<spv::StorageClass> storage_class) : id(id), storage_class(storage_class), type(type) {}
 };
 
+struct LoopScopeInfo {
+    uint32_t break_label_id;
+    uint32_t continue_label_id;
+};
+
 struct VariableScopeNode {
     std::unordered_map<PoolStr, VariableInstance> variables;
     Opt<Ref<VariableScopeNode>> parent;
     std::vector<Ref<VariableScopeNode>> children;
+    Opt<LoopScopeInfo> loop_info;
 };
 
 struct VariableScopeTree {
@@ -47,7 +53,7 @@ struct VariableScopeTree {
 
     VariableScopeTree() : root(Ref<VariableScopeNode>(&nodes, 0, 0)) {
         // Create root node
-        root = nodes.emplace(VariableScopeNode{ {}, std::nullopt, {} });
+        root = nodes.emplace(VariableScopeNode{ {}, std::nullopt, {}, std::nullopt });
     }
 
     Opt<Ref<VariableScopeNode>> get_at(std::vector<int32_t> path) {
@@ -61,9 +67,9 @@ struct VariableScopeTree {
         return current;
     }
 
-    Ref<VariableScopeNode> create_node(Opt<Ref<VariableScopeNode>> parent = std::nullopt) {
+    Ref<VariableScopeNode> create_node(Opt<Ref<VariableScopeNode>> parent = std::nullopt, Opt<LoopScopeInfo> loop_info = std::nullopt) {
         size_t index = nodes.size();
-        nodes.push_back(VariableScopeNode{ {}, parent, {} });
+        nodes.push_back(VariableScopeNode{ {}, parent, {}, loop_info });
         Ref<VariableScopeNode> node(&nodes, index, 0);
         if (parent.has_value()) {
             parent.value()->children.push_back(node);
@@ -74,7 +80,7 @@ struct VariableScopeTree {
     void clear() {
         nodes.clear();
 
-        root = nodes.emplace(VariableScopeNode{ {}, std::nullopt, {} });
+        root = nodes.emplace(VariableScopeNode{ {}, std::nullopt, {}, std::nullopt });
     }
 };
 

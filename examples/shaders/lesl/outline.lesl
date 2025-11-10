@@ -1,0 +1,85 @@
+struct VsIn {
+    float4 position,
+    float2 uv
+}
+
+struct FsOut {
+    float4 color
+}
+
+struct ShaderLink {
+    float2 uv,
+}
+
+struct Uniforms {
+    float4 frame,
+    float2 size,
+    float2 padding,
+    float time
+}
+
+function vertex (VsIn v) -> (ShaderLink o) {
+    o.uv = v.uv
+    POSITION = v.position
+}
+
+function hsv2rgb (float3 hsv) -> (float3 rgb) {
+    float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0)
+    float3 p = abs(fract(hsv.xxx + K.xyz) * 6.0 - K.www)
+    rgb = lerp(K.xxx, clamp(p - K.xxx, 0.0, 1.0), hsv.yyy) * hsv.z
+}
+
+function get_outline_color (float t, float2 pos) -> (float4 col) {
+    float2 centered = pos - 0.5
+    float angle = atan2(centered.y, centered.x)
+
+    col = float4(hsv2rgb(float3(fract(t + (angle / 6.28)), 1.0, 1.0)), 1.0)
+}
+
+function fragment (ShaderLink i, Uniforms data, sampler2D mainTex) -> (FsOut o) {
+    float2 uv = i.uv
+    uv.y = 1.0 - uv.y
+    float2 og_uv = uv
+
+    float4 bg_color = float4(0.0, 0.0, 0.0, 1.0)
+
+    uv = data.frame.xy + uv.xy * data.frame.zw
+
+    int outline = 0
+    float2 pixel = float2(1.0, 1.0) / (data.frame.zw * data.size)
+
+    float4 center = sample2D(mainTex, uv)
+
+    for x = -1:2 {
+        for y = -1:2 {
+            if x == 0 && y == 0 {
+                continue
+            }
+
+            float2 pos = uv + pixel * float2(float(x), float(y))
+
+            float4 sample = sample2D(mainTex, pos)
+
+            if sample.a > 0 {
+                outline = 1
+                break
+            }
+        }
+    }
+
+    if center.a == 0.0 {
+        if outline > 0 {
+            center = get_outline_color(data.time, og_uv)
+        }
+        else {
+            center = bg_color
+        }
+    }
+
+    o.color = center
+}
+
+pipeline Basic {
+    Vertex = vertex,
+    Fragment = fragment,
+}

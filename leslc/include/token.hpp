@@ -16,6 +16,7 @@ enum class TokenType {
     Comma,
     Dot,
     Semicolon,
+    Colon,
 
     // One or two character tokens
     Minus,
@@ -54,6 +55,9 @@ enum class TokenType {
     Return,
     If,
     Else,
+    For,
+    Break,
+    Continue,
 
     EndOfFile,
     Error,
@@ -79,6 +83,8 @@ inline const char* token_type_to_string(TokenType type) {
             return "Dot";
         case TokenType::Semicolon:
             return "Semicolon";
+        case TokenType::Colon:
+            return "Colon";
         case TokenType::Minus:
             return "Minus";
         case TokenType::MinusArrow:
@@ -143,6 +149,12 @@ inline const char* token_type_to_string(TokenType type) {
             return "If";
         case TokenType::Else:
             return "Else";
+        case TokenType::For:
+            return "For";
+        case TokenType::Break:
+            return "Break";
+        case TokenType::Continue:
+            return "Continue";
         case TokenType::EndOfFile:
             return "EndOfFile";
         case TokenType::Error:

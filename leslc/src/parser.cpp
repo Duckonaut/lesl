@@ -221,6 +221,12 @@ std::vector<Ref<Stmt>> Parser::parse_stmt_block() {
             stmts.push_back(parse_var());
         } else if (current.type == TokenType::If) {
             stmts.push_back(parse_if_stmt());
+        } else if (current.type == TokenType::For) {
+            stmts.push_back(parse_for_stmt());
+        } else if (current.type == TokenType::Break) {
+            stmts.push_back(parse_break());
+        } else if (current.type == TokenType::Continue) {
+            stmts.push_back(parse_continue());
         } else {
             stmts.push_back(parse_expr_stmt());
         }
@@ -262,6 +268,41 @@ Ref<Stmt> Parser::parse_if_stmt() {
     } else {
         return arena.alloc(Stmt{ condition, then_branch, std::nullopt });
     }
+}
+
+Ref<Stmt> Parser::parse_for_stmt() {
+    consume(TokenType::For);
+    expect(TokenType::Identifier);
+    PoolStr iterator_name = current.value.str;
+    step();
+    consume(TokenType::Equal);
+
+    Ref<Expr> start = parse_expr();
+
+    consume(TokenType::Colon);
+
+    Ref<Expr> end = parse_expr();
+    Opt<Ref<Expr>> step_value;
+    if (current.type == TokenType::Colon) {
+        step();
+
+        step_value = parse_expr();
+    }
+    std::vector<Ref<Stmt>> body = parse_stmt_block();
+
+    return arena.alloc(Stmt{ iterator_name, start, end, step_value, body });
+}
+
+Ref<Stmt> Parser::parse_break() {
+    Stmt::Break b;
+    consume(TokenType::Break);
+    return arena.alloc(Stmt{ std::move(b) });
+}
+
+Ref<Stmt> Parser::parse_continue() {
+    Stmt::Continue c;
+    consume(TokenType::Continue);
+    return arena.alloc(Stmt{ std::move(c) });
 }
 
 Ref<Stmt> Parser::parse_expr_stmt() {

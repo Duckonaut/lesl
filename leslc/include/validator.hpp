@@ -26,6 +26,8 @@ struct Validator {
 
     std::vector<std::vector<Variable>> variables;
 
+    int32_t loop_depth = 0;
+
     Validator(CompilationArena& arena, ErrorHandler& error_handler)
         : arena(arena), error_handler(error_handler) {}
 
@@ -397,6 +399,12 @@ struct Validator {
             validate_expr(*stmt.get<Stmt::ExprStmt>().expr);
         } else if (stmt.is<Stmt::IfStmt>()) {
             validate_if(stmt.get<Stmt::IfStmt>());
+        } else if (stmt.is<Stmt::For>()) {
+            validate_for(stmt.get<Stmt::For>());
+        } else if (stmt.is<Stmt::Break>()) {
+            validate_break(stmt.get<Stmt::Break>());
+        } else if (stmt.is<Stmt::Continue>()) {
+            validate_continue(stmt.get<Stmt::Continue>());
         } else {
             assert(false);
         }
@@ -418,7 +426,8 @@ struct Validator {
     void validate_if(Stmt::IfStmt& if_stmt) {
         ExprValidationResult condition_result = validate_expr(*if_stmt.condition);
 
-        if (!condition_result.type.has_value() || condition_result.type.value()->name != "bool") {
+        if (!condition_result.type.has_value() ||
+            condition_result.type.value()->name != "bool") {
             error_handler.error(ErrorType::ConditionNotBool, if_stmt.condition->get_location());
         }
 
@@ -436,6 +445,49 @@ struct Validator {
             close_scope();
         }
     }
+    void validate_for(Stmt::For& for_stmt) {
+        loop_depth++;
+
+        open_scope();
+
+        add_variable(
+            for_stmt.iterator_name,
+            create_or_get_info_ref(
+                TypeInfo::create_primitive(arena.string_pool, TypeInfo::BuiltinPrimitive::Int)
+            ),
+            StorageClass::Function
+        );
+
+        auto int_type = create_or_get_info_ref(
+            TypeInfo::create_primitive(arena.string_pool, TypeInfo::BuiltinPrimitive::Int)
+        );
+
+        validate_expr(*for_stmt.start, int_type);
+        validate_expr(*for_stmt.end, int_type);
+
+        if (for_stmt.step.has_value()) {
+            validate_expr(*for_stmt.step.value(), int_type);
+        }
+
+        for (Ref<Stmt>& stmt : for_stmt.body) {
+            validate_stmt(*stmt);
+        }
+        close_scope();
+        loop_depth--;
+    }
+
+    void validate_break(Stmt::Break&) {
+        if (loop_depth == 0) {
+            error_handler.error(ErrorType::BreakOutsideLoop, {});
+        }
+    }
+
+    void validate_continue(Stmt::Continue&) {
+        if (loop_depth == 0) {
+            error_handler.error(ErrorType::ContinueOutsideLoop, {});
+        }
+    }
+
     void validate_type(TypeRef& type) {
         // check if is image sampler
 
@@ -589,8 +641,26 @@ struct Validator {
             binary.op == Expr::BinaryOp::SubAssign || binary.op == Expr::BinaryOp::MulAssign ||
             binary.op == Expr::BinaryOp::DivAssign || binary.op == Expr::BinaryOp::ModAssign;
 
-        ExprValidationResult left = validate_expr(*binary.lhs, expected_type, will_be_assigned);
-        ExprValidationResult right = validate_expr(*binary.rhs, expected_type);
+        bool inherit_expected_type =
+            expected_type.has_value() &&
+            (binary.op == Expr::BinaryOp::Add || binary.op == Expr::BinaryOp::Sub ||
+             binary.op == Expr::BinaryOp::Mul || binary.op == Expr::BinaryOp::Div ||
+             binary.op == Expr::BinaryOp::Mod || binary.op == Expr::BinaryOp::AddAssign ||
+             binary.op == Expr::BinaryOp::SubAssign || binary.op == Expr::BinaryOp::MulAssign ||
+             binary.op == Expr::BinaryOp::DivAssign || binary.op == Expr::BinaryOp::ModAssign ||
+             binary.op == Expr::BinaryOp::Assign);
+
+        ExprValidationResult left = validate_expr(
+            *binary.lhs,
+            inherit_expected_type ? expected_type : std::nullopt,
+            will_be_assigned
+        );
+
+        ExprValidationResult right = validate_expr(
+            *binary.rhs,
+            left.type,
+            false
+        );
 
         if (!left.type || !right.type) {
             return { std::nullopt };
@@ -1434,34 +1504,58 @@ struct Validator {
                     }
 
                     int vector_size = -1;
-                    int static_input_set = -1;
                     Opt<TypeInfo::BuiltinPrimitive> chosen_primitive;
 
                     switch (bik) {
                         case BuiltinInputKind::Static: {
-                            static_input_set = -1;
+                                int best_match_index = -1;
+                                int best_match_score = -1;
                             for (int k = 0; k < builtin.inputs.size(); k++) {
                                 auto& inputs = builtin.inputs[k];
                                 if (inputs.size() != call.args.size()) {
                                     continue;
                                 }
-                                bool invalid = false;
+
+                                int match_score = 0;
+
                                 for (int i = 0; i < inputs.size(); i++) {
                                     Opt<Ref<TypeInfo>> expected = find_type_info(inputs[i]);
-                                    Opt<Ref<TypeInfo>> actual =
-                                        validate_expr(*call.args[i], expected).type;
+                                    Opt<Ref<TypeInfo>> actual = arg_types[i];
 
                                     if (expected != std::nullopt && actual != std::nullopt) {
-                                        if (!is_type_convertible(*actual, *expected)) {
-                                            invalid = true;
+                                        if (is_type_convertible(*actual, *expected)) {
+                                            if (*actual == *expected) {
+                                                match_score += 2;
+                                            } else {
+                                                match_score += 1;
+                                            }
+                                        } else {
+                                            match_score = -1;
                                             break;
                                         }
                                     }
                                 }
 
-                                if (!invalid) {
-                                    static_input_set = k;
-                                    break;
+                                if (match_score > best_match_score) {
+                                    best_match_score = match_score;
+                                    best_match_index = k;
+                                }
+                            }
+
+                            if (best_match_index == -1) {
+                                error_handler.error(
+                                    ErrorType::BadCallArguments,
+                                    call.name.location
+                                );
+                            } else {
+                                // determine chosen primitive from the best match
+                                Opt<Ref<TypeInfo>> first_expected = find_type_info(
+                                    builtin.inputs[best_match_index][0]
+                                );
+
+                                if (first_expected != std::nullopt) {
+                                    chosen_primitive =
+                                        (*first_expected)->get_underlying_primitive().primitive;
                                 }
                             }
 
@@ -1482,6 +1576,7 @@ struct Validator {
                                     if (p.primitive != pack_primitive) {
                                         error_handler.error(
                                             ErrorType::BadCallArgument,
+                                            arena.string_pool.add("[packed input]"),
                                             call.args[i]->get_location()
                                         );
                                     }

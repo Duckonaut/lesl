@@ -35,6 +35,15 @@ enum class BuiltinEncoding {
     Custom
 };
 
+using CustomEncoderFunction = std::function<uint32_t(
+    spv_binary::BinaryContainer& spv,
+    const TypeInfo& res_type_info,
+    const PoolStr& name,
+    uint32_t glsl_std_opcode,
+    std::vector<Ref<TypeInfo>> arg_types,
+    std::vector<uint32_t> args
+)>;
+
 struct BuiltinFunction {
     const char* name;
 
@@ -62,14 +71,7 @@ struct BuiltinFunction {
     // ENCODING
     GLSLstd450 glsl_std_opcode;
     std::unordered_map<TypeInfo::BuiltinPrimitive, GLSLstd450> glsl_std_type_dependent_opcodes;
-    std::function<uint32_t(
-        spv_binary::BinaryContainer&,
-        const TypeInfo&,
-        const PoolStr&,
-        uint32_t,
-        std::vector<uint32_t>
-    )>
-        custom_encoder;
+    CustomEncoderFunction custom_encoder;
 
     BuiltinFunction(const char* name) : name(name) {}
 
@@ -153,15 +155,7 @@ struct BuiltinFunction {
         return *this;
     }
 
-    BuiltinFunction& with_custom_encoding(
-        std::function<uint32_t(
-            spv_binary::BinaryContainer&,
-            const TypeInfo&,
-            const PoolStr&,
-            uint32_t,
-            std::vector<uint32_t>
-        )> encoder
-    ) {
+    BuiltinFunction& with_custom_encoding(CustomEncoderFunction encoder) {
         this->encoding = BuiltinEncoding::Custom;
         this->custom_encoder = encoder;
 
@@ -174,6 +168,7 @@ inline static uint32_t composite_constructor(
     const TypeInfo& res_type_info,
     const PoolStr& name,
     uint32_t,
+    std::vector<Ref<TypeInfo>>,
     std::vector<uint32_t> args
 ) {
     uint32_t res_type = res_type_info.id;
@@ -191,6 +186,64 @@ inline static uint32_t composite_constructor(
     } else {
         return spv.CompositeConstructNew(res_type, args.data(), args.size());
     }
+}
+
+inline static uint32_t primitive_converter(
+    spv_binary::BinaryContainer& spv,
+    const TypeInfo& res_type_info,
+    const PoolStr& name,
+    uint32_t,
+    std::vector<Ref<TypeInfo>> arg_types,
+    std::vector<uint32_t> args
+) {
+    TypeInfo::BuiltinPrimitive target_primitive =
+        res_type_info.get_underlying_primitive().primitive;
+
+    TypeInfo::BuiltinPrimitive source_primitive =
+        arg_types[0]->get_underlying_primitive().primitive;
+
+    if (source_primitive == target_primitive) {
+        return args[0];
+    }
+
+    uint32_t res = spv.get_id();
+
+    switch (target_primitive) {
+        case TypeInfo::BuiltinPrimitive::Float:
+            switch (source_primitive) {
+                case TypeInfo::BuiltinPrimitive::Int:
+                    spv.ConvertSToF(res_type_info.id, res, args[0]);
+                    break;
+                case TypeInfo::BuiltinPrimitive::Uint:
+                    spv.ConvertUToF(res_type_info.id, res, args[0]);
+                    break;
+                default:
+                    assert(false);
+            }
+            break;
+        case TypeInfo::BuiltinPrimitive::Int:
+            switch (source_primitive) {
+                case TypeInfo::BuiltinPrimitive::Float:
+                    spv.ConvertFToS(res_type_info.id, res, args[0]);
+                    break;
+                default:
+                    assert(false);
+            }
+            break;
+        case TypeInfo::BuiltinPrimitive::Uint:
+            switch (source_primitive) {
+                case TypeInfo::BuiltinPrimitive::Float:
+                    spv.ConvertFToU(res_type_info.id, res, args[0]);
+                    break;
+                default:
+                    assert(false);
+            }
+            break;
+        default:
+            assert(false);
+    }
+
+    return res;
 }
 
 inline static const std::vector<BuiltinFunction> builtin_functions = {
@@ -359,6 +412,7 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
                                  const TypeInfo& res_type_info,
                                  const PoolStr&,
                                  uint32_t,
+                                 std::vector<Ref<TypeInfo>>,
                                  std::vector<uint32_t> args) {
             uint32_t res_type = res_type_info.id;
             return spv.DotNew(res_type, args[0], args[1]);
@@ -431,8 +485,17 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
         .with_static_input(
             {
                 { "float", "float", "float" },
+                { "float2", "float2", "float2" },
+                { "float3", "float3", "float3" },
+                { "float4", "float4", "float4" },
                 { "int", "int", "int" },
+                { "int2", "int2", "int2" },
+                { "int3", "int3", "int3" },
+                { "int4", "int4", "int4" },
                 { "uint", "uint", "uint" },
+                { "uint2", "uint2", "uint2" },
+                { "uint3", "uint3", "uint3" },
+                { "uint4", "uint4", "uint4" },
             }
         )
         .with_inherited_output()
@@ -479,9 +542,9 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
         .with_static_input(
             {
                 { "float", "float", "float" },
-                { "float2", "float2", "float" },
-                { "float3", "float3", "float" },
-                { "float3", "float4", "float" },
+                { "float2", "float2", "float2" },
+                { "float3", "float3", "float3" },
+                { "float4", "float4", "float4" },
             }
         )
         .with_inherited_output()
@@ -490,9 +553,9 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
         .with_static_input(
             {
                 { "float", "float", "float" },
-                { "float2", "float2", "float" },
-                { "float3", "float3", "float" },
-                { "float3", "float4", "float" },
+                { "float2", "float2", "floa2" },
+                { "float3", "float3", "float3" },
+                { "float3", "float4", "float4" },
             }
         )
         .with_inherited_output()
@@ -546,6 +609,32 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
         .with_packed_input(TypeInfo::BuiltinPrimitive::Bool, 4)
         .with_static_output("bool4")
         .with_custom_encoding(composite_constructor),
+    // type conversions
+    BuiltinFunction("float")
+        .with_static_input(
+            {
+                { "int" },
+                { "uint" },
+            }
+        )
+        .with_static_output("float")
+        .with_custom_encoding(primitive_converter),
+    BuiltinFunction("int")
+        .with_static_input(
+            {
+                { "float" },
+            }
+        )
+        .with_static_output("int")
+        .with_custom_encoding(primitive_converter),
+    BuiltinFunction("uint")
+        .with_static_input(
+            {
+                { "float" },
+            }
+        )
+        .with_static_output("uint")
+        .with_custom_encoding(primitive_converter),
     // image sampling
     BuiltinFunction("sample2D")
         .with_static_input(
@@ -558,13 +647,10 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
                                  const TypeInfo& res_type_info,
                                  const PoolStr&,
                                  uint32_t,
+                                 std::vector<Ref<TypeInfo>>,
                                  std::vector<uint32_t> args) {
             uint32_t res_type = res_type_info.id;
-            return spv.ImageSampleImplicitLodNew(
-                res_type,
-                args[0],
-                args[1]
-            );
+            return spv.ImageSampleImplicitLodNew(res_type, args[0], args[1]);
         }),
 };
 
@@ -573,6 +659,7 @@ inline static uint32_t builtin_function(
     const TypeInfo& res_type_info,
     const PoolStr& name,
     uint32_t glsl_std_id,
+    std::vector<Ref<TypeInfo>> arg_types,
     std::vector<uint32_t> args
 ) {
     const BuiltinFunction* builtin = nullptr;
@@ -613,7 +700,8 @@ inline static uint32_t builtin_function(
             );
         }
         case BuiltinEncoding::Custom:
-            return builtin->custom_encoder(spv, res_type_info, name, glsl_std_id, args);
+            return builtin
+                ->custom_encoder(spv, res_type_info, name, glsl_std_id, arg_types, args);
         default:
             assert(false && "unknown builtin function encoding");
             return 0;

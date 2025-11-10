@@ -1,3 +1,10 @@
+# copy assets to same directory as the executable
+add_custom_target(copy_assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets
+        ${CMAKE_BINARY_DIR}/assets
+)
+
 function(define_sdl3_example example-name)
     define_executable_target(sdl3-${example-name})
 
@@ -16,6 +23,8 @@ function(define_sdl3_example example-name)
     )
 
     target_compile_definitions(sdl3-${example-name} PUBLIC SDL_MAIN_USE_CALLBACKS)
+
+    add_dependencies(sdl3-${example-name} copy_assets)
 endfunction()
 
 define_sdl3_example(triangle)
@@ -82,4 +91,12 @@ build_lesl_shader(if)
 
 target_sources(sdl3-if PRIVATE
     ${if_LESL_SPIRV}
+)
+
+define_sdl3_example(outline)
+
+build_lesl_shader(outline)
+
+target_sources(sdl3-outline PRIVATE
+    ${outline_LESL_SPIRV}
 )

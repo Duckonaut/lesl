@@ -48,6 +48,7 @@ enum class ErrorType {
 
     BadCallArgumentCount,
     BadCallArgument,
+    BadCallArguments,
     BadPackedInputType,
     BadPackedInputPrimitiveType,
     BadPackedInput,
@@ -55,7 +56,10 @@ enum class ErrorType {
     BadVectorSize,
     BadVectorInputType,
     BadVectorInputInconsistent,
+
     ConditionNotBool,
+    BreakOutsideLoop,
+    ContinueOutsideLoop,
 };
 
 struct ErrorData {
@@ -197,6 +201,9 @@ struct Error {
                 out << "Call argument for parameter " << colorize::bold(data.str.to_string())
                     << " has wrong type";
                 break;
+            case ErrorType::BadCallArguments:
+                out << "Function call arguments don't match any overload";
+                break;
             case ErrorType::BadPackedInputType:
                 out << "Function requires packed input, which only accepts vector and "
                        "primitive arguments";
@@ -223,6 +230,12 @@ struct Error {
                 break;
             case ErrorType::ConditionNotBool:
                 out << "Condition expression must be of type bool";
+                break;
+            case ErrorType::BreakOutsideLoop:
+                out << "Break statement used outside of a loop";
+                break;
+            case ErrorType::ContinueOutsideLoop:
+                out << "Continue statement used outside of a loop";
                 break;
         }
 

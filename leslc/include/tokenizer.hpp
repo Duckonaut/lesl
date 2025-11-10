@@ -80,6 +80,12 @@ struct Tokenizer final {
             token.type = TokenType::If;
         } else if (str == "else") {
             token.type = TokenType::Else;
+        } else if (str == "for") {
+            token.type = TokenType::For;
+        } else if (str == "break") {
+            token.type = TokenType::Break;
+        } else if (str == "continue") {
+            token.type = TokenType::Continue;
         }
 
         if (token.type == TokenType::Identifier) {
@@ -144,6 +150,7 @@ struct Tokenizer final {
             SINGLE_CHAR_TOKEN(',', TokenType::Comma)
             SINGLE_CHAR_TOKEN('.', TokenType::Dot)
             SINGLE_CHAR_TOKEN(';', TokenType::Semicolon)
+            SINGLE_CHAR_TOKEN(':', TokenType::Colon)
             case '-':
                 token.type = TokenType::Minus;
                 if (unit.peek() == '>') {
@@ -172,6 +179,18 @@ struct Tokenizer final {
                     TokenType::GreaterEqual
                 )
                 SINGLE_OR_DOUBLE_CHAR_TOKEN('<', '=', TokenType::Less, TokenType::LessEqual)
+                SINGLE_OR_DOUBLE_CHAR_TOKEN(
+                    '&',
+                    '&',
+                    TokenType::Amp,
+                    TokenType::AmpAmp
+                )
+                SINGLE_OR_DOUBLE_CHAR_TOKEN(
+                    '|',
+                    '|',
+                    TokenType::Pipe,
+                    TokenType::PipePipe
+                )
             default:
                 token.type = TokenType::Error;
         }

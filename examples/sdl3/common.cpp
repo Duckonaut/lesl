@@ -49,7 +49,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
         return SDL_Fail();
     }
 
-    SDL_Window* window = SDL_CreateWindow(WINDOW_TITLE, 720, 540, SDL_WINDOW_RESIZABLE);
+    SDL_Window* window = SDL_CreateWindow(WINDOW_TITLE, 512, 512, SDL_WINDOW_RESIZABLE);
     if (!window) {
         return SDL_Fail();
     }

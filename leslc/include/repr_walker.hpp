@@ -75,6 +75,16 @@ struct ReprWalker {
         }
     }
 
+    virtual void visit(Stmt::For& forStmt) {
+        for (auto& stmt : forStmt.body) {
+            visit(*stmt);
+        }
+    }
+
+    virtual void visit(Stmt::Break&) {}
+
+    virtual void visit(Stmt::Continue&) {}
+
     virtual void visit(Expr& expr) {
         std::visit(
             [this](auto& expr) {

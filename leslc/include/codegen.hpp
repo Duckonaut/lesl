@@ -1,5 +1,6 @@
 #pragma once
 
+#include "log.hpp"
 #include "ref_container.hpp"
 #include "spirv/1.0/spirv.hpp"
 
@@ -1019,8 +1020,14 @@ class CodeGenerator final {
         current_variable_scope_path.back()++;
     }
 
-    void close_scope() {
+    uint32_t close_scope() {
+        uint32_t scope_index = current_variable_scope_path.back();
         current_variable_scope_path.pop_back();
+        return scope_index;
+    }
+
+    void reopen_scope(uint32_t index) {
+        current_variable_scope_path.push_back(index);
     }
 
     Opt<VariableInstance> find_variable(const PoolStr& name) {
@@ -1093,6 +1100,25 @@ class CodeGenerator final {
                         variable_scope_tree.create_node(current_node);
                     preallocate_function_variables_recursive(else_node, *if_stmt.else_branch);
                 }
+            } else if (stmt->is<Stmt::For>()) {
+                const Stmt::For& for_stmt = stmt->get<Stmt::For>();
+
+                LoopScopeInfo loop_info{ spv.get_id(), spv.get_id() };
+
+                Ref<VariableScopeNode> loop_node =
+                    variable_scope_tree.create_node(current_node, loop_info);
+
+                // Preallocate loop variable
+                uint32_t var_id = spv.VariableNew(
+                    (get_type_info("int").value())->get_pointer_type(spv::StorageClassFunction),
+                    spv::StorageClassFunction
+                );
+
+                loop_node->variables[for_stmt.iterator_name] = { var_id,
+                                                                 get_type_info("int").value(),
+                                                                 spv::StorageClassFunction };
+
+                preallocate_function_variables_recursive(loop_node, for_stmt.body);
             }
         }
     }
@@ -1115,6 +1141,8 @@ class CodeGenerator final {
         } else {
             block_info.label_id = spv.LabelNew();
         }
+
+        uint32_t subscope_index = 0;
 
         for (const Ref<Stmt>& stmt : stmts) {
             if (stmt->is<Stmt::Return>()) {
@@ -1164,7 +1192,7 @@ class CodeGenerator final {
 
                 // then block
                 spv.Label(then_label);
-                open_scope();
+                reopen_scope(subscope_index);
                 generate_executable_block(if_stmt.then_branch, return_variable, then_label);
                 spv.Branch(merge_label);
 
@@ -1181,7 +1209,8 @@ class CodeGenerator final {
                     spv.Branch(merge_label);
                 }
 
-                close_scope();
+                advance_scope();
+                subscope_index = close_scope();
 
                 spv.Label(merge_label);
 
@@ -1189,6 +1218,131 @@ class CodeGenerator final {
 
                 spv.Branch(next_block_label);
                 spv.Label(next_block_label);
+            } else if (stmt->is<Stmt::For>()) {
+                const Stmt::For& for_stmt = stmt->get<Stmt::For>();
+
+                reopen_scope(subscope_index);
+
+                Ref<VariableScopeNode> loop_scope_node =
+                    variable_scope_tree.get_at(current_variable_scope_path).value();
+
+                LoopScopeInfo loop_info = loop_scope_node->loop_info.value();
+
+                // Initialize loop variable
+                Opt<VariableInstance> loop_var_instance = find_variable(for_stmt.iterator_name);
+                assert(loop_var_instance.has_value());
+
+                Ref<TypeInfo> int_type_info = get_type_info("int").value();
+
+                // loop start
+                Ref<ExprResult> start_expr_result =
+                    generate_expression(*for_stmt.start, &*int_type_info);
+                spv.Store(loop_var_instance->id, start_expr_result->load(spv, int_type_info));
+
+                uint32_t loop_header_label = spv.get_id();
+                uint32_t loop_condition_label = spv.get_id();
+                uint32_t loop_body_label = spv.get_id();
+                uint32_t loop_continue_label = loop_info.continue_label_id;
+                uint32_t loop_merge_label = loop_info.break_label_id;
+
+                spv.Branch(loop_header_label);
+
+                spv.Label(loop_header_label);
+                spv.LoopMerge(loop_merge_label, loop_continue_label, spv::LoopControlMaskNone);
+
+                spv.Branch(loop_condition_label);
+
+                spv.Label(loop_condition_label);
+
+                // loop body
+                uint32_t iter_var_value =
+                    spv.LoadNew((*loop_var_instance->type)->id, loop_var_instance->id);
+
+                Ref<ExprResult> end_expr_result =
+                    generate_expression(*for_stmt.end, &*int_type_info);
+
+                uint32_t condition = spv.SLessThanNew(
+                    decl_ids[arena.string_pool.add("bool")],
+                    iter_var_value,
+                    end_expr_result->load(spv, int_type_info)
+                );
+
+                spv.BranchConditional(condition, loop_body_label, loop_merge_label, nullptr, 0);
+
+                spv.Label(loop_body_label);
+
+                generate_executable_block(for_stmt.body, return_variable, loop_body_label);
+
+                spv.Branch(loop_continue_label);
+
+                // loop continue
+                spv.Label(loop_continue_label);
+
+                uint32_t iter_step_value =
+                    for_stmt.step ? generate_expression(**for_stmt.step, &*int_type_info)
+                                        ->load(spv, int_type_info)
+                                  : get_constant_int(1);
+
+                uint32_t incremented_value = spv.IAddNew(
+                    decl_ids[arena.string_pool.add("int")],
+                    iter_var_value,
+                    iter_step_value
+                );
+
+                spv.Store(loop_var_instance->id, incremented_value);
+                spv.Branch(loop_header_label);
+
+                advance_scope();
+                subscope_index = close_scope();
+
+                // loop merge
+                spv.Label(loop_merge_label);
+            } else if (stmt->is<Stmt::Break>()) {
+                // Find the nearest loop scope
+                std::vector<int32_t> path = current_variable_scope_path;
+                Ref<VariableScopeNode> node = variable_scope_tree.get_at(path).value();
+                Opt<LoopScopeInfo> loop_info = node->loop_info;
+
+                while (!loop_info.has_value()) {
+                    if (path.size() == 0) {
+                        assert(false); // break outside of loop
+                    }
+                    path.pop_back();
+                    Opt<Ref<VariableScopeNode>> parent_node = node->parent;
+
+                    if (!parent_node.has_value()) {
+                        assert(false); // break outside of loop
+                    }
+
+                    node = parent_node.value();
+                    loop_info = node->loop_info;
+                }
+
+                spv.Branch(loop_info->break_label_id);
+                spv.LabelNew(); // create a new label to avoid invalid fallthrough
+            } else if (stmt->is<Stmt::Continue>()) {
+                // Find the nearest loop scope
+                std::vector<int32_t> path = current_variable_scope_path;
+                Ref<VariableScopeNode> node = variable_scope_tree.get_at(path).value();
+                Opt<LoopScopeInfo> loop_info = node->loop_info;
+
+                while (!loop_info.has_value()) {
+                    if (path.size() == 0) {
+                        assert(false); // continue outside of loop
+                    }
+                    path.pop_back();
+                    Opt<Ref<VariableScopeNode>> parent_node = node->parent;
+
+                    if (!parent_node.has_value()) {
+                        assert(false); // continue outside of loop
+                    }
+
+                    node = parent_node.value();
+                    loop_info = node->loop_info;
+                }
+
+                spv.Branch(loop_info->continue_label_id);
+                spv.LabelNew(); // create a new label to avoid invalid fallthrough
             }
         }
 
@@ -1941,7 +2095,7 @@ class CodeGenerator final {
         return expr_ref({ res, inner->type });
     }
 
-    Ref<ExprResult> generate_expr(const Expr::Call& c, const TypeInfo* expected_type) {
+    Ref<ExprResult> generate_expr(const Expr::Call& c, const TypeInfo*) {
         std::vector<uint32_t> ops;
         Opt<Ref<Decl>> fun_decl = try_find_function(c.name.name);
 
@@ -1958,17 +2112,27 @@ class CodeGenerator final {
             const BuiltinFunction& builtin = builtin_functions[function_id];
             Opt<Ref<TypeInfo>> first_type = std::nullopt;
 
+            std::vector<Ref<TypeInfo>> arg_types;
             std::vector<uint32_t> args;
             for (int i = 0; i < c.args.size(); i++) {
                 const auto& arg = c.args[i];
                 switch (builtin.input_kind) {
                     case BuiltinInputKind::Static: {
                         if (first_type == std::nullopt) {
-                            auto arg_result = generate_expression(*arg, nullptr);
+                            Opt<Ref<TypeInfo>> first_type_target;
+                            if (builtin.inputs.size() == 1) {
+                                first_type_target = get_type_info(builtin.inputs[0][0]);
+                            }
+
+                            auto arg_result = generate_expression(
+                                *arg,
+                                first_type_target ? &**first_type_target : nullptr
+                            );
                             if (i == 0) {
                                 first_type = arg_result->type;
                             }
-                            args.push_back(arg_result->load(spv));
+                            arg_types.push_back(arg_result->type);
+                            args.push_back(arg_result->load(spv, first_type_target));
                         } else {
                             switch (builtin.input_kind) {
                                 case BuiltinInputKind::Static: {
@@ -1989,6 +2153,8 @@ class CodeGenerator final {
                                         &**get_type_info(builtin.inputs[best_fit_index][i])
                                     );
 
+                                    arg_types.push_back(arg_result->type);
+
                                     args.push_back(arg_result->load(
                                         spv,
                                         get_type_info(builtin.inputs[best_fit_index][i])
@@ -2002,6 +2168,8 @@ class CodeGenerator final {
                                 }
                                 case BuiltinInputKind::Packed: {
                                     auto arg_result = generate_expression(*arg, nullptr);
+
+                                    arg_types.push_back(arg_result->type);
                                     args.push_back(arg_result->load(spv, std::nullopt));
                                     break;
                                 }
@@ -2015,6 +2183,7 @@ class CodeGenerator final {
                         if (i == 0) {
                             first_type = arg_result->type;
                         }
+                        arg_types.push_back(arg_result->type);
                         args.push_back(arg_result->load(spv, std::nullopt));
                         break;
                     }
@@ -2051,8 +2220,14 @@ class CodeGenerator final {
                 }
             }
 
-            uint32_t res =
-                builtin_function(spv, **return_type, c.name.name, this->glsl_ext, args);
+            uint32_t res = builtin_function(
+                spv,
+                **return_type,
+                c.name.name,
+                this->glsl_ext,
+                arg_types,
+                args
+            );
 
             return expr_ref({ res, *return_type });
         } else {
@@ -2097,6 +2272,7 @@ class CodeGenerator final {
             for (int i = 0; i < s.members.size(); i++) {
                 if (s.members[i].name == fa.field.name) {
                     uint32_t constant_id = get_constant_int(i);
+
                     spv.AccessChain(
                         s.members[i].type->get_pointer_type(*base_variable.storage_class),
                         ptr_res,
@@ -2143,27 +2319,32 @@ class CodeGenerator final {
                     VariableInstance base_variable = std::get<VariableInstance>(base->data);
                     uint32_t constant_id = get_constant_int(index);
 
-                    spv.AccessChain(
-                        v.element->get_pointer_type(*base_variable.storage_class),
-                        ptr_res,
-                        base_variable.id,
-                        &constant_id,
-                        1
-                    );
+                    if (base_variable.storage_class) {
+                        spv.AccessChain(
+                            v.element->get_pointer_type(*base_variable.storage_class),
+                            ptr_res,
+                            base_variable.id,
+                            &constant_id,
+                            1
+                        );
 
-                    VariableInstance virtual_field_variable = {
-                        ptr_res,
-                        v.element,
-                        base_variable.storage_class,
-                    };
+                        VariableInstance virtual_field_variable = {
+                            ptr_res,
+                            v.element,
+                            base_variable.storage_class,
+                        };
 
-                    return expr_ref({ virtual_field_variable, *virtual_field_variable.type });
-                } else {
-                    uint32_t res =
-                        spv.CompositeExtractNew(v.element->id, base->load(spv), &index, 1);
-
-                    return expr_ref({ res, v.element });
+                        return expr_ref(
+                            { virtual_field_variable, *virtual_field_variable.type }
+                        );
+                    }
                 }
+
+                uint32_t res =
+                    spv.CompositeExtractNew(v.element->id, base->load(spv), &index, 1);
+
+                return expr_ref({ res, v.element });
+
             } else {
                 // this is a swizzle
 
