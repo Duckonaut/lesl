@@ -21,7 +21,7 @@ class Texture : public Example {
     void init(SDL_Window* window, SDL_GPUDevice* device) override {
         FileData unified_shader = readFile("../shaders/lesl/texture.spv");
         uint32_t img_width, img_height;
-        Uint8* image_data = readImageRGBA("/home/duckonaut/Pictures/Duck.png", &img_width, &img_height);
+        Uint8* image_data = readImageRGBA("../assets/pixels.png", &img_width, &img_height);
 
         SDL_GPUTextureFormat swapchain_format =
             SDL_GetGPUSwapchainTextureFormat(device, window);
@@ -113,8 +113,8 @@ class Texture : public Example {
         vertex_buffer = SDL_CreateGPUBuffer(device, &buffer_create_info);
 
         SDL_GPUSamplerCreateInfo sampler_desc = {
-            .min_filter = SDL_GPU_FILTER_LINEAR,
-            .mag_filter = SDL_GPU_FILTER_LINEAR,
+            .min_filter = SDL_GPU_FILTER_NEAREST,
+            .mag_filter = SDL_GPU_FILTER_NEAREST,
             .mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
             .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
             .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_REPEAT,

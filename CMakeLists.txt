@@ -85,6 +85,15 @@ function(build_glsl_shader shader_name)
     )
 endfunction()
 
+function(validate_spirv_output shader_spv_file)
+    add_custom_command(
+        OUTPUT ${shader_spv_file}_validated
+        COMMAND spirv-val ${shader_spv_file}
+        DEPENDS ${shader_spv_file}
+        COMMENT "Validating SPIR-V shader ${shader_spv_file}"
+    )
+endfunction()
+
 add_subdirectory(lesl)
 
 if (ENABLE_LESLC)
@@ -120,6 +129,8 @@ if (ENABLE_LESLC)
             DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/lesl/${shader_name}.lesl ${LESLC}
             COMMENT "Building LESL shader ${shader_output_name}"
         )
+
+        validate_spirv_output(${CMAKE_BINARY_DIR}/shaders/lesl/${shader_output_name}.spv)
 
         set(${shader_output_name}_LESL_SPIRV ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_output_name}.spv PARENT_SCOPE)
     endfunction()
