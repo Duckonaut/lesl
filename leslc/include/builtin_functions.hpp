@@ -670,7 +670,6 @@ inline static uint32_t builtin_function(
         }
     }
 
-    std::cout << "Emitting builtin function: " << name.to_string() << "\n";
     assert(builtin != nullptr && "builtin function not found");
 
     switch (builtin->encoding) {

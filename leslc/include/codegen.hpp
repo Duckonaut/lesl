@@ -42,13 +42,13 @@ class CodeGenerator final {
     VariableScopeTree variable_scope_tree;
     std::vector<int32_t> current_variable_scope_path;
 
-    BindingManager& binding_manager;
+    BindingManagerInterface& binding_manager;
 
     RefContainer<ExprResult> expr_gen_results;
 
     CodeGenerator(
         CompilationArena& arena,
-        BindingManager& binding_manager,
+        BindingManagerInterface& binding_manager,
         Opt<std::string> pipeline
     )
         : arena(arena), pipeline(pipeline), binding_manager(binding_manager) {}
@@ -77,31 +77,6 @@ class CodeGenerator final {
         backfill_constants();
 
         spv.update_bound();
-
-        for (auto& [name, id] : decl_ids) {
-            std::cout << colorize::green(name.c_str()) << " -> " << colorize::yellow(id)
-                      << std::endl;
-        }
-
-        uint32_t i = 5;
-        uint32_t opn = 0;
-        while (i < spv.words.size()) {
-            uint32_t inst = spv.words[i];
-            uint32_t word_count = (inst >> 16) & 0xffff;
-
-            std::cout << opn << " " << colorize::cyan("OpID ")
-                      << colorize::yellow(inst & 0xffff) << colorize::cyan(" WordCount ")
-                      << colorize::yellow(word_count) << ": ";
-
-            for (uint32_t j = 0; j < word_count; j++) {
-                printf("%08x ", spv.words[i + j]);
-            }
-
-            printf("\n");
-
-            i += word_count;
-            opn++;
-        }
     }
 
     void generate_prelude() {
@@ -353,7 +328,7 @@ class CodeGenerator final {
             }
         }
 
-        binding_manager.allocate_interfaces(spv, global_interfaces);
+        binding_manager.decorate_interfaces(spv, global_interfaces);
 
         BuiltinInfo& position = builtins[arena.string_pool.add("POSITION")];
         uint32_t builtin = spv::BuiltInPosition;
@@ -583,9 +558,7 @@ class CodeGenerator final {
             }
         }
 
-        for (GlobalInterface& gi : global_interfaces) {
-            binding_manager.allocate_variable(spv, gi);
-        }
+        binding_manager.allocate_interface_variables(spv, global_interfaces);
     }
 
     void generate_struct_debug_info(const Decl::Struct& s) {
@@ -669,19 +642,19 @@ class CodeGenerator final {
 
         if (is_vertex_input_interface) {
             binding_manager
-                .decorate(spv, PipelineStage::Vertex, s, decl_ids[s.name.name], true);
+                .decorate_struct(spv, PipelineStage::Vertex, s, decl_ids[s.name.name], true);
         }
         if (is_vertex_output_interface) {
             binding_manager
-                .decorate(spv, PipelineStage::Vertex, s, decl_ids[s.name.name], false);
+                .decorate_struct(spv, PipelineStage::Vertex, s, decl_ids[s.name.name], false);
         }
         if (is_fragment_input_interface && !is_vertex_output_interface) {
             binding_manager
-                .decorate(spv, PipelineStage::Fragment, s, decl_ids[s.name.name], true);
+                .decorate_struct(spv, PipelineStage::Fragment, s, decl_ids[s.name.name], true);
         }
         if (is_fragment_output_interface) {
             binding_manager
-                .decorate(spv, PipelineStage::Fragment, s, decl_ids[s.name.name], false);
+                .decorate_struct(spv, PipelineStage::Fragment, s, decl_ids[s.name.name], false);
         }
     }
 

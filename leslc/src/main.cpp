@@ -28,6 +28,7 @@ struct Args {
     std::optional<std::string> input;
     std::optional<std::string> output;
     std::optional<std::string> pipeline;
+    bool verbose = false;
 };
 
 static Args parse_args(int argc, char* argv[]) {
@@ -43,12 +44,14 @@ static Args parse_args(int argc, char* argv[]) {
         if (arg == "-h" || arg == "--help") {
             std::cout << "Usage: " << argv[0] << " [-o output] [input]" << std::endl;
             exit(0);
-        } else if (arg == "-o") {
+        } else if (arg == "-v" || arg == "--verbose") {
+            args.verbose = true;
+        } else if (arg == "-o" || arg == "--output") {
             if (i + 1 < argc) {
                 args.output = argv[i + 1];
                 i++;
             }
-        } else if (arg == "--pipeline") {
+        } else if (arg == "--pipeline" || arg == "-p") {
             if (i + 1 < argc) {
                 args.pipeline = argv[i + 1];
                 i++;
@@ -66,6 +69,27 @@ static Args parse_args(int argc, char* argv[]) {
     }
 
     return args;
+}
+
+void print_formatted(const spv_binary::BinaryContainer& spv) {
+    uint32_t i = 5;
+    uint32_t opn = 0;
+    while (i < spv.words.size()) {
+        uint32_t inst = spv.words[i];
+        uint32_t word_count = (inst >> 16) & 0xffff;
+
+        std::cout << opn << " " << colorize::cyan("OpID ") << colorize::yellow(inst & 0xffff)
+                  << colorize::cyan(" WordCount ") << colorize::yellow(word_count) << ": ";
+
+        for (uint32_t j = 0; j < word_count; j++) {
+            printf("%08x ", spv.words[i + j]);
+        }
+
+        printf("\n");
+
+        i += word_count;
+        opn++;
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -105,10 +129,13 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    ReprPrinter printer{ std::cout };
+    if (args.verbose) {
+        std::cout << colorize::green("=== Parsed Declarations ===") << std::endl;
+        ReprPrinter printer{ std::cout };
 
-    for (auto decl : arena.decls) {
-        printer.print(*decl);
+        for (auto decl : arena.decls) {
+            printer.print(*decl);
+        }
     }
 
     Validator validator(arena, error_handler);
@@ -120,13 +147,8 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    for (auto typeinfo : arena.types) {
-        std::cout << colorize::bright_green("Type") << " " << typeinfo->name.c_str() << std::endl;
-    }
-
-    BindingManager binding_manager(
-        BindingManager::TargetAPI::SDL3,
-        BindingManager::BindingAllocationMode::SingleInputMultipleUniform
+    SDL3BindingManager binding_manager(
+        SDL3BindingManager::BindingAllocationMode::SingleInputMultipleUniform
     );
 
     CodeGenerator codegen(arena, binding_manager, args.pipeline);
@@ -136,6 +158,11 @@ int main(int argc, char* argv[]) {
     if (error_handler.has_errors()) {
         error_handler.dump(std::cerr);
         return 1;
+    }
+
+    if (args.verbose) {
+        std::cout << colorize::green("=== Generated SPIR-V ===") << std::endl;
+        print_formatted(codegen.spv);
     }
 
     codegen.flush(*out);
