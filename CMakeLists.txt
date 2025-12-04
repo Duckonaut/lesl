@@ -25,6 +25,41 @@ set(BUILT_TARGETS)
 
 set(LESL_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
+function(define_library_target target_name)
+    add_library(${target_name} STATIC)
+    target_compile_features(${target_name} PUBLIC cxx_std_20)
+    target_compile_definitions(${target_name} PUBLIC PROJECT_NAME="${target_name}")
+    target_compile_definitions(${target_name} PUBLIC PROJECT_VERSION="${PROJECT_VERSION}")
+    target_compile_definitions(${target_name} PUBLIC PROJECT_COMMIT_HASH="${GIT_COMMIT_HASH}")
+
+    if (CMAKE_BUILD_TYPE STREQUAL "Release")
+        target_compile_definitions(${target_name} PUBLIC RELEASE)
+    else ()
+        target_compile_definitions(${target_name} PUBLIC DEBUG)
+    endif()
+
+    if (WIN32)
+        target_compile_definitions(${target_name} PUBLIC _CRT_SECURE_NO_WARNINGS)
+        target_compile_definitions(${target_name} PUBLIC WIN32_LEAN_AND_MEAN)
+    endif()
+    if (UNIX)
+        target_compile_definitions(${target_name} PUBLIC _POSIX_C_SOURCE=200809L)
+        target_link_libraries(${target_name} PRIVATE pthread dl)
+    endif()
+
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_link_libraries(${target_name} PRIVATE -static-libstdc++)
+        target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic)
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        target_compile_options(${target_name} PRIVATE /W4)
+    endif()
+
+    target_include_directories(${target_name} PUBLIC ${LESL_ROOT}/common/include)
+    target_sources(${target_name} PRIVATE ${LESL_ROOT}/common/src/log.cpp)
+
+    list(APPEND BUILT_TARGETS ${target_name})
+endfunction()
+
 function(define_executable_target target_name)
     add_executable(${target_name})
     target_compile_features(${target_name} PRIVATE cxx_std_20)
@@ -85,13 +120,18 @@ function(build_glsl_shader shader_name)
     )
 endfunction()
 
-function(validate_spirv_output shader_spv_file)
-    add_custom_command(
-        OUTPUT ${shader_spv_file}_validated
-        COMMAND spirv-val ${shader_spv_file}
-        DEPENDS ${shader_spv_file}
-        COMMENT "Validating SPIR-V shader ${shader_spv_file}"
-    )
+function(validate_spirv_output shader_name shader_spv_file)
+    # make sure the validated file is built after the original SPIR-V file (only if the target does not already exist)
+    if (NOT TARGET ${shader_name}_validation_target)
+        # Validate the generated SPIR-V shader, make sure this runs after the shader is built every time.
+        add_custom_command(
+            OUTPUT ${shader_name}_validated
+            COMMAND spirv-val ${shader_spv_file}
+            DEPENDS ${shader_spv_file}
+            COMMENT "Validating SPIR-V shader ${shader_spv_file}"
+        )
+        add_custom_target(${shader_name}_validation_target DEPENDS ${shader_name}_validated)
+    endif()
 endfunction()
 
 add_subdirectory(lesl)
@@ -130,7 +170,7 @@ if (ENABLE_LESLC)
             COMMENT "Building LESL shader ${shader_output_name}"
         )
 
-        validate_spirv_output(${CMAKE_BINARY_DIR}/shaders/lesl/${shader_output_name}.spv)
+        validate_spirv_output(${shader_output_name} ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_output_name}.spv)
 
         set(${shader_output_name}_LESL_SPIRV ${CMAKE_BINARY_DIR}/shaders/lesl/${shader_output_name}.spv PARENT_SCOPE)
     endfunction()
@@ -139,6 +179,11 @@ endif()
 if (ENABLE_EXAMPLES)
     set(SDL_SHARED TRUE "Build a SDL shared library (if available)")
     set(SDL_STATIC FALSE "Build a SDL static library (if available)")
+    set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "Treat warnings as errors")
+    set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests")
+    set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT FALSE)
+    set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT FALSE)
+    set(ASSIMP_BUILD_GLTF_IMPORTER TRUE)
 
     include(FetchContent)
 
@@ -157,6 +202,13 @@ if (ENABLE_EXAMPLES)
         GIT_PROGRESS TRUE
     )
     FetchContent_MakeAvailable(SDL)
+
+    FetchContent_Declare(
+        assimp
+        URL https://github.com/assimp/assimp/archive/refs/tags/v5.4.3.tar.gz
+        URL_HASH SHA256=66DFBAEE288F2BC43172440A55D0235DFC7BF885DDA6435C038E8000E79582CB
+    )
+    FetchContent_MakeAvailable(assimp)
 
     set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
 

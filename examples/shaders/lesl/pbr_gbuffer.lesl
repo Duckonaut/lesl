@@ -1,0 +1,53 @@
+struct VsIn {
+    float4 position,
+    float3 normal,
+    float2 uv,
+}
+
+struct FsOut {
+    float4 albedo,
+    float4 normal,
+    float4 arm_tex
+}
+
+struct ShaderLink {
+    float3 normal,
+    float2 uv,
+}
+
+struct Uniforms {
+    float4x4 model,
+    float4x4 view,
+    float4x4 projection,
+}
+
+function vertex (VsIn v, Uniforms u) -> (ShaderLink o) {
+    o.uv = v.uv
+    o.normal = (u.model * float4(v.normal, 1.0)).xyz
+
+    POSITION = u.projection * u.view * u.model * v.position
+}
+
+function fragment (ShaderLink i, sampler2D main_tex, sampler2D normal_tex, sampler2D arm_tex) -> (FsOut o) {
+    o.albedo = sample2D(main_tex, i.uv)
+    o.normal = float4(i.normal, 1.0)
+    float4 tex_normal = sample2D(normal_tex, i.uv)
+
+    tex_normal.xyz = tex_normal.xyz * 2.0 - 1.0
+
+    float3 N = normalize(i.normal)
+    float3 T = normalize(float3(1.0, 0.0, 0.0))
+    float3 B = cross(N, T)
+    float3 x = cross(N, B)
+    float3 y = cross(N, T)
+
+    float3 final_normal = normalize(x * tex_normal.x + y * tex_normal.y + N * tex_normal.z)
+    o.normal = float4(final_normal, 1.0)
+
+    o.arm_tex = sample2D(arm_tex, i.uv)
+}
+
+pipeline Basic {
+    Vertex = vertex,
+    Fragment = fragment,
+}

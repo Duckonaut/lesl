@@ -16,6 +16,7 @@ function(define_sdl3_example example-name)
     target_link_libraries(sdl3-${example-name} PUBLIC
         glm::glm
         SDL3::SDL3
+        assimp
     )
 
     target_include_directories(sdl3-${example-name} PUBLIC
@@ -99,4 +100,18 @@ build_lesl_shader(outline)
 
 target_sources(sdl3-outline PRIVATE
     ${outline_LESL_SPIRV}
+)
+
+define_sdl3_example(pbr)
+
+build_lesl_shader(pbr_gbuffer)
+build_lesl_shader(pbr_lighting)
+
+target_sources(sdl3-pbr PRIVATE
+    ${pbr_gbuffer_LESL_SPIRV}
+    ${pbr_lighting_LESL_SPIRV}
+)
+
+target_link_libraries(sdl3-pbr PUBLIC
+    assimp
 )

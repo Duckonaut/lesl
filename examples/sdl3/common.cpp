@@ -1,11 +1,16 @@
 #include "common.hpp"
 
+#include "SDL3/SDL_hints.h"
 #include "log.hpp"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <cstddef>
 #include <string>
+
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -40,7 +45,7 @@ struct App {
         : window(window), device(device), example(example) {}
 };
 
-SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
+SDL_AppResult SDL_AppInit(void** appstate, int, char* []) {
     Log::init();
 
     Log::info(PROJECT_NAME " " EXE_VERSION);
@@ -49,12 +54,14 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
         return SDL_Fail();
     }
 
+    SDL_SetHint(SDL_HINT_GPU_DRIVER, "vulkan");
+
     SDL_Window* window = SDL_CreateWindow(WINDOW_TITLE, 512, 512, SDL_WINDOW_RESIZABLE);
     if (!window) {
         return SDL_Fail();
     }
 
-    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
+    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, "vulkan");
     if (!device) {
         return SDL_Fail();
     }
@@ -104,7 +111,7 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
     return SDL_APP_CONTINUE;
 }
 
-void SDL_AppQuit(void* appstate, SDL_AppResult result) {
+void SDL_AppQuit(void* appstate, SDL_AppResult) {
     App* app = (App*)appstate;
 
     app->example->quit(app->device);
@@ -176,4 +183,85 @@ uint8_t* readImageRGBA(const char* path, uint32_t* out_width, uint32_t* out_heig
 
 void freeImageData(uint8_t* data) {
     stbi_image_free(data);
+}
+
+bool loadModel(
+    const char* path,
+    std::vector<ModelVertex>& out_vertices,
+    std::vector<uint32_t>& out_indices
+) {
+    const char* base_path = SDL_GetBasePath();
+
+    if (!base_path) {
+        Log::error("failed to get base path");
+        return false;
+    }
+
+    std::string full_path = std::string(base_path) + path;
+
+    Assimp::Importer importer;
+
+    const aiScene* scene = importer.ReadFile(
+        full_path,
+        aiProcess_Triangulate |
+        aiProcess_GenSmoothNormals |
+        aiProcess_FlipUVs
+    );
+
+    if (!scene || !scene->HasMeshes()) {
+        Log::error("failed to load model %s", full_path.c_str());
+        return false;
+    }
+
+    std::vector<ModelVertex> vertices;
+    std::vector<uint32_t> indices;
+
+    for (unsigned int m = 0; m < scene->mNumMeshes; ++m) {
+        aiMesh* mesh = scene->mMeshes[m];
+
+        size_t vertex_offset = vertices.size();
+
+        for (unsigned int v = 0; v < mesh->mNumVertices; ++v) {
+            ModelVertex vertex;
+
+            vertex.position = glm::vec3(
+                mesh->mVertices[v].x,
+                mesh->mVertices[v].y,
+                mesh->mVertices[v].z
+            );
+
+            if (mesh->HasNormals()) {
+                vertex.normal = glm::vec3(
+                    mesh->mNormals[v].x,
+                    mesh->mNormals[v].y,
+                    mesh->mNormals[v].z
+                );
+            } else {
+                vertex.normal = glm::vec3(0.0f, 0.0f, 0.0f);
+            }
+
+            if (mesh->HasTextureCoords(0)) {
+                vertex.uv = glm::vec2(
+                    mesh->mTextureCoords[0][v].x,
+                    mesh->mTextureCoords[0][v].y
+                );
+            } else {
+                vertex.uv = glm::vec2(0.0f, 0.0f);
+            }
+
+            vertices.push_back(vertex);
+        }
+
+        for (unsigned int f = 0; f < mesh->mNumFaces; ++f) {
+            aiFace& face = mesh->mFaces[f];
+            for (unsigned int i = 0; i < face.mNumIndices; ++i) {
+                indices.push_back(vertex_offset + face.mIndices[i]);
+            }
+        }
+    }
+
+    out_vertices = std::move(vertices);
+    out_indices = std::move(indices);
+
+    return true;
 }

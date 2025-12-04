@@ -1,0 +1,38 @@
+struct VsIn {
+    float4 position,
+    float3 normal,
+    float2 uv
+}
+
+struct FsOut {
+    float4 color
+}
+
+struct ShaderLink {
+    float2 uv,
+}
+
+function vertex (VsIn v) -> (ShaderLink o) {
+    o.uv = v.uv
+    POSITION = v.position
+}
+
+function fragment (ShaderLink i, sampler2D diffuse, sampler2D normal_tex, sampler2D arm_tex) -> (FsOut o) {
+    float2 uv = float2(i.uv.x, 1.0 - i.uv.y)
+    float4 n = sample2D(normal_tex, uv)
+    float4 arm = sample2D(arm_tex, uv)
+
+    float3 light_dir = normalize(float3(0.5, 1.0, 0.5))
+    float d = max(dot(n.xyz, light_dir), 0.5)
+
+    float4 albedo = sample2D(diffuse, uv)
+    albedo.rgb = albedo.rgb * float3(d, d, d)
+    albedo.rgb = albedo.rgb * arm.r
+
+    o.color = float4(albedo.rgb, 1.0)
+}
+
+pipeline Basic {
+    Vertex = vertex,
+    Fragment = fragment,
+}
