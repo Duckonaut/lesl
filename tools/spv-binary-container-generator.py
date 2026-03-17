@@ -171,7 +171,7 @@ class SPIRVBinaryContainerGenerator:
         output.write("    BinaryContainer() {\n")
         output.write("        words.reserve(1024);\n")
         output.write("        words.push_back(spv::MagicNumber);\n")
-        output.write("        words.push_back(spv::Version);\n")
+        output.write("        words.push_back(LESL_SPIRV_VERSION);\n")
         output.write("        words.push_back(0);\n") # Generator
         output.write("        words.push_back(0);\n") # Bound
         output.write("        words.push_back(0);\n") # Schema
@@ -180,21 +180,19 @@ class SPIRVBinaryContainerGenerator:
         output.write("    uint32_t* data() { return words.data(); }\n")
         output.write("    size_t size() { return words.size(); }\n")
         output.write("    void clear() { words.clear(); }\n")
-		output.write("    void insert(std::vector<uint32_t> new_words, uint32_t start) {
-		output.write("        std::vector<uint32_t> carry;
-		output.write("        for (int i = start; i < words.size(); i++) {
-		output.write("            carry.push_back(words[i]);
-		output.write("        }
-
-		output.write("        words.resize(start);
-		output.write("        for (int i = 0; i < new_words; i++) {
-		output.write("            words.push_back(new_words[i]);
-		output.write("        }
-
-		output.write("        for (int i = 0; i < carry; i++) {
-		output.write("            words.push_back(carry[i]);
-		output.write("        }
-		output.write("    }
+        output.write("    void insert(std::vector<uint32_t> new_words, uint32_t start) {\n")
+        output.write("        std::vector<uint32_t> carry;\n")
+        output.write("        for (int i = start; i < words.size(); i++) {\n")
+        output.write("            carry.push_back(words[i]);\n")
+        output.write("        }\n")
+        output.write("        words.resize(start);\n")
+        output.write("        for (int i = 0; i < new_words.size(); i++) {\n")
+        output.write("            words.push_back(new_words[i]);\n")
+        output.write("        }\n")
+        output.write("        for (int i = 0; i < carry.size(); i++) {\n")
+        output.write("            words.push_back(carry[i]);\n")
+        output.write("        }\n")
+        output.write("    }\n")
         output.write("    uint32_t get_id() { return id_bound++; }\n")
         output.write("    void push(uint32_t word) { words.push_back(word); }\n")
         output.write("    void update_bound() { words[3] = id_bound; }\n")

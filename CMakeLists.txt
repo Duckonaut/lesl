@@ -25,6 +25,8 @@ set(BUILT_TARGETS)
 
 set(LESL_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_compile_definitions(LESL_SPIRV_VERSION=0x10000)
+
 function(define_library_target target_name)
     add_library(${target_name} STATIC)
     target_compile_features(${target_name} PUBLIC cxx_std_20)

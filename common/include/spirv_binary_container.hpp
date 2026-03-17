@@ -18,7 +18,7 @@ public:
     BinaryContainer() {
         words.reserve(1024);
         words.push_back(spv::MagicNumber);
-        words.push_back(spv::Version);
+        words.push_back(LESL_SPIRV_VERSION);
         words.push_back(0);
         words.push_back(0);
         words.push_back(0);
@@ -31,12 +31,10 @@ public:
         for (int i = start; i < words.size(); i++) {
             carry.push_back(words[i]);
         }
-
         words.resize(start);
         for (int i = 0; i < new_words.size(); i++) {
             words.push_back(new_words[i]);
         }
-
         for (int i = 0; i < carry.size(); i++) {
             words.push_back(carry[i]);
         }
