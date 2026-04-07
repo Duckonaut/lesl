@@ -3,8 +3,8 @@
 #include "lesl/token.hpp"
 #include "lesl/unit.hpp"
 #include "lesl/colorize.hpp"
+#include "lesl/utils.hpp"
 
-#include <ostream>
 #include <vector>
 #include <cassert>
 

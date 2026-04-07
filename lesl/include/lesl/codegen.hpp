@@ -2408,4 +2408,13 @@ class CodeGenerator final {
             out.write(reinterpret_cast<const char*>(&spv.words[i]), sizeof(uint32_t));
         }
     }
+
+    void flush(std::vector<char>& out) {
+        out.reserve(spv.words.size() * 4);
+        for (unsigned i = 0; i < spv.words.size(); i++) {
+            for (unsigned j = 0; j < sizeof(uint32_t); j++) {
+                out.push_back(reinterpret_cast<const char*>(&spv.words[i])[j]);
+            }
+        }
+    }
 };
