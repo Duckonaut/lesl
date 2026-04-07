@@ -1,5 +1,7 @@
 define_library_target(lesl)
 
+target_compile_definitions(lesl PUBLIC LESL_SPIRV_VERSION=0x10000)
+
 target_sources(lesl PRIVATE
     src/lib.cpp
     src/parser.cpp
