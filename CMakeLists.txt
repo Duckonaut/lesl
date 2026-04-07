@@ -14,8 +14,8 @@ project(lesl VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
 
-option(ENABLE_EXAMPLES "Enable examples" ON)
-option(ENABLE_LESLC "Enable the LESL compiler" ON)
+option(LESL_ENABLE_EXAMPLES "Enable examples" ON)
+option(LESL_ENABLE_LESLC "Enable the LESL compiler" ON)
 
 cmake_policy(SET CMP0135 NEW)
 
@@ -138,7 +138,7 @@ endfunction()
 
 add_subdirectory(lesl)
 
-if (ENABLE_LESLC)
+if (LESL_ENABLE_LESLC)
     add_subdirectory(external/SPIRV-Headers)
     add_subdirectory(leslc)
 
@@ -178,7 +178,7 @@ if (ENABLE_LESLC)
     endfunction()
 endif()
 
-if (ENABLE_EXAMPLES)
+if (LESL_ENABLE_EXAMPLES)
     set(SDL_SHARED TRUE "Build a SDL shared library (if available)")
     set(SDL_STATIC FALSE "Build a SDL static library (if available)")
     set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "Treat warnings as errors")
