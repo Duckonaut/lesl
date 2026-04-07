@@ -1,8 +1,8 @@
 #pragma once
 
-#include "token.hpp"
-#include "unit.hpp"
-#include "colorize.hpp"
+#include "lesl/token.hpp"
+#include "lesl/unit.hpp"
+#include "lesl/colorize.hpp"
 
 #include <ostream>
 #include <vector>

@@ -1,10 +1,10 @@
 #pragma once
 
 #include "spirv/unified1/spirv.hpp"
-#include <ref_container.hpp>
-#include "colorize.hpp"
-#include "stringpool.hpp"
-#include "token.hpp"
+#include "lesl/ref_container.hpp"
+#include "lesl/colorize.hpp"
+#include "lesl/stringpool.hpp"
+#include "lesl/token.hpp"
 
 #include <cassert>
 #include <vector>

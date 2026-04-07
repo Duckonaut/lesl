@@ -1,9 +1,9 @@
 #pragma once
 
-#include "error_handler.hpp"
-#include "token.hpp"
-#include "repr.hpp"
-#include "tokenizer.hpp"
+#include "lesl/error_handler.hpp"
+#include "lesl/token.hpp"
+#include "lesl/repr.hpp"
+#include "lesl/tokenizer.hpp"
 
 #include <initializer_list>
 

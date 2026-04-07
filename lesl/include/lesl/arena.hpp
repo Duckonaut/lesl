@@ -2,7 +2,7 @@
 
 #include "ref_container.hpp"
 #include "stringpool.hpp"
-#include "repr.hpp"
+#include "lesl/repr.hpp"
 
 #include <concepts>
 

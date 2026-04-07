@@ -5,7 +5,7 @@
 
 #include "spirv_binary_container.hpp"
 
-#include "repr.hpp"
+#include "lesl/repr.hpp"
 #include "stringpool.hpp"
 
 #include <iostream>

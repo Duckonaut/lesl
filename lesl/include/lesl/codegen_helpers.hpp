@@ -4,8 +4,8 @@
 
 #include "spirv_binary_container.hpp"
 
-#include "repr.hpp"
-#include "stringpool.hpp"
+#include "lesl/repr.hpp"
+#include "lesl/stringpool.hpp"
 
 #include <unordered_map>
 #include <variant>

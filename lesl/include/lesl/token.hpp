@@ -1,7 +1,7 @@
 #pragma once
 
-#include "stringpool.hpp"
-#include "unit.hpp"
+#include "lesl/stringpool.hpp"
+#include "lesl/unit.hpp"
 
 #include <ostream>
 

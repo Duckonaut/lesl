@@ -1,5 +1,5 @@
-#include "parser.hpp"
-#include "repr.hpp"
+#include "lesl/parser.hpp"
+#include "lesl/repr.hpp"
 
 #include <initializer_list>
 

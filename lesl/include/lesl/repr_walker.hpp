@@ -1,6 +1,6 @@
 #pragma once
 
-#include "repr.hpp"
+#include "lesl/repr.hpp"
 #include <variant>
 
 struct ReprWalker {

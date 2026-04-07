@@ -1,4 +1,4 @@
-#include "stringpool.hpp"
+#include "lesl/stringpool.hpp"
 
 #include <cstring>
 #include <cassert>

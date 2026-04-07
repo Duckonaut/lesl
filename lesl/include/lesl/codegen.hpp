@@ -1,18 +1,17 @@
 #pragma once
 
-#include "log.hpp"
-#include "ref_container.hpp"
+#include "lesl/ref_container.hpp"
 #include "spirv/1.0/spirv.hpp"
 
 #include "spirv_binary_container.hpp"
 
-#include "repr.hpp"
-#include "arena.hpp"
-#include "stringpool.hpp"
+#include "lesl/repr.hpp"
+#include "lesl/arena.hpp"
+#include "lesl/stringpool.hpp"
 
-#include "builtin_functions.hpp"
-#include "binding_manager.hpp"
-#include "codegen_helpers.hpp"
+#include "lesl/builtin_functions.hpp"
+#include "lesl/binding_manager.hpp"
+#include "lesl/codegen_helpers.hpp"
 
 #include <algorithm>
 #include <bit>
