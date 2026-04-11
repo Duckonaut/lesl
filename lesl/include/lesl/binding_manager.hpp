@@ -7,6 +7,7 @@
 #include "lesl/repr.hpp"
 
 #include "codegen_helpers.hpp"
+#include <algorithm>
 
 /// Defines an interface for managing resource bindings in SPIR-V code generation.
 /// The interface allows for different strategies of binding allocation and decoration
@@ -59,6 +60,8 @@ struct SimpleBindingManager : public BindingManagerInterface {
     bool vertex_input_decorated = false;
     bool fragment_input_decorated = false;
 
+    std::vector<uint32_t> already_decorated_block;
+
     SimpleBindingManager(BindingAllocationMode mode) : mode(mode) {}
 
     virtual void decorate_struct(
@@ -92,6 +95,17 @@ struct SimpleBindingManager : public BindingManagerInterface {
         }
     }
 
+    void try_decorate_block(spv_binary::BinaryContainer& spv, uint32_t struct_id) {
+        if (std::find(
+                already_decorated_block.begin(),
+                already_decorated_block.end(),
+                struct_id
+            ) == already_decorated_block.end()) {
+            spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+            already_decorated_block.push_back(struct_id);
+        }
+    }
+
     void decorate_as_input(
         spv_binary::BinaryContainer& spv,
         const Decl::Struct& s,
@@ -99,7 +113,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
     ) {
         uint32_t location = 0;
 
-        spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+        try_decorate_block(spv, struct_id);
 
         for (uint32_t i = 0; i < s.members.size(); i++) {
             spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
@@ -113,7 +127,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
         uint32_t struct_id
     ) {
         uint32_t location = 0;
-        spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+        try_decorate_block(spv, struct_id);
         for (uint32_t i = 0; i < s.members.size(); i++) {
             spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
             location++;
@@ -121,7 +135,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
     }
 
     void decorate_as_uniform(spv_binary::BinaryContainer& spv, uint32_t struct_id) {
-        spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+        try_decorate_block(spv, struct_id);
     }
 
     virtual void decorate_interfaces(
@@ -224,7 +238,20 @@ struct SDL3BindingManager : public BindingManagerInterface {
     bool vertex_input_decorated = false;
     bool fragment_input_decorated = false;
 
+    std::vector<uint32_t> already_decorated_block;
+
     SDL3BindingManager(BindingAllocationMode mode) : mode(mode) {}
+
+    void try_decorate_block(spv_binary::BinaryContainer& spv, uint32_t struct_id) {
+        if (std::find(
+                already_decorated_block.begin(),
+                already_decorated_block.end(),
+                struct_id
+            ) == already_decorated_block.end()) {
+            spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+            already_decorated_block.push_back(struct_id);
+        }
+    }
 
     virtual void decorate_struct(
         spv_binary::BinaryContainer& spv,
@@ -264,7 +291,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
     ) {
         uint32_t location = 0;
 
-        spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+        try_decorate_block(spv, struct_id);
 
         for (uint32_t i = 0; i < s.members.size(); i++) {
             spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
@@ -280,7 +307,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
         uint32_t struct_id
     ) {
         uint32_t location = 0;
-        spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+        try_decorate_block(spv, struct_id);
         for (uint32_t i = 0; i < s.members.size(); i++) {
             spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
             location++;
@@ -290,7 +317,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
     }
 
     void decorate_as_uniform(spv_binary::BinaryContainer& spv, uint32_t struct_id) {
-        spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
+        try_decorate_block(spv, struct_id);
     }
 
     virtual void decorate_interfaces(
