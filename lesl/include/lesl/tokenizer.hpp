@@ -86,6 +86,8 @@ struct Tokenizer final {
             token.type = TokenType::Break;
         } else if (str == "continue") {
             token.type = TokenType::Continue;
+        } else if (str == "discard") {
+            token.type = TokenType::Discard;
         }
 
         if (token.type == TokenType::Identifier) {

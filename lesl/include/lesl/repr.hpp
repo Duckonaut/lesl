@@ -464,7 +464,12 @@ struct Stmt {
         uint8_t _unused;
     };
 
-    std::variant<Return, Var, ExprStmt, IfStmt, For, Break, Continue> data;
+    struct Discard {
+        uint8_t _unused;
+    };
+
+
+    std::variant<Return, Var, ExprStmt, IfStmt, For, Break, Continue, Discard> data;
 
     Stmt(Return return_) : data(return_) {}
     Stmt(Var var) : data(var) {}
@@ -479,6 +484,7 @@ struct Stmt {
         : data(For{ iterator_name, start, end, step, body }) {}
     Stmt(Break break_) : data(break_) {}
     Stmt(Continue continue_) : data(continue_) {}
+    Stmt(Discard discard) : data(discard) {}
 
     template <typename T> bool is() const {
         return std::holds_alternative<T>(data);
@@ -637,11 +643,14 @@ struct ReprPrinter {
                 [this](const Stmt::For& forStmt) {
                     print(forStmt);
                 },
+                [this](const Stmt::Break& break_) {
+                    print(break_);
+                },
                 [this](const Stmt::Continue& continue_) {
                     print(continue_);
                 },
-                [this](const Stmt::Break& break_) {
-                    print(break_);
+                [this](const Stmt::Discard& discard) {
+                    print(discard);
                 },
             },
             stmt.data
@@ -712,6 +721,10 @@ struct ReprPrinter {
 
     void print(const Stmt::Continue&) {
         out << colorize::blue("continue");
+    }
+
+    void print(const Stmt::Discard&) {
+        out << colorize::red("discard");
     }
 
     void print(const Stmt::Break&) {

@@ -33,6 +33,7 @@ struct Parser final {
     Ref<Stmt> parse_for_stmt();
     Ref<Stmt> parse_break();
     Ref<Stmt> parse_continue();
+    Ref<Stmt> parse_discard();
     Ref<Stmt> parse_expr_stmt();
 
     Ref<Expr> parse_expr();

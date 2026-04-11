@@ -1098,6 +1098,7 @@ class CodeGenerator final {
     struct BlockInfo {
         uint32_t statement_count = 0;
         uint32_t label_id = 0;
+        bool exclude_ending_branch = false;
     };
 
     BlockInfo generate_executable_block(
@@ -1128,6 +1129,9 @@ class CodeGenerator final {
                 } else {
                     spv.Return();
                 }
+            } else if (stmt->is<Stmt::Discard>()) {
+                block_info.exclude_ending_branch = true;
+                spv.Kill();
             } else if (stmt->is<Stmt::Var>()) {
                 const Stmt::Var& var_stmt = stmt->get<Stmt::Var>();
                 uint32_t var_id = find_variable(var_stmt.typedIdentifier.name.name).value().id;
@@ -1165,18 +1169,23 @@ class CodeGenerator final {
                 // then block
                 spv.Label(then_label);
                 reopen_scope(subscope_index);
-                generate_executable_block(if_stmt.then_branch, return_variable, then_label);
-                spv.Branch(merge_label);
+                auto then_info =
+                    generate_executable_block(if_stmt.then_branch, return_variable, then_label);
+                if (!then_info.exclude_ending_branch) {
+                    spv.Branch(merge_label);
+                }
 
                 spv.Label(else_label);
                 if (if_stmt.else_branch) {
                     advance_scope();
-                    generate_executable_block(
+                    auto else_info = generate_executable_block(
                         *if_stmt.else_branch,
                         return_variable,
                         else_label
                     );
-                    spv.Branch(merge_label);
+                    if (!else_info.exclude_ending_branch) {
+                        spv.Branch(merge_label);
+                    }
                 } else {
                     spv.Branch(merge_label);
                 }
@@ -1243,9 +1252,12 @@ class CodeGenerator final {
 
                 spv.Label(loop_body_label);
 
-                generate_executable_block(for_stmt.body, return_variable, loop_body_label);
+                auto body_info =
+                    generate_executable_block(for_stmt.body, return_variable, loop_body_label);
 
-                spv.Branch(loop_continue_label);
+                if (!body_info.exclude_ending_branch) {
+                    spv.Branch(loop_continue_label);
+                }
 
                 // loop continue
                 spv.Label(loop_continue_label);

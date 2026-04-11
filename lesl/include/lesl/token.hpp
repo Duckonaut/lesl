@@ -58,6 +58,7 @@ enum class TokenType {
     For,
     Break,
     Continue,
+    Discard,
 
     EndOfFile,
     Error,
@@ -155,6 +156,8 @@ inline const char* token_type_to_string(TokenType type) {
             return "Break";
         case TokenType::Continue:
             return "Continue";
+        case TokenType::Discard:
+            return "Discard";
         case TokenType::EndOfFile:
             return "EndOfFile";
         case TokenType::Error:

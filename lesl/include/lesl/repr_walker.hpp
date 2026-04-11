@@ -85,6 +85,8 @@ struct ReprWalker {
 
     virtual void visit(Stmt::Continue&) {}
 
+    virtual void visit(Stmt::Discard&) {}
+
     virtual void visit(Expr& expr) {
         std::visit(
             [this](auto& expr) {

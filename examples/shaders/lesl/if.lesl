@@ -24,6 +24,9 @@ function fragment (ShaderLink i, Uniforms u) -> (FsOut o) {
     float2 uv = i.uv
     float t = u.data.x
     if uv.x < 0.5 {
+        if uv.y < 0.5 {
+            discard
+        }
         float f = cos(uv.x * 20.0 + t)
         o.color = float4(f, f, f, 1.0)
     }

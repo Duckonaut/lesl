@@ -405,6 +405,8 @@ struct Validator {
             validate_break(stmt.get<Stmt::Break>());
         } else if (stmt.is<Stmt::Continue>()) {
             validate_continue(stmt.get<Stmt::Continue>());
+        } else if (stmt.is<Stmt::Discard>()) {
+            validate_discard(stmt.get<Stmt::Discard>());
         } else {
             assert(false);
         }
@@ -486,6 +488,9 @@ struct Validator {
         if (loop_depth == 0) {
             error_handler.error(ErrorType::ContinueOutsideLoop, {});
         }
+    }
+
+    void validate_discard(Stmt::Discard&) {
     }
 
     void validate_type(TypeRef& type) {

@@ -227,6 +227,8 @@ std::vector<Ref<Stmt>> Parser::parse_stmt_block() {
             stmts.push_back(parse_break());
         } else if (current.type == TokenType::Continue) {
             stmts.push_back(parse_continue());
+        } else if (current.type == TokenType::Discard) {
+            stmts.push_back(parse_discard());
         } else {
             stmts.push_back(parse_expr_stmt());
         }
@@ -303,6 +305,12 @@ Ref<Stmt> Parser::parse_continue() {
     Stmt::Continue c;
     consume(TokenType::Continue);
     return arena.alloc(Stmt{ std::move(c) });
+}
+
+Ref<Stmt> Parser::parse_discard() {
+    Stmt::Discard d;
+    consume(TokenType::Discard);
+    return arena.alloc(Stmt{ std::move(d) });
 }
 
 Ref<Stmt> Parser::parse_expr_stmt() {
