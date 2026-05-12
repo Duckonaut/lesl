@@ -25,6 +25,9 @@ set(BUILT_TARGETS)
 
 set(LESL_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 function(define_library_target target_name)
     add_library(${target_name} STATIC)
     target_compile_features(${target_name} PUBLIC cxx_std_20)
