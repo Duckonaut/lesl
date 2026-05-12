@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ostream>
+#include <concepts>
 
 #define COLOR_ENABLE 1
 

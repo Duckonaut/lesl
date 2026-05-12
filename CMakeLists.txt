@@ -205,8 +205,8 @@ if (LESL_ENABLE_EXAMPLES)
 
     FetchContent_Declare(
         assimp
-        URL https://github.com/assimp/assimp/archive/refs/tags/v5.4.3.tar.gz
-        URL_HASH SHA256=66DFBAEE288F2BC43172440A55D0235DFC7BF885DDA6435C038E8000E79582CB
+        URL https://github.com/assimp/assimp/archive/refs/tags/v6.0.5.tar.gz
+        URL_HASH SHA256=edf3749559c2b7d1f758ffb66fc5bec62186221e623b7f2e8969f17ee46ecb6f
     )
     FetchContent_MakeAvailable(assimp)
 
