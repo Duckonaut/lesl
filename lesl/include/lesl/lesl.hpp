@@ -6,6 +6,7 @@
 #include "lesl/parser.hpp"
 #include "lesl/validator.hpp"
 #include "lesl/codegen.hpp"
+#include <algorithm>
 #include <iostream>
 #include <istream>
 #include <ostream>
@@ -25,12 +26,14 @@ struct CompilationResult {
     CompilationResultType type;
 
     std::vector<char> compiled_program;
+    std::map<std::string, std::string> pipeline_parameters;
 
     static CompilationResult failure() {
-        return { CompilationResultType::Failure, {} };
+        return { CompilationResultType::Failure, {}, {} };
     }
-    static CompilationResult success(std::vector<char>&& p) {
-        return { CompilationResultType::Success, std::move(p) };
+    static CompilationResult
+    success(std::vector<char>&& p, std::map<std::string, std::string>&& pp) {
+        return { CompilationResultType::Success, std::move(p), std::move(pp) };
     }
 
     bool is_ok() const {
@@ -85,7 +88,18 @@ compile(const char* program, const char* pipeline, std::ostream* error_output = 
 
     codegen.flush(c);
 
-    return CompilationResult::success(std::move(c));
+    std::map<std::string, std::string> pparams;
+
+    Decl::Pipeline p =
+        (*std::find_if(arena.decls.begin(), arena.decls.end(), [&pipeline](Ref<Decl> d) {
+            return d->is<Decl::Pipeline>() && d->get<Decl::Pipeline>().name.name == pipeline;
+        }))->get<Decl::Pipeline>();
+
+    for (auto& pparam : p.params) {
+        pparams[pparam.name.name.to_string()] = pparam.value.name.to_string();
+    }
+
+    return CompilationResult::success(std::move(c), std::move(pparams));
 }
 
 }; // namespace lesl

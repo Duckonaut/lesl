@@ -40,6 +40,7 @@ struct RefContainer {
     }
 
     struct iterator {
+        using value_type = T;
         RefContainer* container;
         size_t index;
 
