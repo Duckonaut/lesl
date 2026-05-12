@@ -27,6 +27,7 @@ struct Validator {
     std::vector<std::vector<Variable>> variables;
 
     int32_t loop_depth = 0;
+    bool in_entry_point = false;
 
     Validator(CompilationArena& arena, ErrorHandler& error_handler)
         : arena(arena), error_handler(error_handler) {}
@@ -310,6 +311,18 @@ struct Validator {
 
     void validate_function(Decl::Function& f) {
         open_scope();
+        in_entry_point = std::any_of(arena.decls.begin(), arena.decls.end(), [&f](Ref<Decl> d) {
+            if (!d->is<Decl::Pipeline>())
+                return false;
+            Decl::Pipeline& p = d->get<Decl::Pipeline>();
+            if (std::any_of(p.params.begin(), p.params.end(), [&f](PipelineParameter pp) {
+                    return (pp.name.name == "Vertex" || pp.name.name == "Fragment") &&
+                           pp.value.name == f.name.name;
+                })) {
+                return true;
+            }
+            return false;
+        });
         for (TypedIdentifier& param : f.params) {
             validate_type(param.type);
             add_variable(
@@ -490,7 +503,10 @@ struct Validator {
         }
     }
 
-    void validate_discard(Stmt::Discard&) {
+    void validate_discard(Stmt::Discard& d) {
+        if (!in_entry_point) {
+            error_handler.error(ErrorType::HiddenDiscard, {});
+        }
     }
 
     void validate_type(TypeRef& type) {
@@ -795,8 +811,9 @@ struct Validator {
                             binary.lhs->get_location()
                         );
                     }
-                } else if (left_type.is<TypeInfo::Matrix>() &&
-                           right_type.is<TypeInfo::Matrix>()) {
+                } else if (
+                    left_type.is<TypeInfo::Matrix>() && right_type.is<TypeInfo::Matrix>()
+                ) {
                     // only allow matrix multiplication for matrices with compatible sizes
                     int left_columns = left_type.get<TypeInfo::Matrix>().columns;
                     const TypeInfo::Vector& right_vector_element =
@@ -823,8 +840,9 @@ struct Validator {
                     );
 
                     return { create_or_get_info_ref(std::move(result_type)) };
-                } else if (left_type.is<TypeInfo::Matrix>() &&
-                           right_type.is<TypeInfo::Vector>()) {
+                } else if (
+                    left_type.is<TypeInfo::Matrix>() && right_type.is<TypeInfo::Vector>()
+                ) {
                     // only allow matrix-vector multiplication for matrices with compatible
                     // sizes
 
@@ -841,8 +859,9 @@ struct Validator {
                     // the result type is the same as the vector element type of the matrix
 
                     return { left_type.get<TypeInfo::Matrix>().vector_element };
-                } else if (left_type.is<TypeInfo::Vector>() &&
-                           right_type.is<TypeInfo::Matrix>()) {
+                } else if (
+                    left_type.is<TypeInfo::Vector>() && right_type.is<TypeInfo::Matrix>()
+                ) {
                     // only allow vector-matrix multiplication for vectors with compatible
                     // sizes
 
@@ -867,8 +886,9 @@ struct Validator {
                     );
 
                     return { create_or_get_info_ref(std::move(result_type)) };
-                } else if (left_type.is<TypeInfo::Matrix>() &&
-                           right_type.is<TypeInfo::Primitive>()) {
+                } else if (
+                    left_type.is<TypeInfo::Matrix>() && right_type.is<TypeInfo::Primitive>()
+                ) {
                     // matrix * primitive is allowed, the result type is the same as the matrix
                     return { left.type };
                 }
@@ -926,8 +946,9 @@ struct Validator {
                         return { create_or_get_info_ref(std::move(result_type)) };
                     }
 
-                } else if (left_type.is<TypeInfo::Primitive>() &&
-                           right_type.is<TypeInfo::Primitive>()) {
+                } else if (
+                    left_type.is<TypeInfo::Primitive>() && right_type.is<TypeInfo::Primitive>()
+                ) {
                     // it's fine
                 } else {
                     error_handler.error(
@@ -993,8 +1014,9 @@ struct Validator {
                     );
 
                     return { create_or_get_info_ref(std::move(result_type)) };
-                } else if (left_type.is<TypeInfo::Primitive>() &&
-                           right_type.is<TypeInfo::Primitive>()) {
+                } else if (
+                    left_type.is<TypeInfo::Primitive>() && right_type.is<TypeInfo::Primitive>()
+                ) {
                     // it's fine
                 } else {
                     error_handler.error(
@@ -1068,8 +1090,9 @@ struct Validator {
                     );
 
                     return { create_or_get_info_ref(std::move(result_type)) };
-                } else if (left_type.is<TypeInfo::Primitive>() &&
-                           right_type.is<TypeInfo::Primitive>()) {
+                } else if (
+                    left_type.is<TypeInfo::Primitive>() && right_type.is<TypeInfo::Primitive>()
+                ) {
                     // it's fine
                 } else {
                     error_handler.error(

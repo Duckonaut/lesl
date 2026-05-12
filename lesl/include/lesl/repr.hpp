@@ -7,6 +7,7 @@
 #include "lesl/token.hpp"
 
 #include <cassert>
+#include <cmath>
 #include <vector>
 #include <map>
 #include <variant>
@@ -135,7 +136,7 @@ struct TypeInfo {
         TypeInfo type{ Vector{ element, size } };
         type.name = pool.add(std::string(element->name.c_str()) + std::to_string(size));
         type.size = element->size * size;
-        type.alignment = element->alignment;
+        type.alignment = element->alignment * std::pow(2, std::ceil(std::log2((float)size)));
         return type;
     }
 

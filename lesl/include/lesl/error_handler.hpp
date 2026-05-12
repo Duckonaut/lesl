@@ -60,6 +60,7 @@ enum class ErrorType {
     ConditionNotBool,
     BreakOutsideLoop,
     ContinueOutsideLoop,
+    HiddenDiscard,
 };
 
 struct ErrorData {
@@ -222,8 +223,8 @@ struct Error {
                 out << "Function call argument vector is the wrong size";
                 break;
             case ErrorType::BadVectorInputType:
-                    out << "Function only accepts primitive and vector types, "
-                        << colorize::bold(data.str.to_string()) << " is not one of them";
+                out << "Function only accepts primitive and vector types, "
+                    << colorize::bold(data.str.to_string()) << " is not one of them";
                 break;
             case ErrorType::BadVectorInputInconsistent:
                 out << "Function call argumentrs must all be the same type";
@@ -236,6 +237,10 @@ struct Error {
                 break;
             case ErrorType::ContinueOutsideLoop:
                 out << "Continue statement used outside of a loop";
+                break;
+            case ErrorType::HiddenDiscard:
+                out << "Discard must be used directly in an entry point function, it cannot be "
+                       "executed indirectly";
                 break;
         }
 
