@@ -16,6 +16,8 @@ set(BUILD_SHARED_LIBS OFF)
 
 option(LESL_ENABLE_EXAMPLES "Enable examples" ON)
 option(LESL_ENABLE_LESLC "Enable the LESL compiler" ON)
+option(LESL_ENABLE_SDL3 "Build SDL3 integration. Enabled if building examples" OFF)
+option(LESL_BUILD_SDL3 "Build a local SDL3 copy" OFF)
 
 cmake_policy(SET CMP0135 NEW)
 
@@ -27,6 +29,29 @@ set(LESL_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if (LESL_ENABLE_EXAMPLES)
+    set(LESL_ENABLE_SDL3 ON)
+endif()
+
+if (LESL_ENABLE_SDL3)
+    if (LESL_BUILD_SDL3)
+        set(SDL_SHARED TRUE "Build a SDL shared library (if available)")
+        set(SDL_STATIC FALSE "Build a SDL static library (if available)")
+        FetchContent_Declare(
+            SDL
+            GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+            GIT_TAG release-3.2.24
+            GIT_SHALLOW TRUE
+            GIT_PROGRESS TRUE
+        )
+        FetchContent_MakeAvailable(SDL)
+
+        set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
+    else()
+        find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3-shared)
+    endif()
+endif()
 
 function(define_library_target target_name)
     add_library(${target_name} STATIC)
@@ -180,8 +205,6 @@ if (LESL_ENABLE_LESLC)
 endif()
 
 if (LESL_ENABLE_EXAMPLES)
-    set(SDL_SHARED TRUE "Build a SDL shared library (if available)")
-    set(SDL_STATIC FALSE "Build a SDL static library (if available)")
     set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "Treat warnings as errors")
     set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Build assimp tests")
     set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT FALSE)
@@ -198,22 +221,11 @@ if (LESL_ENABLE_EXAMPLES)
     FetchContent_MakeAvailable(glm)
 
     FetchContent_Declare(
-        SDL
-        GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-        GIT_TAG release-3.2.24
-        GIT_SHALLOW TRUE
-        GIT_PROGRESS TRUE
-    )
-    FetchContent_MakeAvailable(SDL)
-
-    FetchContent_Declare(
         assimp
         URL https://github.com/assimp/assimp/archive/refs/tags/v6.0.5.tar.gz
         URL_HASH SHA256=edf3749559c2b7d1f758ffb66fc5bec62186221e623b7f2e8969f17ee46ecb6f
     )
     FetchContent_MakeAvailable(assimp)
-
-    set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
 
     add_subdirectory(examples)
 endif()

@@ -33,7 +33,7 @@ struct CompilationResult {
     CompilationResultType type;
 
     std::vector<char> compiled_program;
-    std::map<std::string, std::string> pipeline_parameters;
+    std::unordered_map<std::string, std::string> pipeline_parameters;
 
     StageBinds vertex_binds;
     StageBinds fragment_binds;
@@ -41,10 +41,13 @@ struct CompilationResult {
     static CompilationResult failure() {
         return { CompilationResultType::Failure, {}, {}, {}, {} };
     }
-    static CompilationResult
-    success(std::vector<char>&& p, std::map<std::string, std::string>&& pp, BindingManagerInterface& binding_manager) {
-        StageBinds vertex_binds {};
-        StageBinds fragment_binds {};
+    static CompilationResult success(
+        std::vector<char>&& p,
+        std::unordered_map<std::string, std::string>&& pp,
+        BindingManagerInterface& binding_manager
+    ) {
+        StageBinds vertex_binds{};
+        StageBinds fragment_binds{};
 
         std::vector<Binding> bindings = binding_manager.get_bindings();
 
@@ -53,23 +56,24 @@ struct CompilationResult {
                 vertex_binds.binds.push_back(b);
                 if (b.type == BindType::Sampler) {
                     vertex_binds.num_samplers++;
-                }
-                else if (b.type == BindType::Uniform) {
+                } else if (b.type == BindType::Uniform) {
                     vertex_binds.num_uniform_buffers++;
                 }
-            }
-            else if (b.stage == PipelineStage::Fragment) {
+            } else if (b.stage == PipelineStage::Fragment) {
                 fragment_binds.binds.push_back(b);
                 if (b.type == BindType::Sampler) {
                     fragment_binds.num_samplers++;
-                }
-                else if (b.type == BindType::Uniform) {
+                } else if (b.type == BindType::Uniform) {
                     fragment_binds.num_uniform_buffers++;
                 }
             }
         }
 
-        return { CompilationResultType::Success, std::move(p), std::move(pp), std::move(vertex_binds), std::move(fragment_binds) };
+        return { CompilationResultType::Success,
+                 std::move(p),
+                 std::move(pp),
+                 std::move(vertex_binds),
+                 std::move(fragment_binds) };
     }
 
     bool is_ok() const {
@@ -124,7 +128,7 @@ compile(const char* program, const char* pipeline, std::ostream* error_output = 
 
     codegen.flush(c);
 
-    std::map<std::string, std::string> pparams;
+    std::unordered_map<std::string, std::string> pparams;
 
     Decl::Pipeline p =
         (*std::find_if(arena.decls.begin(), arena.decls.end(), [&pipeline](Ref<Decl> d) {

@@ -59,4 +59,38 @@ enum class PipelineStencilOp {
     IncrementAndWrap,
     DecrementAndWrap,
 };
+constexpr const char* CONVENTION_MSAA_SAMPLE_COUNT = "MSAASampleCount";
+constexpr const char* CONVENTION_MSAA_ENABLE_MASK = "MSAAEnableMask";
+constexpr const char* CONVENTION_MSAA_SAMPLE_MASK = "MSAASampleMask";
+constexpr const char* CONVENTION_MSAA_ALPHA_TO_COVERAGE = "MSAAAlphaToCoverage";
+
+constexpr const char* CONVENTION_BLEND = "Blend";
+constexpr const char* CONVENTION_BLEND_OP = "BlendOp";
+constexpr const char* CONVENTION_BLEND_ALPHA_OP = "BlendAlphaOp";
+enum class PipelineBlendOp {
+    Add,
+    Subtract,
+    Min,
+    Max,
+    ReverseSubstract,
+};
+constexpr const char* CONVENTION_BLEND_FACTOR_SRC_COLOR = "BlendSrcColor";
+constexpr const char* CONVENTION_BLEND_FACTOR_SRC_ALPHA = "BlendSrcAlpha";
+constexpr const char* CONVENTION_BLEND_FACTOR_DST_COLOR = "BlendDstColor";
+constexpr const char* CONVENTION_BLEND_FACTOR_DST_ALPHA = "BlendDstAlpha";
+enum class PipelineBlendFactor {
+    One,
+    Zero,
+    SrcAlpha,
+    DstAlpha,
+    SrcColor,
+    DstColor,
+    ConstColor,
+    OneMinusSrcAlpha,
+    OneMinusDstAlpha,
+    OneMinusSrcColor,
+    OneMinusDstColor,
+    OneMinusConstColor,
+};
+
 }; // namespace lesl

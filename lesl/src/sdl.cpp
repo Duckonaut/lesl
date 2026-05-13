@@ -1,6 +1,8 @@
 #include <SDL3/SDL.h>
 
+#include <SDL3/SDL_gpu.h>
 #include <cmath>
+#include <functional>
 #include <lesl/lesl.hpp>
 #include <lesl/integration.hpp>
 
@@ -129,7 +131,146 @@ SDL_GPUStencilOp parse_stencil_op(const char* s, SDL_GPUStencilOp default_op) {
     if (v == SDL_GPU_STENCILOP_INVALID) {
         return default_op;
     }
-    return stencil_ops[s];
+    return v;
+}
+
+SDL_GPUSampleCount parse_sample_count(const char* s) {
+    uint8_t samples = parse_u8(s, 1);
+
+    if (samples == 1) {
+        return SDL_GPU_SAMPLECOUNT_1;
+    } else if (samples == 2) {
+        return SDL_GPU_SAMPLECOUNT_2;
+    } else if (samples == 4) {
+        return SDL_GPU_SAMPLECOUNT_4;
+    } else if (samples == 8) {
+        return SDL_GPU_SAMPLECOUNT_8;
+    }
+
+    return SDL_GPU_SAMPLECOUNT_1;
+}
+
+bool map_has_key(
+    const std::unordered_map<std::string, std::string>& map,
+    const std::string& key
+) {
+    return map.find(key) != map.end();
+}
+
+SDL_GPUBlendOp parse_blend_op(const char* s, SDL_GPUBlendOp default_value) {
+    static std::unordered_map<std::string_view, SDL_GPUBlendOp> blend_ops = {
+        { "Add", SDL_GPU_BLENDOP_ADD },
+        { "Subtract", SDL_GPU_BLENDOP_SUBTRACT },
+        { "Min", SDL_GPU_BLENDOP_MIN },
+        { "Max", SDL_GPU_BLENDOP_MAX },
+        { "ReverseSubstract", SDL_GPU_BLENDOP_REVERSE_SUBTRACT },
+    };
+
+    auto v = blend_ops[s];
+    if (v == SDL_GPU_BLENDOP_INVALID) {
+        return default_value;
+    }
+    return v;
+}
+
+SDL_GPUBlendFactor parse_blend_factor(const char* s, SDL_GPUBlendFactor default_value) {
+    static std::unordered_map<std::string_view, SDL_GPUBlendFactor> blend_factors = {
+        { "One", SDL_GPU_BLENDFACTOR_ONE },
+        { "Zero", SDL_GPU_BLENDFACTOR_ZERO },
+        { "SrcAlpha", SDL_GPU_BLENDFACTOR_SRC_ALPHA },
+        { "DstAlpha", SDL_GPU_BLENDFACTOR_DST_ALPHA },
+        { "SrcColor", SDL_GPU_BLENDFACTOR_SRC_COLOR },
+        { "DstColor", SDL_GPU_BLENDFACTOR_DST_COLOR },
+        { "ConstColor", SDL_GPU_BLENDFACTOR_CONSTANT_COLOR },
+        { "OneMinusSrcAlpha", SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA },
+        { "OneMinusDstAlpha", SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_ALPHA },
+        { "OneMinusSrcColor", SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_COLOR },
+        { "OneMinusDstColor", SDL_GPU_BLENDFACTOR_ONE_MINUS_DST_COLOR },
+        { "OneMinusConstColor", SDL_GPU_BLENDFACTOR_ONE_MINUS_CONSTANT_COLOR },
+    };
+
+    auto v = blend_factors[s];
+    if (v == SDL_GPU_BLENDFACTOR_INVALID) {
+        return default_value;
+    }
+    return v;
+}
+
+template <typename T>
+T try_specific_key(
+    std::unordered_map<std::string, std::string>& pparams,
+    std::string key,
+    size_t slot,
+    T default_value,
+    std::function<T(const char*, T)> parser
+) {
+    if (map_has_key(pparams, key + std::to_string(slot))) {
+        return parser(pparams[key + std::to_string(slot)].c_str(), default_value);
+    } else {
+        return parser(pparams[key].c_str(), default_value);
+    }
+}
+
+SDL_GPUColorTargetDescription build_color_target_description(
+    std::unordered_map<std::string, std::string> pparams,
+    size_t slot,
+    SDL_GPUTextureFormat target_format
+) {
+    SDL_GPUColorTargetBlendState blend_state{};
+    std::function<bool(const char*, bool)> bool_parser = parse_bool;
+    std::function<SDL_GPUBlendOp(const char*, SDL_GPUBlendOp)> op_parser = parse_blend_op;
+    std::function<SDL_GPUBlendFactor(const char*, SDL_GPUBlendFactor)> factor_parser =
+        parse_blend_factor;
+
+    blend_state.enable_blend =
+        try_specific_key(pparams, CONVENTION_BLEND, slot, false, bool_parser);
+
+    blend_state.color_blend_op =
+        try_specific_key(pparams, CONVENTION_BLEND_OP, slot, SDL_GPU_BLENDOP_ADD, op_parser);
+    blend_state.alpha_blend_op = try_specific_key(
+        pparams,
+        CONVENTION_BLEND_ALPHA_OP,
+        slot,
+        SDL_GPU_BLENDOP_ADD,
+        op_parser
+    );
+
+    blend_state.src_color_blendfactor = try_specific_key(
+        pparams,
+        CONVENTION_BLEND_FACTOR_SRC_COLOR,
+        slot,
+        SDL_GPU_BLENDFACTOR_ONE,
+        factor_parser
+    );
+
+    blend_state.src_alpha_blendfactor = try_specific_key(
+        pparams,
+        CONVENTION_BLEND_FACTOR_SRC_ALPHA,
+        slot,
+        SDL_GPU_BLENDFACTOR_ONE,
+        factor_parser
+    );
+
+    blend_state.dst_color_blendfactor = try_specific_key(
+        pparams,
+        CONVENTION_BLEND_FACTOR_DST_COLOR,
+        slot,
+        SDL_GPU_BLENDFACTOR_ZERO,
+        factor_parser
+    );
+
+    blend_state.dst_alpha_blendfactor = try_specific_key(
+        pparams,
+        CONVENTION_BLEND_FACTOR_DST_ALPHA,
+        slot,
+        SDL_GPU_BLENDFACTOR_ZERO,
+        factor_parser
+    );
+
+    return {
+        .format = target_format,
+        .blend_state = blend_state,
+    };
 }
 
 SDL_GPUGraphicsPipeline* create_graphics_pipeline(
@@ -178,14 +319,9 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
 
     std::vector<SDL_GPUColorTargetDescription> color_target_descriptions;
 
-    for (auto& ctf : color_target_formats) {
+    for (size_t i = 0; i < color_target_formats.size(); i++) {
         color_target_descriptions.push_back(
-            {
-                .format = ctf,
-                .blend_state = {
-                    .enable_blend = false,
-                },
-            }
+            build_color_target_description(cr.pipeline_parameters, i, color_target_formats[i])
         );
     }
 
@@ -308,6 +444,17 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
         SDL_GPU_STENCILOP_KEEP
     );
 
+    SDL_GPUMultisampleState multisample_state{};
+
+    multisample_state.sample_count =
+        parse_sample_count(cr.pipeline_parameters[CONVENTION_MSAA_SAMPLE_COUNT].c_str());
+    multisample_state.enable_mask =
+        parse_bool(cr.pipeline_parameters[CONVENTION_MSAA_ENABLE_MASK].c_str(), false);
+    multisample_state.sample_mask =
+        parse_u8(cr.pipeline_parameters[CONVENTION_MSAA_SAMPLE_MASK].c_str(), 0);
+    multisample_state.enable_alpha_to_coverage =
+        parse_bool(cr.pipeline_parameters[CONVENTION_MSAA_ALPHA_TO_COVERAGE].c_str(), false);
+
     SDL_GPUGraphicsPipelineCreateInfo createInfo = {
             .vertex_shader = vertex_shader,
             .fragment_shader = fragment_shader,
@@ -319,14 +466,7 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
             },
             .primitive_type = prim,
             .rasterizer_state = raster,
-            .multisample_state = {
-                .sample_count = SDL_GPU_SAMPLECOUNT_1,
-                .sample_mask = 0,
-                .enable_mask = false,
-                .enable_alpha_to_coverage = false,
-                .padding2 = 0,
-                .padding3 = 0,
-            },
+            .multisample_state = multisample_state,
             .depth_stencil_state = depth_stencil_state,
             .target_info = {
                 .color_target_descriptions = color_target_descriptions.data(),
