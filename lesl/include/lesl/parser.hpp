@@ -7,6 +7,8 @@
 
 #include <initializer_list>
 
+namespace lesl {
+
 struct Parser final {
     Tokenizer& tokenizer;
     CompilationArena& arena;
@@ -59,3 +61,4 @@ struct Parser final {
     void consume(TokenType type);
     void step();
 };
+} // namespace lesl

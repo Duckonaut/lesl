@@ -9,6 +9,24 @@
 #include "codegen_helpers.hpp"
 #include <algorithm>
 
+namespace lesl {
+enum class BindType {
+    Input,
+    Output,
+    Sampler,
+    Uniform,
+};
+struct Binding {
+    PipelineStage stage;
+    BindType type;
+    std::string name;
+    uint32_t set;
+    uint32_t slot;
+    uint32_t size;
+    uint32_t alignment;
+    Ref<TypeInfo> binding_type;
+};
+
 /// Defines an interface for managing resource bindings in SPIR-V code generation.
 /// The interface allows for different strategies of binding allocation and decoration
 /// based on the needs of the application.
@@ -38,6 +56,8 @@ struct BindingManagerInterface {
         std::vector<GlobalInterface>& gi
     ) = 0;
 
+    virtual std::vector<Binding> get_bindings() const = 0;
+
     /// Determines the storage class for an input variable based on its type and the pipeline
     /// stage.
     virtual StorageClass
@@ -61,6 +81,8 @@ struct SimpleBindingManager : public BindingManagerInterface {
     bool fragment_input_decorated = false;
 
     std::vector<uint32_t> already_decorated_block;
+
+    std::vector<Binding> bindings;
 
     SimpleBindingManager(BindingAllocationMode mode) : mode(mode) {}
 
@@ -216,6 +238,10 @@ struct SimpleBindingManager : public BindingManagerInterface {
         }
         assert(false);
     }
+
+    virtual std::vector<Binding> get_bindings() const override {
+        return bindings;
+    }
 };
 
 struct SDL3BindingManager : public BindingManagerInterface {
@@ -226,8 +252,10 @@ struct SDL3BindingManager : public BindingManagerInterface {
 
     BindingAllocationMode mode;
 
-    uint32_t input_binding = 0;
-    uint32_t output_binding = 0;
+    uint32_t vertex_input_binding = 0;
+    uint32_t vertex_output_binding = 0;
+    uint32_t fragment_input_binding = 0;
+    uint32_t fragment_output_binding = 0;
     uint32_t sdl3_vertex_big_binding = 0;
     uint32_t sdl3_vertex_uniform_binding = 0;
     uint32_t sdl3_fragment_big_binding = 0;
@@ -239,6 +267,8 @@ struct SDL3BindingManager : public BindingManagerInterface {
     bool fragment_input_decorated = false;
 
     std::vector<uint32_t> already_decorated_block;
+
+    std::vector<Binding> bindings;
 
     SDL3BindingManager(BindingAllocationMode mode) : mode(mode) {}
 
@@ -267,7 +297,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
                         (context == PipelineStage::Fragment && fragment_input_decorated)) {
                         decorate_as_uniform(spv, struct_id);
                     } else {
-                        decorate_as_input(spv, s, struct_id);
+                        decorate_as_input(spv, context, s, struct_id);
                         if (context == PipelineStage::Vertex) {
                             vertex_input_decorated = true;
                         } else if (context == PipelineStage::Fragment) {
@@ -276,16 +306,17 @@ struct SDL3BindingManager : public BindingManagerInterface {
                     }
                     break;
                 case BindingAllocationMode::MultiInput:
-                    decorate_as_input(spv, s, struct_id);
+                    decorate_as_input(spv, context, s, struct_id);
                     break;
             }
         } else {
-            decorate_as_output(spv, s, struct_id);
+            decorate_as_output(spv, context, s, struct_id);
         }
     }
 
     void decorate_as_input(
         spv_binary::BinaryContainer& spv,
+        PipelineStage context,
         const Decl::Struct& s,
         uint32_t struct_id
     ) {
@@ -295,14 +326,33 @@ struct SDL3BindingManager : public BindingManagerInterface {
 
         for (uint32_t i = 0; i < s.members.size(); i++) {
             spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
+            auto& rt = *s.members[i].type.resolved_type;
+            bindings.push_back(
+                Binding{
+                    .stage = PipelineStage::Vertex,
+                    .type = BindType::Input,
+                    .name = s.name.name.to_string() + "::" + s.members[i].name.name.c_str(),
+                    .set = context == PipelineStage::Vertex ? vertex_input_binding
+                                                            : fragment_input_binding,
+                    .slot = location,
+                    .size = rt->size,
+                    .alignment = rt->alignment,
+                    .binding_type = rt,
+                }
+            );
             location++;
         }
 
-        input_binding++;
+        if (context == PipelineStage::Vertex) {
+            vertex_input_binding++;
+        } else if (context == PipelineStage::Fragment) {
+            fragment_input_binding++;
+        }
     }
 
     void decorate_as_output(
         spv_binary::BinaryContainer& spv,
+        PipelineStage context,
         const Decl::Struct& s,
         uint32_t struct_id
     ) {
@@ -310,10 +360,29 @@ struct SDL3BindingManager : public BindingManagerInterface {
         try_decorate_block(spv, struct_id);
         for (uint32_t i = 0; i < s.members.size(); i++) {
             spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
+
+            auto& rt = *s.members[i].type.resolved_type;
+            bindings.push_back(
+                Binding{
+                    .stage = PipelineStage::Vertex,
+                    .type = BindType::Output,
+                    .name = s.name.name.to_string() + "::" + s.members[i].name.name.c_str(),
+                    .set = context == PipelineStage::Vertex ? vertex_output_binding
+                                                            : fragment_output_binding,
+                    .slot = location,
+                    .size = rt->size,
+                    .alignment = rt->alignment,
+                    .binding_type = rt,
+                }
+            );
             location++;
         }
 
-        output_binding++;
+        if (context == PipelineStage::Vertex) {
+            vertex_output_binding++;
+        } else if (context == PipelineStage::Fragment) {
+            fragment_output_binding++;
+        }
     }
 
     void decorate_as_uniform(spv_binary::BinaryContainer& spv, uint32_t struct_id) {
@@ -341,6 +410,19 @@ struct SDL3BindingManager : public BindingManagerInterface {
                 spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
                 spv.Decorate(gi.id, spv::DecorationBinding, &sdl3_fragment_uniform_binding, 1);
 
+                bindings.push_back(
+                    Binding{
+                        .stage = PipelineStage::Fragment,
+                        .type = BindType::Uniform,
+                        .name = gi.name.to_string(),
+                        .set = set,
+                        .slot = sdl3_fragment_uniform_binding,
+                        .size = gi.type->size,
+                        .alignment = gi.type->alignment,
+                        .binding_type = gi.type,
+                    }
+                );
+
                 sdl3_fragment_uniform_binding++;
                 return;
             } else {
@@ -348,6 +430,19 @@ struct SDL3BindingManager : public BindingManagerInterface {
 
                 spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
                 spv.Decorate(gi.id, spv::DecorationBinding, &sdl3_vertex_uniform_binding, 1);
+
+                bindings.push_back(
+                    Binding{
+                        .stage = PipelineStage::Vertex,
+                        .type = BindType::Uniform,
+                        .name = gi.name.to_string(),
+                        .set = set,
+                        .slot = sdl3_vertex_uniform_binding,
+                        .size = gi.type->size,
+                        .alignment = gi.type->alignment,
+                        .binding_type = gi.type,
+                    }
+                );
 
                 sdl3_vertex_uniform_binding++;
             }
@@ -363,6 +458,19 @@ struct SDL3BindingManager : public BindingManagerInterface {
                 spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
                 spv.Decorate(gi.id, spv::DecorationBinding, &sdl3_fragment_big_binding, 1);
 
+                bindings.push_back(
+                    Binding{
+                        .stage = PipelineStage::Fragment,
+                        .type = BindType::Sampler,
+                        .name = gi.name.to_string(),
+                        .set = set,
+                        .slot = sdl3_fragment_big_binding,
+                        .size = gi.type->size,
+                        .alignment = gi.type->alignment,
+                        .binding_type = gi.type,
+                    }
+                );
+
                 sdl3_fragment_big_binding++;
                 return;
             } else {
@@ -370,6 +478,19 @@ struct SDL3BindingManager : public BindingManagerInterface {
 
                 spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
                 spv.Decorate(gi.id, spv::DecorationBinding, &sdl3_vertex_big_binding, 1);
+
+                bindings.push_back(
+                    Binding{
+                        .stage = PipelineStage::Vertex,
+                        .type = BindType::Sampler,
+                        .name = gi.name.to_string(),
+                        .set = set,
+                        .slot = sdl3_vertex_big_binding,
+                        .size = gi.type->size,
+                        .alignment = gi.type->alignment,
+                        .binding_type = gi.type,
+                    }
+                );
 
                 sdl3_vertex_big_binding++;
             }
@@ -418,19 +539,37 @@ struct SDL3BindingManager : public BindingManagerInterface {
         }
         assert(false);
     }
+
+    virtual std::vector<Binding> get_bindings() const override {
+        return bindings;
+    }
 };
 
 struct DictionaryBindingManager : public BindingManagerInterface {
     struct InterfaceBinding {
+        std::string name;
+        PipelineStage stage;
         StorageClass storage_class;
         uint32_t set;
-        uint32_t binding;
+        uint32_t slot;
     };
 
-    std::unordered_map<PoolStr, InterfaceBinding> binding_dict;
+    std::vector<InterfaceBinding> dict;
 
-    DictionaryBindingManager(const std::unordered_map<PoolStr, InterfaceBinding>& dict)
-        : binding_dict(dict) {}
+    std::vector<Binding> bindings;
+
+    DictionaryBindingManager(const std::vector<InterfaceBinding>& dict) : dict(dict) {}
+
+    Opt<InterfaceBinding> get_binding(PoolStr b) {
+        auto it = std::find_if(dict.begin(), dict.end(), [&b](const InterfaceBinding& bd) {
+            return b == bd.name;
+        });
+
+        if (it != dict.end()) {
+            return *it;
+        }
+        return std::nullopt;
+    }
 
     virtual void decorate_struct(
         spv_binary::BinaryContainer& spv,
@@ -439,7 +578,12 @@ struct DictionaryBindingManager : public BindingManagerInterface {
         uint32_t struct_id,
         bool
     ) override {
-        InterfaceBinding& ib = binding_dict.at(s.name.name);
+        Opt<InterfaceBinding> oib = get_binding(s.name.name);
+
+        if (!oib) {
+            return;
+        }
+        InterfaceBinding ib = *oib;
 
         if (ib.storage_class == StorageClass::Uniform) {
             spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
@@ -458,12 +602,17 @@ struct DictionaryBindingManager : public BindingManagerInterface {
         std::vector<GlobalInterface>& interfaces
     ) override {
         for (GlobalInterface& gi : interfaces) {
-            InterfaceBinding& ib = binding_dict.at(gi.name);
+            Opt<InterfaceBinding> oib = get_binding(gi.name);
+
+            if (!oib) {
+                return;
+            }
+            InterfaceBinding ib = *oib;
 
             if (ib.storage_class == StorageClass::Uniform ||
                 ib.storage_class == StorageClass::ImageSampler) {
                 uint32_t set = ib.set;
-                uint32_t binding = ib.binding;
+                uint32_t binding = ib.slot;
 
                 spv.Decorate(gi.id, spv::DecorationDescriptorSet, &set, 1);
                 spv.Decorate(gi.id, spv::DecorationBinding, &binding, 1);
@@ -484,9 +633,18 @@ struct DictionaryBindingManager : public BindingManagerInterface {
     }
 
     virtual StorageClass
-    get_input_storage_class(const TypeInfo& type_info, PipelineStage stage) override {
-        InterfaceBinding& ib = binding_dict.at(type_info.name);
+    get_input_storage_class(const TypeInfo& type_info, PipelineStage) override {
+        Opt<InterfaceBinding> oib = get_binding(type_info.name);
 
-        return ib.storage_class;
+        if (!oib) {
+            return StorageClass::Uniform;
+        }
+
+        return oib->storage_class;
+    }
+
+    virtual std::vector<Binding> get_bindings() const override {
+        return bindings;
     }
 };
+} // namespace lesl

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+namespace lesl {
 struct StringPool;
 
 /// <summary>
@@ -26,20 +27,6 @@ struct PoolStr final {
     bool operator==(const std::string& other) const;
     bool operator!=(const std::string& other) const;
 };
-
-namespace std {
-template <> struct hash<PoolStr> {
-    size_t operator()(const PoolStr& str) const {
-        size_t hash = 0;
-        const char* data = str.c_str();
-        size_t len = str.size();
-        for (size_t i = 0; i < len; i++) {
-            hash = data[i] + (hash << 6) + (hash << 16) - hash;
-        }
-        return hash;
-    }
-};
-} // namespace std
 
 /// <summary>
 /// This is a simple string pool implementation.
@@ -72,3 +59,18 @@ struct StringPool final {
     PoolStr add(const char* str);
     PoolStr add(const std::string& str);
 };
+}; // namespace lesl
+
+namespace std {
+template <> struct hash<lesl::PoolStr> {
+    size_t operator()(const lesl::PoolStr& str) const {
+        size_t hash = 0;
+        const char* data = str.c_str();
+        size_t len = str.size();
+        for (size_t i = 0; i < len; i++) {
+            hash = data[i] + (hash << 6) + (hash << 16) - hash;
+        }
+        return hash;
+    }
+};
+} // namespace std

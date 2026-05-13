@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cassert>
 
+namespace lesl {
 const char* PoolStr::c_str() const {
     return pool->data + this->pool->fragments[this->poolIndex].offset;
 }
@@ -102,3 +103,4 @@ PoolStr StringPool::add(const char* str) {
 PoolStr StringPool::add(const std::string& str) {
     return add(str.data(), str.size());
 }
+}; // namespace lesl

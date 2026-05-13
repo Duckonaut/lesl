@@ -6,16 +6,19 @@
 
 #include <concepts>
 
+namespace lesl {
 template <typename T>
 concept ArenaType = std::same_as<T, Decl> || std::same_as<T, Stmt> || std::same_as<T, Expr> ||
                     std::same_as<T, TypeInfo>;
 
-/// The CompilationArena is a container for all the objects that are created during the compilation process.
-/// As of right now, it contains the following objects:
+/// The CompilationArena is a container for all the objects that are created during the
+/// compilation process. As of right now, it contains the following objects:
 /// - StringPool: a pool of strings that are used to store identifiers and literals.
-/// - RefContainers for Expr, Stmt, and Decl: these are used to store the object tree nodes, and are used to manage the memory of these objects.
-/// - Generation: a counter that is incremented every time the arena is cleared. This is used to invalidate all the Refs that are created from the arena,
-/// but keep the memory allocated for subsequent passes, hopefully speeding them up.
+/// - RefContainers for Expr, Stmt, and Decl: these are used to store the object tree nodes, and
+/// are used to manage the memory of these objects.
+/// - Generation: a counter that is incremented every time the arena is cleared. This is used to
+/// invalidate all the Refs that are created from the arena, but keep the memory allocated for
+/// subsequent passes, hopefully speeding them up.
 
 struct CompilationArena {
     StringPool string_pool;
@@ -66,3 +69,4 @@ struct CompilationArena {
         }
     }
 };
+}; // namespace lesl

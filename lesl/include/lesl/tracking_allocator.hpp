@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdio>
 
+namespace lesl {
 template <typename T> struct TrackingAllocator;
 
 struct GlobalTrackingAllocator : std::allocator<void> {
@@ -34,14 +35,12 @@ struct GlobalTrackingAllocator : std::allocator<void> {
     }
 };
 
-template <typename T>
-struct TrackingAllocator : GlobalTrackingAllocator {
+template <typename T> struct TrackingAllocator : GlobalTrackingAllocator {
     using value_type = T;
 
     TrackingAllocator() = default;
 
-    template <typename U>
-    TrackingAllocator(const TrackingAllocator<U>&) {}
+    template <typename U> TrackingAllocator(const TrackingAllocator<U>&) {}
 
     T* allocate(size_t n) {
         return GlobalTrackingAllocator::allocate<T>(n);
@@ -51,3 +50,4 @@ struct TrackingAllocator : GlobalTrackingAllocator {
         GlobalTrackingAllocator::deallocate(p, n);
     }
 };
+} // namespace lesl

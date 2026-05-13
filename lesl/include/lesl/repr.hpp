@@ -13,6 +13,8 @@
 #include <variant>
 #include <optional>
 
+namespace lesl {
+
 template <typename T> using Opt = std::optional<T>;
 
 template <class... Ts> struct overloaded : Ts... {
@@ -292,7 +294,7 @@ inline std::ostream& operator<<(std::ostream& out, const TypeInfo& type) {
                     out << "[]";
                 }
             },
-            [&out](const TypeInfo::ImageSampler& image_sampler) {
+            [&out](const TypeInfo::ImageSampler&) {
                 out << "sampler2D";
             },
         },
@@ -469,7 +471,6 @@ struct Stmt {
         uint8_t _unused;
     };
 
-
     std::variant<Return, Var, ExprStmt, IfStmt, For, Break, Continue, Discard> data;
 
     Stmt(Return return_) : data(return_) {}
@@ -481,7 +482,13 @@ struct Stmt {
         Opt<std::vector<Ref<Stmt>>> else_branch
     )
         : data(IfStmt{ condition, then_branch, else_branch }) {}
-    Stmt(PoolStr iterator_name, Ref<Expr> start, Ref<Expr> end, Opt<Ref<Expr>> step, std::vector<Ref<Stmt>> body)
+    Stmt(
+        PoolStr iterator_name,
+        Ref<Expr> start,
+        Ref<Expr> end,
+        Opt<Ref<Expr>> step,
+        std::vector<Ref<Stmt>> body
+    )
         : data(For{ iterator_name, start, end, step, body }) {}
     Stmt(Break break_) : data(break_) {}
     Stmt(Continue continue_) : data(continue_) {}
@@ -871,3 +878,4 @@ enum class StorageClass : uint32_t {
     StorageBuffer = spv::StorageClassStorageBuffer,
     Function = spv::StorageClassFunction,
 };
+} // namespace lesl

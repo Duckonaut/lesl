@@ -11,6 +11,7 @@
 #include <array>
 #include <variant>
 
+namespace lesl {
 struct Validator {
     CompilationArena& arena;
     ErrorHandler& error_handler;
@@ -503,7 +504,7 @@ struct Validator {
         }
     }
 
-    void validate_discard(Stmt::Discard& d) {
+    void validate_discard(Stmt::Discard&) {
         if (!in_entry_point) {
             error_handler.error(ErrorType::HiddenDiscard, {});
         }
@@ -1272,7 +1273,7 @@ struct Validator {
         }
 
         for (char c : s) {
-            int index = 0;
+            uint32_t  index = 0;
             if (c == 'x' || c == 'r') {
                 index = 0;
             } else if (c == 'y' || c == 'g') {
@@ -1388,7 +1389,7 @@ struct Validator {
             char end_char = 'x' + (vector_element.size - 1);
 
             if (name.size() != 2 || name[0] < 'x' || name[0] > end_char || name[1] < '0' ||
-                name[1] >= '0' + matrix_type.columns) {
+                name[1] >= '0' + (char)matrix_type.columns) {
                 error_handler.error(
                     ErrorType::InvalidMatrixAccess,
                     field_access.field.name,
@@ -1490,7 +1491,7 @@ struct Validator {
                             call.name.location
                         );
                     } else {
-                        for (int i = 0; i < f.params.size(); i++) {
+                        for (size_t i = 0; i < f.params.size(); i++) {
                             Opt<Ref<TypeInfo>> expected =
                                 find_type_info(f.params[i].type.name.name.c_str());
                             Opt<Ref<TypeInfo>> actual =
@@ -1527,14 +1528,14 @@ struct Validator {
                         }
                     }
 
-                    int vector_size = -1;
+                    uint32_t vector_size = -1;
                     Opt<TypeInfo::BuiltinPrimitive> chosen_primitive;
 
                     switch (bik) {
                         case BuiltinInputKind::Static: {
                             int best_match_index = -1;
                             int best_match_score = -1;
-                            for (int k = 0; k < builtin.inputs.size(); k++) {
+                            for (size_t k = 0; k < builtin.inputs.size(); k++) {
                                 auto& inputs = builtin.inputs[k];
                                 if (inputs.size() != call.args.size()) {
                                     continue;
@@ -1542,7 +1543,7 @@ struct Validator {
 
                                 int match_score = 0;
 
-                                for (int i = 0; i < inputs.size(); i++) {
+                                for (size_t i = 0; i < inputs.size(); i++) {
                                     Opt<Ref<TypeInfo>> expected = find_type_info(inputs[i]);
                                     Opt<Ref<TypeInfo>> actual = arg_types[i];
 
@@ -1712,7 +1713,6 @@ struct Validator {
                                     TypeInfo::builtin_primitive_str(*chosen_primitive)
                                 ),
                             };
-                            break;
                         case BuiltinOutputKind::StaticVectorized:
                             // always same primitive, size of the first argument
                             if (bik == BuiltinInputKind::Vectorized) {
@@ -1741,8 +1741,7 @@ struct Validator {
                             }
 
                             assert(false);
-                            break;
-
+                            return { arg_types[0] }; // shut up warning
                         case BuiltinOutputKind::Inherited:
                             return { arg_types[0] };
                     }
@@ -1812,3 +1811,4 @@ struct Validator {
         return arena.alloc(std::move(info));
     }
 };
+} // namespace lesl

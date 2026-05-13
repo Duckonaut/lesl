@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <variant>
 
+namespace lesl {
 class CodeGenerator final {
   public:
     CompilationArena& arena;
@@ -629,8 +630,9 @@ class CodeGenerator final {
                 } else {
                     is_vertex_input_interface = true;
                 }
-            } else if (intf.type == s.resolved_type &&
-                       intf.pipeline_stage == PipelineStage::Fragment) {
+            } else if (
+                intf.type == s.resolved_type && intf.pipeline_stage == PipelineStage::Fragment
+            ) {
                 if (intf.storage_class == StorageClass::Output) {
                     is_fragment_output_interface = true;
                 } else {
@@ -820,8 +822,9 @@ class CodeGenerator final {
                 for (PipelineParameter& param : p.params) {
                     if (param.name.name == "Vertex" && param.value.name == f.name.name) {
                         is_vertex_entry_point = true;
-                    } else if (param.name.name == "Fragment" &&
-                               param.value.name == f.name.name) {
+                    } else if (
+                        param.name.name == "Fragment" && param.value.name == f.name.name
+                    ) {
                         is_fragment_entry_point = true;
                     }
                 }
@@ -910,8 +913,9 @@ class CodeGenerator final {
                         gi.type,
                         static_cast<spv::StorageClass>(gi.storage_class)
                     );
-                } else if (gi.pipeline_stage == PipelineStage::Fragment &&
-                           is_fragment_entry_point) {
+                } else if (
+                    gi.pipeline_stage == PipelineStage::Fragment && is_fragment_entry_point
+                ) {
                     add_variable(
                         gi.name,
                         gi.id,
@@ -2086,7 +2090,7 @@ class CodeGenerator final {
         if (!fun_decl.has_value()) {
             int function_id = 0;
 
-            for (int i = 0; i < builtin_functions.size(); i++) {
+            for (size_t i = 0; i < builtin_functions.size(); i++) {
                 if (c.name.name == builtin_functions[i].name) {
                     function_id = i;
                     break;
@@ -2098,7 +2102,7 @@ class CodeGenerator final {
 
             std::vector<Ref<TypeInfo>> arg_types;
             std::vector<uint32_t> args;
-            for (int i = 0; i < c.args.size(); i++) {
+            for (size_t i = 0; i < c.args.size(); i++) {
                 const auto& arg = c.args[i];
                 switch (builtin.input_kind) {
                     case BuiltinInputKind::Static: {
@@ -2121,7 +2125,7 @@ class CodeGenerator final {
                             switch (builtin.input_kind) {
                                 case BuiltinInputKind::Static: {
                                     int best_fit_index = -1;
-                                    for (int j = 0; j < builtin.inputs.size(); j++) {
+                                    for (size_t j = 0; j < builtin.inputs.size(); j++) {
                                         if (*first_type ==
                                             get_type_info(builtin.inputs[j][0]).value()) {
                                             best_fit_index = j;
@@ -2216,7 +2220,7 @@ class CodeGenerator final {
             return expr_ref({ res, *return_type });
         } else {
             const Decl::Function& fun = fun_decl.value()->get<Decl::Function>();
-            for (int i = 0; i < fun.params.size(); i++) {
+            for (size_t i = 0; i < fun.params.size(); i++) {
                 const auto& arg = c.args[i];
                 const auto& target = fun.params[i].type.resolved_type;
                 auto arg_result = generate_expression(*arg, &**target);
@@ -2253,7 +2257,7 @@ class CodeGenerator final {
             const TypeInfo::Struct& s = base->type->get<TypeInfo::Struct>();
             VariableInstance base_variable = std::get<VariableInstance>(base->data);
             VariableInstance virtual_field_variable;
-            for (int i = 0; i < s.members.size(); i++) {
+            for (size_t i = 0; i < s.members.size(); i++) {
                 if (s.members[i].name == fa.field.name) {
                     uint32_t constant_id = get_constant_int(i);
 
@@ -2396,8 +2400,9 @@ class CodeGenerator final {
                             *get_type_info("int"),
                         }
                     );
-                } else if (primitive.primitive == TypeInfo::BuiltinPrimitive::Uint &&
-                           could_be_uint) {
+                } else if (
+                    primitive.primitive == TypeInfo::BuiltinPrimitive::Uint && could_be_uint
+                ) {
                     return expr_ref(
                         {
                             get_constant_uint(static_cast<uint32_t>(v)),
@@ -2430,3 +2435,4 @@ class CodeGenerator final {
         }
     }
 };
+} // namespace lesl

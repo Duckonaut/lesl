@@ -8,10 +8,10 @@
 #include "lesl/repr.hpp"
 #include "stringpool.hpp"
 
-#include <iostream>
 #include <vector>
 #include <functional>
 
+namespace lesl {
 enum class BuiltinInputKind {
     Static,
     Vectorized,
@@ -191,7 +191,7 @@ inline static uint32_t composite_constructor(
 inline static uint32_t primitive_converter(
     spv_binary::BinaryContainer& spv,
     const TypeInfo& res_type_info,
-    const PoolStr& name,
+    const PoolStr&,
     uint32_t,
     std::vector<Ref<TypeInfo>> arg_types,
     std::vector<uint32_t> args
@@ -717,3 +717,4 @@ inline static uint32_t builtin_function(
             return 0;
     }
 }
+} // namespace lesl

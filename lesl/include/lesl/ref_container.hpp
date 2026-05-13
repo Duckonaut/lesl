@@ -5,10 +5,10 @@
 #include <vector>
 #include <stdexcept>
 
+namespace lesl {
 template <typename T> struct Ref;
 
-template <typename T>
-struct RefContainer {
+template <typename T> struct RefContainer {
     std::vector<T, TrackingAllocator<T>> items;
     int32_t generation = 0;
 
@@ -21,8 +21,7 @@ struct RefContainer {
         return Ref<T>(this, index);
     }
 
-    template <typename... Args>
-    Ref<T> emplace(Args&&... args) {
+    template <typename... Args> Ref<T> emplace(Args&&... args) {
         items.emplace_back(std::forward<Args>(args)...);
         return Ref<T>(this, items.size() - 1);
     }
@@ -61,11 +60,13 @@ struct RefContainer {
         }
 
         bool operator==(const iterator& other) const {
-            return index == other.index && container == other.container && container->generation == other.container->generation;
+            return index == other.index && container == other.container &&
+                   container->generation == other.container->generation;
         }
 
         bool operator!=(const iterator& other) const {
-            return index != other.index || container != other.container || container->generation != other.container->generation;
+            return index != other.index || container != other.container ||
+                   container->generation != other.container->generation;
         }
     };
 
@@ -106,15 +107,18 @@ template <typename T> struct Ref {
     }
 
     bool operator==(const Ref<T>& other) const {
-        return container == other.container && index == other.index && generation == other.generation;
+        return container == other.container && index == other.index &&
+               generation == other.generation;
     }
 
     bool operator!=(const Ref<T>& other) const {
-        return container != other.container || index != other.index || generation != other.generation;
+        return container != other.container || index != other.index ||
+               generation != other.generation;
     }
 
     operator bool() const {
-        return container != nullptr && index < container->items.size() && generation == container->generation;
+        return container != nullptr && index < container->items.size() &&
+               generation == container->generation;
     }
 };
-
+}; // namespace lesl

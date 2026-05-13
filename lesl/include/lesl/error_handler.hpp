@@ -3,12 +3,13 @@
 #include "lesl/token.hpp"
 #include "lesl/unit.hpp"
 #include "lesl/colorize.hpp"
-#include "lesl/utils.hpp"
 
 #include <vector>
 #include <cassert>
 
 #define ENABLE_ASSERT_ON_ERROR 0
+
+namespace lesl {
 
 enum class ErrorType {
     UnexpectedCharacter,
@@ -289,3 +290,4 @@ struct ErrorHandler {
 
     std::vector<Error> errors;
 };
+} // namespace lesl

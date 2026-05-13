@@ -2,15 +2,17 @@
 
 #include <istream>
 
+namespace lesl {
 struct SourceLocation {
     int line;
     int column;
 };
 
 /// @brief A class that represents a single compilation unit.
-/// @details Wraps a stream and provides a way to read chars from it while keeping track of the current line and column.
+/// @details Wraps a stream and provides a way to read chars from it while keeping track of the
+/// current line and column.
 class Unit final {
-public:
+  public:
     std::istream& stream;
     int line = 1;
     int column = 1;
@@ -47,6 +49,7 @@ public:
     /// @brief Get the current source location.
     /// @return The current source location.
     SourceLocation location() {
-        return {line, column};
+        return { line, column };
     }
 };
+} // namespace lesl

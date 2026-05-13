@@ -7,6 +7,7 @@
 #include "lesl/arena.hpp"
 #include <cctype>
 
+namespace lesl {
 struct Tokenizer final {
     Unit& unit;
     CompilationArena& arena;
@@ -75,7 +76,7 @@ struct Tokenizer final {
         } else if (str == "import") {
             token.type = TokenType::Import;
         } else if (str == "return") {
-            token.type = TokenType::Return; 
+            token.type = TokenType::Return;
         } else if (str == "if") {
             token.type = TokenType::If;
         } else if (str == "else") {
@@ -181,18 +182,8 @@ struct Tokenizer final {
                     TokenType::GreaterEqual
                 )
                 SINGLE_OR_DOUBLE_CHAR_TOKEN('<', '=', TokenType::Less, TokenType::LessEqual)
-                SINGLE_OR_DOUBLE_CHAR_TOKEN(
-                    '&',
-                    '&',
-                    TokenType::Amp,
-                    TokenType::AmpAmp
-                )
-                SINGLE_OR_DOUBLE_CHAR_TOKEN(
-                    '|',
-                    '|',
-                    TokenType::Pipe,
-                    TokenType::PipePipe
-                )
+                SINGLE_OR_DOUBLE_CHAR_TOKEN('&', '&', TokenType::Amp, TokenType::AmpAmp)
+                SINGLE_OR_DOUBLE_CHAR_TOKEN('|', '|', TokenType::Pipe, TokenType::PipePipe)
             default:
                 token.type = TokenType::Error;
         }
@@ -200,3 +191,4 @@ struct Tokenizer final {
         return token;
     }
 };
+} // namespace lesl

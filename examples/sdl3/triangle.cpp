@@ -6,6 +6,9 @@
 #include <SDL3/SDL_gpu.h>
 #include <cstddef>
 
+#include <lesl/lesl.hpp>
+#include <lesl/sdl.hpp>
+
 struct Vertex {
     float pos[4];
     float color[4];
@@ -20,85 +23,22 @@ static Vertex vertices[] = {
 class Triangle : public Example {
   public:
     void init(SDL_Window* window, SDL_GPUDevice* device) override {
-        FileData unified_shader = readFile("../shaders/lesl/triangle.spv");
+        FileData unified_shader = readFile("../shaders/lesl/triangle.lesl");
 
         SDL_GPUTextureFormat swapchain_format =
             SDL_GetGPUSwapchainTextureFormat(device, window);
 
-        SDL_GPUShaderCreateInfo shaderCreateInfo = {
-            .code_size = unified_shader.size,
-            .code = (Uint8*)unified_shader.data,
-            .entrypoint = "vertex",
-            .format = SDL_GPU_SHADERFORMAT_SPIRV,
-            .stage = SDL_GPU_SHADERSTAGE_VERTEX,
-            .num_samplers = 0,
-            .num_storage_textures = 0,
-            .num_storage_buffers = 0,
-            .num_uniform_buffers = 0,
-            .props = 0,
-        };
+        auto cr = lesl::compile((const char*)unified_shader.data, "Triangle");
 
-        SDL_GPUShader* vertex_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
+        if (!cr.is_ok()) {
+            assert(false && "Pipeline compilation failed");
+        }
 
-        shaderCreateInfo.entrypoint = "fragment";
-        shaderCreateInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
+        pipeline = lesl::sdl::create_graphics_pipeline(device, cr, { swapchain_format });
 
-        SDL_GPUShader* fragment_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
-
-        SDL_GPUColorTargetDescription color_target_description = {
-            .format = swapchain_format,
-            .blend_state = {
-                .enable_blend = false,
-            },
-        };
-
-        SDL_GPUVertexAttribute vertex_attributes[] = {
-            {
-                .location = 0,
-                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-                .offset = offsetof(Vertex, pos),
-            },
-            {
-                .location = 1,
-                .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-                .offset = offsetof(Vertex, color),
-            },
-        };
-
-        SDL_GPUVertexBufferDescription vertex_buffer_descriptions[] = {
-            {
-                .slot = 0,
-                .pitch = sizeof(Vertex),
-                .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
-                .instance_step_rate = 0,
-            },
-        };
-
-        SDL_GPUGraphicsPipelineCreateInfo createInfo = {
-            .vertex_shader = vertex_shader,
-            .fragment_shader = fragment_shader,
-            .vertex_input_state = {
-                .vertex_buffer_descriptions = vertex_buffer_descriptions,
-                .num_vertex_buffers = 1,
-                .vertex_attributes = vertex_attributes,
-                .num_vertex_attributes = 2,
-            },
-            .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-            .rasterizer_state = {
-                .cull_mode = SDL_GPU_CULLMODE_NONE,
-            },
-            .target_info = {
-                .color_target_descriptions = &color_target_description,
-                .num_color_targets = 1,
-                .has_depth_stencil_target = false,
-            },
-            .props = 0,
-        };
-
-        pipeline = SDL_CreateGPUGraphicsPipeline(device, &createInfo);
-
-        SDL_ReleaseGPUShader(device, vertex_shader);
-        SDL_ReleaseGPUShader(device, fragment_shader);
+        if (!pipeline) {
+            assert(false && "Pipeline creation failed");
+        }
 
         freeFileData(unified_shader);
 

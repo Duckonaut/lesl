@@ -3,6 +3,8 @@
 
 #include <initializer_list>
 
+namespace lesl {
+
 Parser::Parser(CompilationArena& arena, Tokenizer& tokenizer, ErrorHandler& error_handler)
     : tokenizer(tokenizer), arena(arena), error_handler(error_handler) {
     current = tokenizer.next();
@@ -216,8 +218,9 @@ std::vector<Ref<Stmt>> Parser::parse_stmt_block() {
             stmts.push_back(parse_return());
             // return is the last statement in a block
             break;
-        } else if (current.type == TokenType::Identifier &&
-                   next.type == TokenType::Identifier) {
+        } else if (
+            current.type == TokenType::Identifier && next.type == TokenType::Identifier
+        ) {
             stmts.push_back(parse_var());
         } else if (current.type == TokenType::If) {
             stmts.push_back(parse_if_stmt());
@@ -500,3 +503,4 @@ Ref<Expr> Parser::parse_primary() {
         return arena.alloc(Expr{ 0, current.location });
     }
 }
+} // namespace lesl

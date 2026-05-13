@@ -111,15 +111,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    CompilationArena arena{};
+    lesl::CompilationArena arena{};
 
-    ErrorHandler error_handler;
+    lesl::ErrorHandler error_handler;
 
-    Unit unit(*in);
+    lesl::Unit unit(*in);
 
-    Tokenizer tokenizer(arena, unit, error_handler);
+    lesl::Tokenizer tokenizer(arena, unit, error_handler);
 
-    Parser parser(arena, tokenizer, error_handler);
+    lesl::Parser parser(arena, tokenizer, error_handler);
 
     parser.parse();
 
@@ -130,14 +130,14 @@ int main(int argc, char* argv[]) {
 
     if (args.verbose) {
         std::cout << colorize::green("=== Parsed Declarations ===") << std::endl;
-        ReprPrinter printer{ std::cout };
+        lesl::ReprPrinter printer{ std::cout };
 
         for (auto decl : arena.decls) {
             printer.print(*decl);
         }
     }
 
-    Validator validator(arena, error_handler);
+    lesl::Validator validator(arena, error_handler);
 
     validator.validate();
 
@@ -146,11 +146,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    SDL3BindingManager binding_manager(
-        SDL3BindingManager::BindingAllocationMode::SingleInputMultipleUniform
+    lesl::SDL3BindingManager binding_manager(
+        lesl::SDL3BindingManager::BindingAllocationMode::SingleInputMultipleUniform
     );
 
-    CodeGenerator codegen(arena, binding_manager, args.pipeline);
+    lesl::CodeGenerator codegen(arena, binding_manager, args.pipeline);
 
     codegen.generate();
 

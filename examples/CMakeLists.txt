@@ -5,6 +5,12 @@ add_custom_target(copy_assets
         ${CMAKE_BINARY_DIR}/assets
 )
 
+add_custom_target(copy_shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+        ${CMAKE_BINARY_DIR}/shaders
+)
+
 function(define_sdl3_example example-name)
     define_executable_target(sdl3-${example-name})
 
@@ -17,6 +23,7 @@ function(define_sdl3_example example-name)
         glm::glm
         SDL3::SDL3
         assimp
+        lesl
     )
 
     target_include_directories(sdl3-${example-name} PUBLIC
@@ -25,15 +32,17 @@ function(define_sdl3_example example-name)
 
     target_compile_definitions(sdl3-${example-name} PUBLIC SDL_MAIN_USE_CALLBACKS)
 
-    add_dependencies(sdl3-${example-name} copy_assets)
+    add_dependencies(sdl3-${example-name} copy_assets copy_shaders)
 endfunction()
 
 define_sdl3_example(triangle)
 
 build_lesl_shader(triangle)
+build_lesl_shader(unistruct)
 
 target_sources(sdl3-triangle PRIVATE
     ${triangle_LESL_SPIRV}
+    ${unistruct_LESL_SPIRV}
 )
 
 define_sdl3_example(cube)

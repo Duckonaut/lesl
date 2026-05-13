@@ -5,6 +5,7 @@
 
 #include <ostream>
 
+namespace lesl {
 enum class TokenType {
     // Single-character tokens
     LeftParen,
@@ -192,3 +193,4 @@ inline std::ostream& operator<<(std::ostream& out, const TokenType& type) {
     out << token_type_to_string(type);
     return out;
 }
+} // namespace lesl

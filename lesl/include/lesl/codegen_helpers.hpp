@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <variant>
 
+namespace lesl {
 enum class PipelineStage {
     Vertex,
     Fragment,
@@ -31,7 +32,8 @@ struct VariableInstance {
     Opt<Ref<TypeInfo>> type;
 
     VariableInstance() : id(0), storage_class(std::nullopt), type(std::nullopt) {}
-    VariableInstance(uint32_t id, Ref<TypeInfo> type, Opt<spv::StorageClass> storage_class) : id(id), storage_class(storage_class), type(type) {}
+    VariableInstance(uint32_t id, Ref<TypeInfo> type, Opt<spv::StorageClass> storage_class)
+        : id(id), storage_class(storage_class), type(type) {}
 };
 
 struct LoopScopeInfo {
@@ -67,7 +69,10 @@ struct VariableScopeTree {
         return current;
     }
 
-    Ref<VariableScopeNode> create_node(Opt<Ref<VariableScopeNode>> parent = std::nullopt, Opt<LoopScopeInfo> loop_info = std::nullopt) {
+    Ref<VariableScopeNode> create_node(
+        Opt<Ref<VariableScopeNode>> parent = std::nullopt,
+        Opt<LoopScopeInfo> loop_info = std::nullopt
+    ) {
         size_t index = nodes.size();
         nodes.push_back(VariableScopeNode{ {}, parent, {}, loop_info });
         Ref<VariableScopeNode> node(&nodes, index, 0);
@@ -95,12 +100,15 @@ struct ExprResult;
 
 struct VectorSwizzle {
     Ref<ExprResult> vector;
-    uint32_t component_count; // 1, 2, 3 or 4
-    uint32_t components[4]; // up to 4 components, unused components are set to 0
-    uint32_t
-        component_constants[4]; // constants for component storing
+    uint32_t component_count;        // 1, 2, 3 or 4
+    uint32_t components[4];          // up to 4 components, unused components are set to 0
+    uint32_t component_constants[4]; // constants for component storing
 
-    VectorSwizzle(Ref<ExprResult> vector, std::vector<uint32_t> components, std::vector<uint32_t> component_constants)
+    VectorSwizzle(
+        Ref<ExprResult> vector,
+        std::vector<uint32_t> components,
+        std::vector<uint32_t> component_constants
+    )
         : vector(vector), component_count(components.size()) {
         assert(component_count > 0 && component_count <= 4);
         for (uint32_t i = 0; i < component_count; i++) {
@@ -128,23 +136,35 @@ struct ExprResult {
     ) const {
         if (current == expected) {
             return value;
-        } else if (current == TypeInfo::BuiltinPrimitive::Float &&
-                   expected == TypeInfo::BuiltinPrimitive::Int) {
+        } else if (
+            current == TypeInfo::BuiltinPrimitive::Float &&
+            expected == TypeInfo::BuiltinPrimitive::Int
+        ) {
             return spv.ConvertFToSNew(expected_type_id, value);
-        } else if (current == TypeInfo::BuiltinPrimitive::Int &&
-                   expected == TypeInfo::BuiltinPrimitive::Uint) {
+        } else if (
+            current == TypeInfo::BuiltinPrimitive::Int &&
+            expected == TypeInfo::BuiltinPrimitive::Uint
+        ) {
             return spv.SatConvertSToUNew(expected_type_id, value);
-        } else if (current == TypeInfo::BuiltinPrimitive::Uint &&
-                   expected == TypeInfo::BuiltinPrimitive::Int) {
+        } else if (
+            current == TypeInfo::BuiltinPrimitive::Uint &&
+            expected == TypeInfo::BuiltinPrimitive::Int
+        ) {
             return spv.SatConvertUToSNew(expected_type_id, value);
-        } else if (current == TypeInfo::BuiltinPrimitive::Float &&
-                   expected == TypeInfo::BuiltinPrimitive::Uint) {
+        } else if (
+            current == TypeInfo::BuiltinPrimitive::Float &&
+            expected == TypeInfo::BuiltinPrimitive::Uint
+        ) {
             return spv.ConvertFToUNew(expected_type_id, value);
-        } else if (current == TypeInfo::BuiltinPrimitive::Int &&
-                   expected == TypeInfo::BuiltinPrimitive::Float) {
+        } else if (
+            current == TypeInfo::BuiltinPrimitive::Int &&
+            expected == TypeInfo::BuiltinPrimitive::Float
+        ) {
             return spv.ConvertSToFNew(expected_type_id, value);
-        } else if (current == TypeInfo::BuiltinPrimitive::Uint &&
-                   expected == TypeInfo::BuiltinPrimitive::Float) {
+        } else if (
+            current == TypeInfo::BuiltinPrimitive::Uint &&
+            expected == TypeInfo::BuiltinPrimitive::Float
+        ) {
             return spv.ConvertUToFNew(expected_type_id, value);
         } else {
             assert(false);
@@ -326,3 +346,4 @@ struct ExprResult {
         assert(false); // Should not reach here
     }
 };
+}; // namespace lesl

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "lesl/arena.hpp"
 #include "lesl/unit.hpp"
 #include "lesl/error_handler.hpp"
@@ -8,7 +10,6 @@
 #include "lesl/codegen.hpp"
 #include <algorithm>
 #include <iostream>
-#include <istream>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -22,18 +23,53 @@ enum class CompilationResultType {
     Failure,
 };
 
+struct StageBinds {
+    std::vector<Binding> binds;
+    uint32_t num_samplers = 0;
+    uint32_t num_uniform_buffers = 0;
+};
+
 struct CompilationResult {
     CompilationResultType type;
 
     std::vector<char> compiled_program;
     std::map<std::string, std::string> pipeline_parameters;
 
+    StageBinds vertex_binds;
+    StageBinds fragment_binds;
+
     static CompilationResult failure() {
-        return { CompilationResultType::Failure, {}, {} };
+        return { CompilationResultType::Failure, {}, {}, {}, {} };
     }
     static CompilationResult
-    success(std::vector<char>&& p, std::map<std::string, std::string>&& pp) {
-        return { CompilationResultType::Success, std::move(p), std::move(pp) };
+    success(std::vector<char>&& p, std::map<std::string, std::string>&& pp, BindingManagerInterface& binding_manager) {
+        StageBinds vertex_binds {};
+        StageBinds fragment_binds {};
+
+        std::vector<Binding> bindings = binding_manager.get_bindings();
+
+        for (auto& b : bindings) {
+            if (b.stage == PipelineStage::Vertex) {
+                vertex_binds.binds.push_back(b);
+                if (b.type == BindType::Sampler) {
+                    vertex_binds.num_samplers++;
+                }
+                else if (b.type == BindType::Uniform) {
+                    vertex_binds.num_uniform_buffers++;
+                }
+            }
+            else if (b.stage == PipelineStage::Fragment) {
+                fragment_binds.binds.push_back(b);
+                if (b.type == BindType::Sampler) {
+                    fragment_binds.num_samplers++;
+                }
+                else if (b.type == BindType::Uniform) {
+                    fragment_binds.num_uniform_buffers++;
+                }
+            }
+        }
+
+        return { CompilationResultType::Success, std::move(p), std::move(pp), std::move(vertex_binds), std::move(fragment_binds) };
     }
 
     bool is_ok() const {
@@ -99,7 +135,7 @@ compile(const char* program, const char* pipeline, std::ostream* error_output = 
         pparams[pparam.name.name.to_string()] = pparam.value.name.to_string();
     }
 
-    return CompilationResult::success(std::move(c), std::move(pparams));
+    return CompilationResult::success(std::move(c), std::move(pparams), binding_manager);
 }
 
 }; // namespace lesl

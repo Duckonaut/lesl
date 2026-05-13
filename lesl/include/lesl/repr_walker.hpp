@@ -3,6 +3,7 @@
 #include "lesl/repr.hpp"
 #include <variant>
 
+namespace lesl {
 struct ReprWalker {
   public:
     virtual void visit(TypedIdentifier&) {}
@@ -123,3 +124,4 @@ struct ReprWalker {
     virtual void visit(Expr::NumberLiteral&) {}
     virtual void visit(Expr::VariableAccess&) {}
 };
+}; // namespace lesl
