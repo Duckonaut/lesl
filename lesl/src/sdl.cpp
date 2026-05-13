@@ -1,5 +1,6 @@
 #include <SDL3/SDL.h>
 
+#include <cmath>
 #include <lesl/lesl.hpp>
 #include <lesl/integration.hpp>
 
@@ -27,8 +28,8 @@ SDL_GPUVertexElementFormat format_from_type(Ref<TypeInfo> t) {
     return formats[t->name.to_string()];
 }
 
-SDL_GPUPrimitiveType parse_primitive(std::string s) {
-    static std::unordered_map<std::string, SDL_GPUPrimitiveType> prims = {
+SDL_GPUPrimitiveType parse_primitive(const char* s) {
+    static std::unordered_map<std::string_view, SDL_GPUPrimitiveType> prims = {
         { "TriangleList", SDL_GPU_PRIMITIVETYPE_TRIANGLELIST },
         { "TriangleStrip", SDL_GPU_PRIMITIVETYPE_TRIANGLESTRIP },
         { "LineList", SDL_GPU_PRIMITIVETYPE_LINELIST },
@@ -39,8 +40,8 @@ SDL_GPUPrimitiveType parse_primitive(std::string s) {
     return prims[s];
 }
 
-SDL_GPUCullMode parse_cull_mode(std::string s) {
-    static std::unordered_map<std::string, SDL_GPUCullMode> cull_modes = {
+SDL_GPUCullMode parse_cull_mode(const char* s) {
+    static std::unordered_map<std::string_view, SDL_GPUCullMode> cull_modes = {
         { "None", SDL_GPU_CULLMODE_NONE },
         { "Off", SDL_GPU_CULLMODE_NONE },
         { "Front", SDL_GPU_CULLMODE_FRONT },
@@ -50,8 +51,8 @@ SDL_GPUCullMode parse_cull_mode(std::string s) {
     return cull_modes[s];
 }
 
-SDL_GPUFillMode parse_fill_mode(std::string s) {
-    static std::unordered_map<std::string, SDL_GPUFillMode> fill_mode = {
+SDL_GPUFillMode parse_fill_mode(const char* s) {
+    static std::unordered_map<std::string_view, SDL_GPUFillMode> fill_mode = {
         { "Fill", SDL_GPU_FILLMODE_FILL },
         { "Line", SDL_GPU_FILLMODE_LINE },
     };
@@ -59,8 +60,8 @@ SDL_GPUFillMode parse_fill_mode(std::string s) {
     return fill_mode[s];
 }
 
-SDL_GPUFrontFace parse_front_face(std::string s) {
-    static std::unordered_map<std::string, SDL_GPUFrontFace> front_faces = {
+SDL_GPUFrontFace parse_front_face(const char* s) {
+    static std::unordered_map<std::string_view, SDL_GPUFrontFace> front_faces = {
         { "Clockwise", SDL_GPU_FRONTFACE_CLOCKWISE },
         { "CW", SDL_GPU_FRONTFACE_CLOCKWISE },
         { "CounterClockwise", SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE },
@@ -70,10 +71,72 @@ SDL_GPUFrontFace parse_front_face(std::string s) {
     return front_faces[s];
 }
 
+bool parse_bool(const char* s, bool default_value) {
+    std::string_view ss = s;
+    if (ss == "True" || ss == "true" || ss == "On" || ss == "on") {
+        return true;
+    } else if (ss == "False" || ss == "false" || ss == "Off" || ss == "off") {
+        return false;
+    }
+    return default_value;
+}
+
+SDL_GPUCompareOp parse_compare_op(const char* s, SDL_GPUCompareOp default_op) {
+    static std::unordered_map<std::string_view, SDL_GPUCompareOp> compare_ops = {
+        { "Never", SDL_GPU_COMPAREOP_NEVER },
+        { "Less", SDL_GPU_COMPAREOP_LESS },
+        { "Equal", SDL_GPU_COMPAREOP_EQUAL },
+        { "LessEqual", SDL_GPU_COMPAREOP_LESS_OR_EQUAL },
+        { "Greater", SDL_GPU_COMPAREOP_GREATER },
+        { "GreaterEqual", SDL_GPU_COMPAREOP_GREATER_OR_EQUAL },
+        { "NotEqual", SDL_GPU_COMPAREOP_NOT_EQUAL },
+        { "Always", SDL_GPU_COMPAREOP_ALWAYS },
+    };
+
+    auto v = compare_ops[s];
+    if (v == SDL_GPU_COMPAREOP_INVALID) {
+        return default_op;
+    }
+    return compare_ops[s];
+}
+
+uint8_t parse_u8(const char* s, uint8_t default_value) {
+    std::string_view ss = s;
+    if (ss.empty()) {
+        return default_value;
+    }
+    double v = std::stod(s);
+    if (std::trunc(v) != v || v < 0.0 || v > 255.0) {
+        return default_value;
+    }
+
+    return (uint8_t)v;
+}
+
+SDL_GPUStencilOp parse_stencil_op(const char* s, SDL_GPUStencilOp default_op) {
+    static std::unordered_map<std::string_view, SDL_GPUStencilOp> stencil_ops = {
+        { "Keep", SDL_GPU_STENCILOP_KEEP },
+        { "Zero", SDL_GPU_STENCILOP_ZERO },
+        { "Replace", SDL_GPU_STENCILOP_REPLACE },
+        { "IncrementAndClamp", SDL_GPU_STENCILOP_INCREMENT_AND_CLAMP },
+        { "DecrementAndClamp", SDL_GPU_STENCILOP_DECREMENT_AND_CLAMP },
+        { "Invert", SDL_GPU_STENCILOP_INVERT },
+        { "IncrementAndWrap", SDL_GPU_STENCILOP_INCREMENT_AND_WRAP },
+        { "DecrementAndWrap", SDL_GPU_STENCILOP_DECREMENT_AND_CLAMP },
+    };
+
+    auto v = stencil_ops[s];
+    if (v == SDL_GPU_STENCILOP_INVALID) {
+        return default_op;
+    }
+    return stencil_ops[s];
+}
+
 SDL_GPUGraphicsPipeline* create_graphics_pipeline(
     SDL_GPUDevice* device,
     CompilationResult cr,
     std::vector<SDL_GPUTextureFormat> color_target_formats,
+    std::optional<SDL_GPUTextureFormat> depth_stencil_target_format = std::nullopt,
     std::vector<SDL_GPUVertexAttribute>* vertex_attributes = nullptr,
     std::vector<SDL_GPUVertexBufferDescription>* vertex_buffer_descriptions = nullptr
 ) {
@@ -183,12 +246,67 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
         vbds = *vertex_buffer_descriptions;
     }
     SDL_GPUPrimitiveType prim =
-        parse_primitive(cr.pipeline_parameters[CONVENTION_PRIMITIVE_TYPE_KEY]);
+        parse_primitive(cr.pipeline_parameters[CONVENTION_PRIMITIVE_TYPE_KEY].c_str());
 
     SDL_GPURasterizerState raster{};
-    raster.cull_mode = parse_cull_mode(cr.pipeline_parameters[CONVENTION_CULL_MODE_KEY]);
-    raster.fill_mode = parse_fill_mode(cr.pipeline_parameters[CONVENTION_FILL_MODE_KEY]);
-    raster.front_face = parse_front_face(cr.pipeline_parameters[CONVENTION_FRONT_FACE_KEY]);
+    raster.cull_mode =
+        parse_cull_mode(cr.pipeline_parameters[CONVENTION_CULL_MODE_KEY].c_str());
+    raster.fill_mode =
+        parse_fill_mode(cr.pipeline_parameters[CONVENTION_FILL_MODE_KEY].c_str());
+    raster.front_face =
+        parse_front_face(cr.pipeline_parameters[CONVENTION_FRONT_FACE_KEY].c_str());
+
+    SDL_GPUDepthStencilState depth_stencil_state{};
+    depth_stencil_state.enable_depth_test =
+        parse_bool(cr.pipeline_parameters[CONVENTION_DEPTH_TEST_KEY].c_str(), true);
+    depth_stencil_state.enable_depth_write =
+        parse_bool(cr.pipeline_parameters[CONVENTION_DEPTH_WRITE_KEY].c_str(), false);
+    depth_stencil_state.enable_stencil_test =
+        parse_bool(cr.pipeline_parameters[CONVENTION_STENCIL_TEST_KEY].c_str(), false);
+    depth_stencil_state.compare_op = parse_compare_op(
+        cr.pipeline_parameters[CONVENTION_DEPTH_OP_KEY].c_str(),
+        SDL_GPU_COMPAREOP_ALWAYS
+    );
+    depth_stencil_state.compare_mask = parse_u8(
+        cr.pipeline_parameters[CONVENTION_STENCIL_COMPARE_MASK_KEY].c_str(),
+        0b11111111
+    );
+    depth_stencil_state.write_mask =
+        parse_u8(cr.pipeline_parameters[CONVENTION_STENCIL_WRITE_MASK_KEY].c_str(), 0b11111111);
+
+    depth_stencil_state.front_stencil_state.compare_op = parse_compare_op(
+        cr.pipeline_parameters[CONVENTION_STENCIL_FRONT_OP].c_str(),
+        SDL_GPU_COMPAREOP_ALWAYS
+    );
+    depth_stencil_state.front_stencil_state.pass_op = parse_stencil_op(
+        cr.pipeline_parameters[CONVENTION_STENCIL_PASS_FRONT_OP].c_str(),
+        SDL_GPU_STENCILOP_KEEP
+    );
+    depth_stencil_state.front_stencil_state.fail_op = parse_stencil_op(
+        cr.pipeline_parameters[CONVENTION_STENCIL_FAIL_FRONT_OP].c_str(),
+        SDL_GPU_STENCILOP_KEEP
+    );
+    depth_stencil_state.front_stencil_state.depth_fail_op = parse_stencil_op(
+        cr.pipeline_parameters[CONVENTION_STENCIL_DEPTH_FAIL_FRONT_OP].c_str(),
+        SDL_GPU_STENCILOP_KEEP
+    );
+
+    depth_stencil_state.back_stencil_state.compare_op = parse_compare_op(
+        cr.pipeline_parameters[CONVENTION_STENCIL_BACK_OP].c_str(),
+        SDL_GPU_COMPAREOP_ALWAYS
+    );
+    depth_stencil_state.back_stencil_state.pass_op = parse_stencil_op(
+        cr.pipeline_parameters[CONVENTION_STENCIL_PASS_BACK_OP].c_str(),
+        SDL_GPU_STENCILOP_KEEP
+    );
+    depth_stencil_state.back_stencil_state.fail_op = parse_stencil_op(
+        cr.pipeline_parameters[CONVENTION_STENCIL_FAIL_BACK_OP].c_str(),
+        SDL_GPU_STENCILOP_KEEP
+    );
+    depth_stencil_state.back_stencil_state.depth_fail_op = parse_stencil_op(
+        cr.pipeline_parameters[CONVENTION_STENCIL_DEPTH_FAIL_BACK_OP].c_str(),
+        SDL_GPU_STENCILOP_KEEP
+    );
 
     SDL_GPUGraphicsPipelineCreateInfo createInfo = {
             .vertex_shader = vertex_shader,
@@ -209,13 +327,12 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
                 .padding2 = 0,
                 .padding3 = 0,
             },
-            .depth_stencil_state = {
-            },
+            .depth_stencil_state = depth_stencil_state,
             .target_info = {
                 .color_target_descriptions = color_target_descriptions.data(),
                 .num_color_targets = static_cast<Uint32>(color_target_descriptions.size()),
-                .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D16_UNORM,
-                .has_depth_stencil_target = false,
+                .depth_stencil_format = depth_stencil_target_format ? *depth_stencil_target_format : SDL_GPU_TEXTUREFORMAT_D16_UNORM,
+                .has_depth_stencil_target = depth_stencil_target_format.has_value(),
                 .padding1 = 0,
                 .padding2 = 0,
                 .padding3 = 0,

@@ -187,8 +187,12 @@ Ref<Decl> Parser::parse_pipeline() {
         param.name = current;
         step();
         consume(TokenType::Equal);
-        expect(TokenType::Identifier);
-        param.value = current;
+        if (current.type == TokenType::Number) {
+            param.value = current;
+        } else {
+            expect(TokenType::Identifier);
+            param.value = current;
+        }
         step();
         if (current.type == TokenType::Comma) {
             step();
