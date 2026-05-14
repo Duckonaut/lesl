@@ -119,7 +119,6 @@ struct Tokenizer final {
             }
         }
 
-        token.value.str = arena.string_pool.add(str);
         token.value.num = std::stod(str);
 
         return token;

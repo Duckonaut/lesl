@@ -188,7 +188,10 @@ Ref<Decl> Parser::parse_pipeline() {
         step();
         consume(TokenType::Equal);
         if (current.type == TokenType::Number) {
-            param.value = current;
+            param.value = Identifier{
+                arena.string_pool.add(std::to_string(current.value.num)),
+                current.location,
+            };
         } else {
             expect(TokenType::Identifier);
             param.value = current;
