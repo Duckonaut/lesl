@@ -564,7 +564,7 @@ class CodeGenerator final {
     void generate_struct_debug_info(const Decl::Struct& s) {
         int32_t n_ops = 0;
 
-        for (const TypedIdentifier& member : s.members) {
+        for (const Decl::StructMember& member : s.members) {
             spv.MemberName(decl_ids[s.name.name], n_ops, member.name.name.c_str());
 
             n_ops++;
@@ -589,8 +589,26 @@ class CodeGenerator final {
 
         uint32_t offset = 0;
 
-        for (const TypedIdentifier& member : s.members) {
+        for (const Decl::StructMember& member : s.members) {
             spv.MemberDecorate(decl_ids[s.name.name], n_ops, spv::DecorationOffset, &offset, 1);
+            if (member.interpolation != TypeInfo::InterpolationQualifier::None) {
+                spv::Decoration decor = spv::DecorationFlat;
+                switch (member.interpolation) {
+                    case TypeInfo::InterpolationQualifier::None:
+                        break;
+                    case TypeInfo::InterpolationQualifier::Flat:
+                        decor = spv::DecorationFlat;
+                        break;
+                    case TypeInfo::InterpolationQualifier::NoPerspective:
+                        decor = spv::DecorationNoPerspective;
+                        break;
+                    case TypeInfo::InterpolationQualifier::Centroid:
+                        decor = spv::DecorationCentroid;
+                        break;
+                }
+
+                spv.MemberDecorate(decl_ids[s.name.name], n_ops, decor, nullptr, 0);
+            }
 
             const TypeInfo& member_type_info = **member.type.resolved_type;
 
@@ -715,11 +733,20 @@ class CodeGenerator final {
     PoolStr clobber(const Decl::Struct& s) {
         std::string name = "Struct(";
         bool first = true;
-        for (const TypedIdentifier& member : s.members) {
+        for (const Decl::StructMember& member : s.members) {
             if (!first) {
                 name += ",";
             }
             first = false;
+            if (member.interpolation == TypeInfo::InterpolationQualifier::Flat) {
+                name += "flat:";
+            } else if (
+                member.interpolation == TypeInfo::InterpolationQualifier::NoPerspective
+            ) {
+                name += "noperspective:";
+            } else if (member.interpolation == TypeInfo::InterpolationQualifier::Centroid) {
+                name += "centroid:";
+            }
             name += member.type.name.name.c_str();
         }
         name += ")";

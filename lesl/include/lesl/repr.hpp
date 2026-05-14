@@ -56,6 +56,13 @@ struct TypeInfo {
         Float,
     };
 
+    enum class InterpolationQualifier {
+        None,
+        Flat,
+        NoPerspective,
+        Centroid,
+    };
+
     struct Primitive {
         BuiltinPrimitive primitive;
     };
@@ -74,6 +81,7 @@ struct TypeInfo {
         struct Member {
             PoolStr name;
             Ref<TypeInfo> type;
+            InterpolationQualifier interpolation;
         };
 
         std::vector<Member> members;
@@ -515,13 +523,19 @@ struct Decl {
         Pipeline,
     };
 
+    struct StructMember {
+        TypeRef type;
+        Identifier name;
+        TypeInfo::InterpolationQualifier interpolation;
+    };
+
     struct Import {
         PoolStr path;
     };
 
     struct Struct {
         Identifier name;
-        std::vector<TypedIdentifier> members;
+        std::vector<StructMember> members;
         Opt<Ref<TypeInfo>> resolved_type;
         bool is_interface;
     };
@@ -583,8 +597,17 @@ struct ReprPrinter {
     void print(const Decl::Struct& struct_) {
         out << colorize::magenta("struct ") << struct_.name.name.c_str() << " {\n";
         indent++;
-        for (const TypedIdentifier& member : struct_.members) {
+        for (const auto& member : struct_.members) {
             print_indent();
+            if (member.interpolation == TypeInfo::InterpolationQualifier::Flat) {
+                out << "Flat ";
+            }
+            else if (member.interpolation == TypeInfo::InterpolationQualifier::NoPerspective) {
+                out << "NoPerspective ";
+            }
+            else if (member.interpolation == TypeInfo::InterpolationQualifier::Centroid) {
+                out << "Centroid ";
+            }
             out << member.type.name.name.c_str() << " " << member.name.name.c_str() << ",\n";
         }
         indent--;

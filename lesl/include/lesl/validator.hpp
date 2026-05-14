@@ -46,6 +46,12 @@ struct Validator {
                 create_or_get_info(arena, typedIdentifier.type);
         }
 
+        void visit(Decl::StructMember& member) override {
+            ReprWalker::visit(member);
+
+            member.type.resolved_type = create_or_get_info(arena, member.type);
+        }
+
         void visit(Decl::Struct& struct_) override {
             ReprWalker::visit(struct_);
 
@@ -85,7 +91,11 @@ struct Validator {
                             std::vector<TypeInfo::Struct::Member> members;
                             for (auto& member : decl->get<Decl::Struct>().members) {
                                 members.push_back(
-                                    { member.name.name, create_or_get_info(arena, member.type) }
+                                    {
+                                        member.name.name,
+                                        create_or_get_info(arena, member.type),
+                                        member.interpolation,
+                                    }
                                 );
                             }
 

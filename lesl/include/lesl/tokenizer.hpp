@@ -89,6 +89,12 @@ struct Tokenizer final {
             token.type = TokenType::Continue;
         } else if (str == "discard") {
             token.type = TokenType::Discard;
+        } else if (str == "flat") {
+            token.type = TokenType::Flat;
+        } else if (str == "noperspective") {
+            token.type = TokenType::NoPerspective;
+        } else if (str == "centroid") {
+            token.type = TokenType::Centroid;
         }
 
         if (token.type == TokenType::Identifier) {

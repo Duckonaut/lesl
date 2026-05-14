@@ -60,6 +60,9 @@ enum class TokenType {
     Break,
     Continue,
     Discard,
+    Flat,
+    Centroid,
+    NoPerspective,
 
     EndOfFile,
     Error,
@@ -159,6 +162,12 @@ inline const char* token_type_to_string(TokenType type) {
             return "Continue";
         case TokenType::Discard:
             return "Discard";
+        case TokenType::Flat:
+            return "Flat";
+        case TokenType::Centroid:
+            return "Centroid";
+        case TokenType::NoPerspective:
+            return "NoPerspective";
         case TokenType::EndOfFile:
             return "EndOfFile";
         case TokenType::Error:

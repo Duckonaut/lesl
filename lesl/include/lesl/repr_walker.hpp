@@ -7,6 +7,7 @@ namespace lesl {
 struct ReprWalker {
   public:
     virtual void visit(TypedIdentifier&) {}
+    virtual void visit(Decl::StructMember&) {}
 
     virtual void visit(Decl& decl) {
         std::visit(

@@ -148,11 +148,21 @@ Ref<Decl> Parser::parse_struct() {
     consume(TokenType::LeftBrace);
 
     while (current.type != TokenType::RightBrace) {
-        TypedIdentifier param;
+        Decl::StructMember member{};
 
-        param.type = parse_type_ref();
+        if (current.type == TokenType::Flat) {
+            member.interpolation = TypeInfo::InterpolationQualifier::Flat;
+            step();
+        } else if (current.type == TokenType::NoPerspective) {
+            member.interpolation = TypeInfo::InterpolationQualifier::NoPerspective;
+            step();
+        } else if (current.type == TokenType::Centroid) {
+            member.interpolation = TypeInfo::InterpolationQualifier::Centroid;
+            step();
+        }
+        member.type = parse_type_ref();
         expect(TokenType::Identifier);
-        param.name = current;
+        member.name = current;
         step();
         if (current.type == TokenType::Comma) {
             step();
@@ -161,7 +171,7 @@ Ref<Decl> Parser::parse_struct() {
             break;
         }
 
-        s.members.push_back(param);
+        s.members.push_back(member);
     }
 
     consume(TokenType::RightBrace);
