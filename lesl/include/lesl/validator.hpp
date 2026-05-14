@@ -1273,7 +1273,7 @@ struct Validator {
         }
 
         for (char c : s) {
-            uint32_t  index = 0;
+            uint32_t index = 0;
             if (c == 'x' || c == 'r') {
                 index = 0;
             } else if (c == 'y' || c == 'g') {
@@ -1476,6 +1476,20 @@ struct Validator {
         if (!opt_func) {
             error_handler.error(ErrorType::UnknownFunction, call.name.name, call.name.location);
             return { std::nullopt };
+        }
+
+        for (auto d : arena.decls) {
+            if (d->is<Decl::Pipeline>()) {
+                auto& dp = d->get<Decl::Pipeline>();
+                if (std::any_of(
+                        dp.params.begin(),
+                        dp.params.end(),
+                        [&call](const PipelineParameter& pp) {
+                            return (pp.value.name == call.name.name) &&
+                                   (pp.name.name == "Vertex" || pp.name.name == "Fragment");
+                        }
+                    )) {}
+            }
         }
 
         auto func = opt_func.value();

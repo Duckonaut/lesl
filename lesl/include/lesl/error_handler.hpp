@@ -29,6 +29,7 @@ enum class ErrorType {
     InvalidFunctionCall,
     UnknownVariable,
     UnknownFunction,
+    EntryPointCall,
 
     IncompatibleTypes,
     InvalidAssignment,
@@ -146,6 +147,10 @@ struct Error {
                 break;
             case ErrorType::UnknownFunction:
                 out << "Unknown function " << colorize::bold(data.str.to_string());
+                break;
+            case ErrorType::EntryPointCall:
+                out << "Cannot call " << colorize::bold(data.str.to_string())
+                    << " as it is being used as an entry point";
                 break;
 
             case ErrorType::IncompatibleTypes:
