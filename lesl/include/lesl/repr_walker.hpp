@@ -24,9 +24,7 @@ struct ReprWalker {
             visit(param);
         }
 
-        for (auto& ret : function.rets) {
-            visit(ret);
-        }
+        visit(function.ret);
 
         for (auto& stmt : function.stmts) {
             visit(*stmt);

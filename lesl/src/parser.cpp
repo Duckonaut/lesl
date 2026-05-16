@@ -112,21 +112,23 @@ Ref<Decl> Parser::parse_function() {
 
     consume(TokenType::LeftParen);
 
-    while (current.type != TokenType::RightParen) {
+    if (current.type != TokenType::RightParen) {
         TypedIdentifier ret;
 
         ret.type = parse_type_ref();
         expect(TokenType::Identifier);
         ret.name = current;
         step();
-        if (current.type == TokenType::Comma) {
-            step();
-        } else if (current.type != TokenType::RightParen) {
+        if (current.type != TokenType::RightParen) {
             error_handler.error(ErrorType::UnexpectedToken, current.type, current.location);
-            break;
         }
 
-        f.rets.push_back(ret);
+        f.ret = ret;
+    } else {
+        TypedIdentifier ret;
+
+        f.ret.name = { arena.string_pool.add("__implicit_return"), current.location };
+        f.ret.type.name = { arena.string_pool.add("void"), current.location };
     }
 
     consume(TokenType::RightParen);

@@ -129,9 +129,7 @@ class CodeGenerator final {
                 vertex_inputs.push_back(param);
             }
 
-            for (TypedIdentifier& ret : f.rets) {
-                vertex_outputs.push_back(ret);
-            }
+            vertex_outputs.push_back(f.ret);
         }
 
         for (PoolStr& name : fragment_entry_points) {
@@ -141,9 +139,7 @@ class CodeGenerator final {
                 fragment_inputs.push_back(param);
             }
 
-            for (TypedIdentifier& ret : f.rets) {
-                fragment_outputs.push_back(ret);
-            }
+            fragment_outputs.push_back(f.ret);
         }
 
         for (TypedIdentifier& type : vertex_inputs) {
@@ -714,17 +710,7 @@ class CodeGenerator final {
 
         name += ")->(";
         first = true;
-        if (f.rets.size() == 0) {
-            name += "void";
-        } else {
-            for (const TypedIdentifier& ret : f.rets) {
-                if (!first) {
-                    name += ",";
-                }
-                first = false;
-                name += ret.type.name.name.c_str();
-            }
-        }
+        name += f.ret.type.name.name.c_str();
         name += ")";
 
         return arena.string_pool.add(name);
@@ -809,28 +795,7 @@ class CodeGenerator final {
             ops.push_back(resolve_type(param.type.name.name));
         }
 
-        std::vector<PoolStr> return_types;
-
-        for (const TypedIdentifier& ret : f.rets) {
-            return_types.push_back(ret.type.name.name);
-        }
-
-        uint32_t return_type;
-
-        if (return_types.size() == 0) {
-            return_type = resolve_type(arena.string_pool.add("void"));
-        } else if (return_types.size() == 1) {
-            return_type = resolve_type(return_types[0]);
-        } else {
-            std::vector<uint32_t> ops;
-            for (const PoolStr& return_type : return_types) {
-                ops.push_back(resolve_type(return_type));
-            }
-
-            return_type = spv.TypeStructNew(ops.data(), ops.size());
-
-            decl_ids[clobber(return_types)] = return_type;
-        }
+        uint32_t return_type = resolve_type(f.ret.type.name.name);
 
         f.return_type_id = return_type;
 
@@ -917,20 +882,18 @@ class CodeGenerator final {
 
             label_id = spv.LabelNew();
 
-            for (const auto& ret : f.rets) {
-                uint32_t variable_id = spv.VariableNew(
-                    (*ret.type.resolved_type)->get_pointer_type(spv::StorageClassFunction),
-                    spv::StorageClassFunction
-                );
+            uint32_t variable_id = spv.VariableNew(
+                (*f.ret.type.resolved_type)->get_pointer_type(spv::StorageClassFunction),
+                spv::StorageClassFunction
+            );
 
-                add_variable(
-                    ret.name.name,
-                    variable_id,
-                    *ret.type.resolved_type,
-                    spv::StorageClassFunction
-                );
-                return_variable = find_variable(ret.name.name);
-            }
+            add_variable(
+                f.ret.name.name,
+                variable_id,
+                *f.ret.type.resolved_type,
+                spv::StorageClassFunction
+            );
+            return_variable = find_variable(f.ret.name.name);
         } else {
             for (auto& gi : global_interfaces) {
                 if (gi.pipeline_stage == PipelineStage::Vertex && is_vertex_entry_point) {
@@ -974,7 +937,10 @@ class CodeGenerator final {
 
         preallocate_function_variables_recursive(function_scope_node, f.stmts);
 
-        if (f.rets.size() > 0 && !is_entry_point) {
+        bool returns_void = (*f.ret.type.resolved_type)->get_underlying_primitive().primitive ==
+                            TypeInfo::BuiltinPrimitive::Void;
+
+        if (!returns_void && !is_entry_point) {
             generate_executable_block(f.stmts, return_variable, label_id, true);
         } else {
             generate_executable_block(f.stmts, std::nullopt, label_id, true);
@@ -2261,7 +2227,7 @@ class CodeGenerator final {
                 ops.data(),
                 ops.size()
             );
-            return expr_ref({ res, *fun.rets[0].type.resolved_type });
+            return expr_ref({ res, *fun.ret.type.resolved_type });
         }
     }
 

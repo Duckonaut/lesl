@@ -543,7 +543,7 @@ struct Decl {
     struct Function {
         Identifier name;
         std::vector<TypedIdentifier> params;
-        std::vector<TypedIdentifier> rets;
+        TypedIdentifier ret;
         std::vector<Ref<Stmt>> stmts;
         uint32_t return_type_id;
     };
@@ -601,11 +601,11 @@ struct ReprPrinter {
             print_indent();
             if (member.interpolation == TypeInfo::InterpolationQualifier::Flat) {
                 out << "Flat ";
-            }
-            else if (member.interpolation == TypeInfo::InterpolationQualifier::NoPerspective) {
+            } else if (
+                member.interpolation == TypeInfo::InterpolationQualifier::NoPerspective
+            ) {
                 out << "NoPerspective ";
-            }
-            else if (member.interpolation == TypeInfo::InterpolationQualifier::Centroid) {
+            } else if (member.interpolation == TypeInfo::InterpolationQualifier::Centroid) {
                 out << "Centroid ";
             }
             out << member.type.name.name.c_str() << " " << member.name.name.c_str() << ",\n";
@@ -625,13 +625,8 @@ struct ReprPrinter {
             }
         }
         out << ") -> (";
-        for (size_t i = 0; i < function.rets.size(); i++) {
-            const TypedIdentifier& ret = function.rets[i];
-            out << ret.type.name.name.c_str() << " " << ret.name.name.c_str();
-            if (i + 1 < function.rets.size()) {
-                out << ", ";
-            }
-        }
+        const TypedIdentifier& ret = function.ret;
+        out << ret.type.name.name.c_str() << " " << ret.name.name.c_str();
         out << ") {\n";
         indent++;
         for (const Ref<Stmt>& stmt : function.stmts) {

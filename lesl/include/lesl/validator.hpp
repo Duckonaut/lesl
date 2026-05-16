@@ -336,15 +336,26 @@ struct Validator {
         });
         for (TypedIdentifier& param : f.params) {
             validate_type(param.type);
+
+            auto& rt = *param.type.resolved_type;
+
+            if (rt->is<TypeInfo::Primitive>() &&
+                rt->get_underlying_primitive().primitive == TypeInfo::BuiltinPrimitive::Void) {
+                error_handler.error(ErrorType::VoidUsed, param.type.name.location);
+            }
             add_variable(
                 param.name.name,
                 param.type.resolved_type.value(),
                 StorageClass::Input
             );
         }
-        for (TypedIdentifier& ret : f.rets) {
-            validate_type(ret.type);
-            add_variable(ret.name.name, ret.type.resolved_type.value(), StorageClass::Output);
+        validate_type(f.ret.type);
+        if (f.ret.name.name != "void") {
+            add_variable(
+                f.ret.name.name,
+                f.ret.type.resolved_type.value(),
+                StorageClass::Output
+            );
         }
         for (Ref<Stmt>& stmt : f.stmts) {
             validate_stmt(*stmt);
@@ -356,18 +367,30 @@ struct Validator {
             validate_type(member.type);
         }
 
-        // check for runtime sized arrays that aren't the last member
-
         for (size_t i = 0; i < s.members.size(); i++) {
+            // check for runtime sized arrays that aren't the last member
             if (s.members[i].type.array_sizes.size() > 0 &&
                 s.members[i].type.array_sizes[s.members[i].type.array_sizes.size() - 1] == -1 &&
                 i != s.members.size() - 1) {
                 error_handler.error(ErrorType::InvalidArraySize, s.members[i].name.location);
             }
+
+            if (s.is_interface &&
+                (*s.members[i].type.resolved_type)->get_underlying_primitive().primitive ==
+                    TypeInfo::BuiltinPrimitive::Bool) {
+                // check for bools
+                error_handler.error(ErrorType::BoolInterface, s.members[i].type.name.location);
+            }
+
+            auto& rt = *s.members[i].type.resolved_type;
+
+            if (rt->is<TypeInfo::Primitive>() &&
+                rt->get_underlying_primitive().primitive == TypeInfo::BuiltinPrimitive::Void) {
+                error_handler.error(ErrorType::VoidUsed, s.members[i].type.name.location);
+            }
         }
 
         // check if runtime sized array exists and struct is not an interface
-
         bool has_runtime_array =
             std::any_of(s.members.begin(), s.members.end(), [](const auto& member) {
                 return member.type.array_sizes.size() > 0 &&
@@ -438,6 +461,13 @@ struct Validator {
     void validate_return(Stmt::Return&) {}
     void validate_var(Stmt::Var& v) {
         validate_type(v.typedIdentifier.type);
+
+        auto& rt = *v.typedIdentifier.type.resolved_type;
+
+        if (rt->is<TypeInfo::Primitive>() &&
+            rt->get_underlying_primitive().primitive == TypeInfo::BuiltinPrimitive::Void) {
+            error_handler.error(ErrorType::VoidUsed, v.typedIdentifier.type.name.location);
+        }
 
         add_variable(
             v.typedIdentifier.name.name,
@@ -1533,7 +1563,7 @@ struct Validator {
                         }
                     }
 
-                    return { f.rets[0].type.resolved_type.value() };
+                    return { f.ret.type.resolved_type.value() };
                 },
                 [this, &call](BuiltinFunction& builtin) -> ExprValidationResult {
                     std::vector<Ref<TypeInfo>> arg_types;

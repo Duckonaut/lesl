@@ -18,6 +18,8 @@ enum class ErrorType {
     FunctionRedefinition,
     StructRedefinition,
     StructMemberRedefinition,
+    BoolInterface,
+    VoidUsed,
     UnknownSizedArrayNotLast,
     PipelineRedefinition,
     MissingPipelineParameter,
@@ -108,6 +110,12 @@ struct Error {
             case ErrorType::StructMemberRedefinition:
                 out << "Struct member " << colorize::bold(data.str.to_string())
                     << " was already defined";
+                break;
+            case ErrorType::BoolInterface:
+                out << "Bool type cannot be used for input or output, as it is not well-defined";
+                break;
+            case ErrorType::VoidUsed:
+                out << "Void cannot be used as a value type.";
                 break;
             case ErrorType::UnknownSizedArrayNotLast:
                 out << "Zero-sized array " << colorize::bold(data.str.to_string())
