@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lesl/arena.hpp"
 #include "spirv/1.0/spirv.hpp"
 #include "spirv/1.0/GLSL.std.450.h"
 
@@ -16,6 +17,7 @@ enum class BuiltinInputKind {
     Static,
     Vectorized,
     Packed,
+    Custom,
 };
 
 enum class BuiltinOutputKind {
@@ -44,6 +46,9 @@ using CustomEncoderFunction = std::function<uint32_t(
     std::vector<uint32_t> args
 )>;
 
+using CustomInputFunction = std::function<
+    Opt<Ref<TypeInfo>>(CompilationArena& arena, const std::vector<Ref<TypeInfo>>& types)>;
+
 struct BuiltinFunction {
     const char* name;
 
@@ -61,6 +66,7 @@ struct BuiltinFunction {
     //  Packed
     TypeInfo::BuiltinPrimitive base_input_primitive;
     uint32_t required_packed_input;
+    CustomInputFunction custom_input;
 
     // OUTPUT
     //  Static
@@ -107,6 +113,14 @@ struct BuiltinFunction {
 
         this->base_input_primitive = base_input_primitive;
         this->required_packed_input = required_packed_inputs;
+
+        return *this;
+    }
+
+    BuiltinFunction& with_custom_input(CustomInputFunction input_function) {
+        this->input_kind = BuiltinInputKind::Custom;
+
+        this->custom_input = input_function;
 
         return *this;
     }
@@ -162,6 +176,39 @@ struct BuiltinFunction {
         return *this;
     }
 };
+
+inline static Opt<Ref<TypeInfo>>
+matrix_input(CompilationArena& arena, const std::vector<Ref<TypeInfo>>& types) {
+    if (types.size() != 1 || !types[0]->is<TypeInfo::Matrix>()) {
+        return std::nullopt;
+    }
+
+    const TypeInfo& t = *types[0];
+    const TypeInfo::Matrix& m = t.get<TypeInfo::Matrix>();
+    const TypeInfo::Vector& cm = m.vector_element->get<TypeInfo::Vector>();
+
+    TypeInfo proposed_tcm = TypeInfo::create_vector(arena.string_pool, cm.element, m.columns);
+
+    Opt<Ref<TypeInfo>> tcm;
+
+    for (const auto& t : *types[0].container) {
+        if (*t == proposed_tcm) {
+            tcm = t;
+        }
+    }
+    if (tcm == std::nullopt) {
+        tcm = arena.alloc(std::move(proposed_tcm));
+    }
+
+    TypeInfo transposed = TypeInfo::create_matrix(arena.string_pool, *tcm, cm.size);
+
+    for (const auto& t : *types[0].container) {
+        if (*t == transposed) {
+            return t;
+        }
+    }
+    return arena.alloc(std::move(transposed));
+}
 
 inline static uint32_t composite_constructor(
     spv_binary::BinaryContainer& spv,
@@ -480,6 +527,18 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
         )
         .with_inherited_output()
         .with_glsl_std450_encoding(GLSLstd450MatrixInverse),
+    BuiltinFunction("transpose")
+        .with_custom_input(matrix_input)
+        .with_inherited_output()
+        .with_custom_encoding([](spv_binary::BinaryContainer& spv,
+                                 const TypeInfo& res_type_info,
+                                 const PoolStr&,
+                                 uint32_t,
+                                 std::vector<Ref<TypeInfo>>,
+                                 std::vector<uint32_t> args) {
+            uint32_t res_type = res_type_info.id;
+            return spv.TransposeNew(res_type, args[0]);
+        }),
     // interpolation
     BuiltinFunction("clamp")
         .with_static_input(

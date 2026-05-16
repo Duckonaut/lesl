@@ -2115,50 +2115,35 @@ class CodeGenerator final {
                             arg_types.push_back(arg_result->type);
                             args.push_back(arg_result->load(spv, first_type_target));
                         } else {
-                            switch (builtin.input_kind) {
-                                case BuiltinInputKind::Static: {
-                                    int best_fit_index = -1;
-                                    for (size_t j = 0; j < builtin.inputs.size(); j++) {
-                                        if (*first_type ==
-                                            get_type_info(builtin.inputs[j][0]).value()) {
-                                            best_fit_index = j;
-                                            break;
-                                        }
-                                    }
-                                    if (best_fit_index == -1) {
-                                        assert(false);
-                                    }
-
-                                    auto arg_result = generate_expression(
-                                        *arg,
-                                        &**get_type_info(builtin.inputs[best_fit_index][i])
-                                    );
-
-                                    arg_types.push_back(arg_result->type);
-
-                                    args.push_back(arg_result->load(
-                                        spv,
-                                        get_type_info(builtin.inputs[best_fit_index][i])
-                                    ));
-                                    break;
-                                }
-                                case BuiltinInputKind::Vectorized: {
-                                    // Functions with a single argument only!
-                                    assert(false);
-                                    break;
-                                }
-                                case BuiltinInputKind::Packed: {
-                                    auto arg_result = generate_expression(*arg, nullptr);
-
-                                    arg_types.push_back(arg_result->type);
-                                    args.push_back(arg_result->load(spv, std::nullopt));
+                            int best_fit_index = -1;
+                            for (size_t j = 0; j < builtin.inputs.size(); j++) {
+                                if (*first_type ==
+                                    get_type_info(builtin.inputs[j][0]).value()) {
+                                    best_fit_index = j;
                                     break;
                                 }
                             }
+                            if (best_fit_index == -1) {
+                                assert(false);
+                            }
+
+                            auto arg_result = generate_expression(
+                                *arg,
+                                &**get_type_info(builtin.inputs[best_fit_index][i])
+                            );
+
+                            arg_types.push_back(arg_result->type);
+
+                            args.push_back(arg_result->load(
+                                spv,
+                                get_type_info(builtin.inputs[best_fit_index][i])
+                            ));
+                            break;
                         }
                         break;
                     }
                     case BuiltinInputKind::Vectorized:
+                    case BuiltinInputKind::Custom:
                     case BuiltinInputKind::Packed: {
                         auto arg_result = generate_expression(*arg, nullptr);
                         if (i == 0) {
