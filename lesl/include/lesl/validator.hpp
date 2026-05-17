@@ -656,37 +656,37 @@ struct Validator {
     ExprValidationResult validate_expr(
         Expr& expr,
         Opt<Ref<TypeInfo>> expected_type = std::nullopt,
-        bool assignable = false
+        bool will_be_assigned = false
     ) {
         if (expr.is<Expr::Binary>()) {
-            return validate_binary(expr.get<Expr::Binary>(), expected_type, assignable);
+            return validate_binary(expr.get<Expr::Binary>(), expected_type, will_be_assigned);
         } else if (expr.is<Expr::Unary>()) {
-            return validate_unary(expr.get<Expr::Unary>(), expected_type, assignable);
+            return validate_unary(expr.get<Expr::Unary>(), expected_type, will_be_assigned);
         } else if (expr.is<Expr::VariableAccess>()) {
             return validate_variable_access(
                 expr.get<Expr::VariableAccess>(),
                 expected_type,
-                assignable
+                will_be_assigned
             );
         } else if (expr.is<Expr::FieldAccess>()) {
             return validate_field_access(
                 expr.get<Expr::FieldAccess>(),
                 expected_type,
-                assignable
+                will_be_assigned
             );
         } else if (expr.is<Expr::NumberLiteral>()) {
             return validate_number_literal(
                 expr.get<Expr::NumberLiteral>(),
                 expected_type,
-                assignable
+                will_be_assigned
             );
         } else if (expr.is<Expr::Call>()) {
-            return validate_call(expr.get<Expr::Call>(), expected_type, assignable);
+            return validate_call(expr.get<Expr::Call>(), expected_type, will_be_assigned);
         } else if (expr.is<Expr::ListAccess>()) {
             return validate_list_access(
                 expr.get<Expr::ListAccess>(),
                 expected_type,
-                assignable
+                will_be_assigned
             );
         } else {
             assert(false);
@@ -696,9 +696,13 @@ struct Validator {
     ExprValidationResult validate_binary(
         Expr::Binary& binary,
         Opt<Ref<TypeInfo>> expected_type = std::nullopt,
-        bool assignable = false
+        bool will_be_assigned = false
     ) {
-        bool will_be_assigned =
+        if (will_be_assigned) {
+            error_handler.error(ErrorType::InvalidAssignment, binary.lhs->get_location());
+        }
+
+        bool will_lhs_be_assigned =
             binary.op == Expr::BinaryOp::Assign || binary.op == Expr::BinaryOp::AddAssign ||
             binary.op == Expr::BinaryOp::SubAssign || binary.op == Expr::BinaryOp::MulAssign ||
             binary.op == Expr::BinaryOp::DivAssign || binary.op == Expr::BinaryOp::ModAssign;
@@ -715,7 +719,7 @@ struct Validator {
         ExprValidationResult left = validate_expr(
             *binary.lhs,
             inherit_expected_type ? expected_type : std::nullopt,
-            will_be_assigned
+            will_lhs_be_assigned
         );
 
         ExprValidationResult right = validate_expr(*binary.rhs, left.type, false);
@@ -726,10 +730,6 @@ struct Validator {
 
         const TypeInfo& left_type = **left.type;
         const TypeInfo& right_type = **right.type;
-
-        if (assignable) {
-            error_handler.error(ErrorType::InvalidAssignment, binary.lhs->get_location());
-        }
 
         switch (binary.op) {
             case Expr::BinaryOp::Assign:
@@ -1251,7 +1251,7 @@ struct Validator {
     ExprValidationResult validate_variable_access(
         Expr::VariableAccess& variable,
         Opt<Ref<TypeInfo>> expected_type = std::nullopt,
-        bool assignable = false
+        bool will_be_assigned = false
     ) {
         Opt<Variable> var = find_variable(variable.name.name);
         if (!var) {
@@ -1270,7 +1270,7 @@ struct Validator {
             }
         }
 
-        if (assignable) {
+        if (will_be_assigned) {
             if (var->storage_class == StorageClass::Input ||
                 var->storage_class == StorageClass::Uniform ||
                 var->storage_class == StorageClass::StorageBuffer) {
@@ -1285,7 +1285,8 @@ struct Validator {
         return { var->type };
     }
 
-    bool is_valid_vector_swizzle(const PoolStr& name, uint32_t vector_size, bool assignable) {
+    bool
+    is_valid_vector_swizzle(const PoolStr& name, uint32_t vector_size, bool will_be_assigned) {
         if (name.size() > 4) {
             return false; // swizzle names can only be up to 4 characters long
         }
@@ -1329,7 +1330,7 @@ struct Validator {
             }
         }
 
-        if (assignable) {
+        if (will_be_assigned) {
             int component_uses[4] = { 0, 0, 0, 0 }; // x, y, z, w
 
             for (char c : s) {
@@ -1358,9 +1359,10 @@ struct Validator {
     ExprValidationResult validate_field_access(
         Expr::FieldAccess& field_access,
         Opt<Ref<TypeInfo>> = std::nullopt,
-        bool assignable = false
+        bool will_be_assigned = false
     ) {
-        ExprValidationResult base = validate_expr(*field_access.object);
+        ExprValidationResult base =
+            validate_expr(*field_access.object, std::nullopt, will_be_assigned);
 
         if (!base.type) {
             return { std::nullopt };
@@ -1395,7 +1397,7 @@ struct Validator {
             if (!is_valid_vector_swizzle(
                     field_access.field.name,
                     vector_type.size,
-                    assignable
+                    will_be_assigned
                 )) {
                 error_handler.error(
                     ErrorType::InvalidVectorSwizzle,
@@ -1452,9 +1454,9 @@ struct Validator {
     ExprValidationResult validate_number_literal(
         Expr::NumberLiteral& number,
         Opt<Ref<TypeInfo>> expected_type = std::nullopt,
-        bool assignable = false
+        bool will_be_assigned = false
     ) {
-        if (assignable) {
+        if (will_be_assigned) {
             error_handler.error(ErrorType::InvalidAssignment, number.location);
             return { std::nullopt };
         }
@@ -1504,9 +1506,9 @@ struct Validator {
     ExprValidationResult validate_call(
         Expr::Call& call,
         Opt<Ref<TypeInfo>> = std::nullopt,
-        bool assignable = false
+        bool will_be_assigned = false
     ) {
-        if (assignable) {
+        if (will_be_assigned) {
             error_handler.error(ErrorType::InvalidAssignment, call.name.location);
             return { std::nullopt };
         }
@@ -1763,8 +1765,7 @@ struct Validator {
                                     ErrorType::BadCallArguments,
                                     call.name.location
                                 );
-                            }
-                            else {
+                            } else {
                                 return { res };
                             }
                             break;

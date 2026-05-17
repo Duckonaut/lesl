@@ -91,7 +91,7 @@ Ref<Decl> Parser::parse_function() {
         TypedIdentifier param;
 
         expect(TokenType::Identifier);
-        param.type = TypeRef{ current };
+        param.type = TypeRef{ current, {}, std::nullopt };
         step();
         expect(TokenType::Identifier);
         param.name = current;
