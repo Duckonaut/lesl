@@ -2233,6 +2233,25 @@ class CodeGenerator final {
         return expr_ref({ res, array.element });
     }
 
+    uint32_t component_from_char(char c) {
+        switch (c) {
+            case 'x':
+            case 'r':
+                return 0;
+            case 'y':
+            case 'g':
+                return 1;
+            case 'z':
+            case 'b':
+                return 2;
+            case 'w':
+            case 'a':
+                return 3;
+            default:
+                assert(false);
+        }
+    }
+
     Ref<ExprResult> generate_expr(const Expr::FieldAccess& fa, const TypeInfo*) {
         Ref<ExprResult> base = generate_expression(*fa.object, nullptr);
         uint32_t ptr_res = spv.get_id();
@@ -2264,27 +2283,7 @@ class CodeGenerator final {
             const TypeInfo::Vector& v = base->type->get<TypeInfo::Vector>();
             if (fa.field.name.size() == 1) {
                 char index_c = fa.field.name.c_str()[0];
-                uint32_t index = 0;
-                switch (index_c) {
-                    case 'x':
-                    case 'r':
-                        index = 0;
-                        break;
-                    case 'y':
-                    case 'g':
-                        index = 1;
-                        break;
-                    case 'z':
-                    case 'b':
-                        index = 2;
-                        break;
-                    case 'w':
-                    case 'a':
-                        index = 3;
-                        break;
-                    default:
-                        assert(false);
-                }
+                uint32_t index = component_from_char(index_c);
 
                 bool is_variable = base->data.index() == 1;
                 if (is_variable) {
@@ -2362,9 +2361,50 @@ class CodeGenerator final {
 
                 return expr_ref({ res, result_type });
             }
+        } else if (base->type->is<TypeInfo::Matrix>()) {
+            const TypeInfo::Matrix& m = base->type->get<TypeInfo::Matrix>();
+            const TypeInfo::Vector& v = m.vector_element->get<TypeInfo::Vector>();
+            assert(fa.field.name.size() == 2);
+            char c_index_c = fa.field.name.c_str()[1];
+            char r_index_c = fa.field.name.c_str()[0];
+            uint32_t c_index = c_index_c - '0';
+            uint32_t r_index = component_from_char(r_index_c);
+
+            bool is_variable = base->data.index() == 1;
+            if (is_variable) {
+                VariableInstance base_variable = std::get<VariableInstance>(base->data);
+                uint32_t c_constant_id = get_constant_int(c_index);
+                uint32_t r_constant_id = get_constant_int(r_index);
+
+                uint32_t chain[2] = { c_constant_id, r_constant_id };
+
+                if (base_variable.storage_class) {
+                    spv.AccessChain(
+                        v.element->get_pointer_type(*base_variable.storage_class),
+                        ptr_res,
+                        base_variable.id,
+                        chain,
+                        2
+                    );
+
+                    VariableInstance virtual_field_variable = {
+                        ptr_res,
+                        v.element,
+                        base_variable.storage_class,
+                    };
+
+                    return expr_ref({ virtual_field_variable, *virtual_field_variable.type });
+                }
+            }
+
+            uint32_t indices[2] = { c_index, r_index };
+
+            uint32_t res = spv.CompositeExtractNew(v.element->id, base->load(spv), indices, 2);
+
+            return expr_ref({ res, v.element });
         }
 
-        assert(false && "Field access on non-struct/non-vector type");
+        assert(false && "Field access on non-struct/non-vector/non-matrix type");
     }
 
     Ref<ExprResult>
