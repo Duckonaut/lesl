@@ -2158,31 +2158,36 @@ class CodeGenerator final {
 
             Opt<Ref<TypeInfo>> return_type = std::nullopt;
 
-            switch (builtin.output_kind) {
-                case BuiltinOutputKind::Static: {
-                    return_type = get_type_info(builtin.static_output);
-                    break;
-                }
-                case BuiltinOutputKind::InheritedSingle: {
-                    return_type = get_type_info(
-                        TypeInfo::builtin_primitive_str(
-                            (*first_type)->get_underlying_primitive().primitive
-                        )
-                    );
-                    break;
-                }
-                case BuiltinOutputKind::StaticVectorized: {
-                    uint32_t vector_size = (*first_type)->get<TypeInfo::Vector>().size;
+            // custom input has its own type
+            if (builtin.input_kind == BuiltinInputKind::Custom) {
+                return_type = builtin.custom_input(arena, arg_types);
+            } else {
+                switch (builtin.output_kind) {
+                    case BuiltinOutputKind::Static: {
+                        return_type = get_type_info(builtin.static_output);
+                        break;
+                    }
+                    case BuiltinOutputKind::InheritedSingle: {
+                        return_type = get_type_info(
+                            TypeInfo::builtin_primitive_str(
+                                (*first_type)->get_underlying_primitive().primitive
+                            )
+                        );
+                        break;
+                    }
+                    case BuiltinOutputKind::StaticVectorized: {
+                        uint32_t vector_size = (*first_type)->get<TypeInfo::Vector>().size;
 
-                    return_type = get_type_info(
-                        TypeInfo::builtin_primitive_str(builtin.static_output_base) +
-                        std::to_string(vector_size)
-                    );
-                    break;
-                }
-                case BuiltinOutputKind::Inherited: {
-                    return_type = first_type;
-                    break;
+                        return_type = get_type_info(
+                            TypeInfo::builtin_primitive_str(builtin.static_output_base) +
+                            std::to_string(vector_size)
+                        );
+                        break;
+                    }
+                    case BuiltinOutputKind::Inherited: {
+                        return_type = first_type;
+                        break;
+                    }
                 }
             }
 

@@ -1691,7 +1691,7 @@ struct Validator {
                             chosen_primitive = pack_primitive;
                             break;
                         }
-                        case BuiltinInputKind::Vectorized:
+                        case BuiltinInputKind::Vectorized: {
                             TypeInfo::BuiltinPrimitive base_primitive =
                                 arg_types[0]->get_underlying_primitive().primitive;
                             if (arg_types[0]->is<TypeInfo::Primitive>()) {
@@ -1754,6 +1754,21 @@ struct Validator {
                             chosen_primitive = base_primitive;
 
                             break;
+                        }
+                        case BuiltinInputKind::Custom: {
+                            Opt<Ref<TypeInfo>> res = builtin.custom_input(arena, arg_types);
+
+                            if (res == std::nullopt) {
+                                error_handler.error(
+                                    ErrorType::BadCallArguments,
+                                    call.name.location
+                                );
+                            }
+                            else {
+                                return { res };
+                            }
+                            break;
+                        }
                     }
 
                     switch (bok) {
