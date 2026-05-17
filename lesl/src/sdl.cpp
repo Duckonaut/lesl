@@ -11,7 +11,7 @@
 
 namespace lesl::sdl {
 
-SDL_GPUVertexElementFormat format_from_type(Ref<TypeInfo> t) {
+SDL_GPUVertexElementFormat format_from_type(const char* t) {
     static std::unordered_map<std::string, SDL_GPUVertexElementFormat> formats = {
         { "float", SDL_GPU_VERTEXELEMENTFORMAT_FLOAT },
         { "float2", SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2 },
@@ -27,7 +27,7 @@ SDL_GPUVertexElementFormat format_from_type(Ref<TypeInfo> t) {
         { "uint4", SDL_GPU_VERTEXELEMENTFORMAT_UINT4 },
     };
 
-    return formats[t->name.to_string()];
+    return formats[t];
 }
 
 SDL_GPUPrimitiveType parse_primitive(const char* s) {
@@ -358,7 +358,7 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
                     {
                         .location = b.slot,
                         .buffer_slot = b.set,
-                        .format = format_from_type(b.binding_type),
+                        .format = format_from_type(b.binding_type.c_str()),
                         .offset = offset,
                     }
                 );

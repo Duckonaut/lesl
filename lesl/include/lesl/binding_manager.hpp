@@ -24,7 +24,7 @@ struct Binding {
     uint32_t slot;
     uint32_t size;
     uint32_t alignment;
-    Ref<TypeInfo> binding_type;
+    std::string binding_type;
 };
 
 /// Defines an interface for managing resource bindings in SPIR-V code generation.
@@ -337,7 +337,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
                     .slot = location,
                     .size = rt->size,
                     .alignment = rt->alignment,
-                    .binding_type = rt,
+                    .binding_type = rt->name.to_string(),
                 }
             );
             location++;
@@ -372,7 +372,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
                     .slot = location,
                     .size = rt->size,
                     .alignment = rt->alignment,
-                    .binding_type = rt,
+                    .binding_type = rt->name.to_string(),
                 }
             );
             location++;
@@ -419,7 +419,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
                         .slot = sdl3_fragment_uniform_binding,
                         .size = gi.type->size,
                         .alignment = gi.type->alignment,
-                        .binding_type = gi.type,
+                        .binding_type = gi.type->name.to_string(),
                     }
                 );
 
@@ -440,7 +440,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
                         .slot = sdl3_vertex_uniform_binding,
                         .size = gi.type->size,
                         .alignment = gi.type->alignment,
-                        .binding_type = gi.type,
+                        .binding_type = gi.type->name.to_string(),
                     }
                 );
 
@@ -467,7 +467,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
                         .slot = sdl3_fragment_big_binding,
                         .size = gi.type->size,
                         .alignment = gi.type->alignment,
-                        .binding_type = gi.type,
+                        .binding_type = gi.type->name.to_string(),
                     }
                 );
 
@@ -488,7 +488,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
                         .slot = sdl3_vertex_big_binding,
                         .size = gi.type->size,
                         .alignment = gi.type->alignment,
-                        .binding_type = gi.type,
+                        .binding_type = gi.type->name.to_string(),
                     }
                 );
 

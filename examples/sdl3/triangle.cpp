@@ -28,6 +28,9 @@ class Triangle : public Example {
         SDL_GPUTextureFormat swapchain_format =
             SDL_GetGPUSwapchainTextureFormat(device, window);
 
+        for (int i = 0; i < 200; i++) {
+            auto cr_ = lesl::compile((const char*)unified_shader.data, "Triangle");
+        }
         auto cr = lesl::compile((const char*)unified_shader.data, "Triangle");
 
         if (!cr.is_ok()) {

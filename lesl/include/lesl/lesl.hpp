@@ -69,11 +69,13 @@ struct CompilationResult {
             }
         }
 
-        return { CompilationResultType::Success,
-                 std::move(p),
-                 std::move(pp),
-                 std::move(vertex_binds),
-                 std::move(fragment_binds) };
+        return {
+            CompilationResultType::Success,
+            std::move(p),
+            std::move(pp),
+            std::move(vertex_binds),
+            std::move(fragment_binds),
+        };
     }
 
     bool is_ok() const {
@@ -83,6 +85,8 @@ struct CompilationResult {
 
 static inline CompilationResult
 compile(const char* program, const char* pipeline, std::ostream* error_output = nullptr) {
+    arena.clear();
+
     ErrorHandler error_handler;
     std::ostream* error_out = error_output == nullptr ? &std::cerr : error_output;
     error_handler.dump(*error_out);
@@ -138,6 +142,8 @@ compile(const char* program, const char* pipeline, std::ostream* error_output = 
     for (auto& pparam : p.params) {
         pparams[pparam.name.name.to_string()] = pparam.value.name.to_string();
     }
+
+    GlobalTrackingAllocator::print_stats();
 
     return CompilationResult::success(std::move(c), std::move(pparams), binding_manager);
 }
