@@ -1169,8 +1169,7 @@ struct Validator {
         const TypeInfo& type = **inner.type;
 
         if (unary.op == Expr::UnaryOp::Neg) {
-            if (type.is<TypeInfo::Array>() || type.is<TypeInfo::Matrix>() ||
-                type.is<TypeInfo::Struct>()) {
+            if (!(type.is<TypeInfo::Primitive>() || type.is<TypeInfo::Vector>())) {
                 error_handler.error(
                     ErrorType::InvalidCompositeArithmetic,
                     unary.expr->get_location()
@@ -1183,6 +1182,30 @@ struct Validator {
                   primitive == TypeInfo::BuiltinPrimitive::Int ||
                   primitive == TypeInfo::BuiltinPrimitive::Uint)) {
                 error_handler.error(ErrorType::IncompatibleTypes, unary.expr->get_location());
+            }
+
+            if (primitive == TypeInfo::BuiltinPrimitive::Uint) {
+                if (type.is<TypeInfo::Primitive>()) {
+                    return { create_or_get_info_ref(
+                        TypeInfo::create_primitive(
+                            arena.string_pool,
+                            TypeInfo::BuiltinPrimitive::Int
+                        )
+                    ) };
+                } else if (type.is<TypeInfo::Vector>()) {
+                    return { create_or_get_info_ref(
+                        TypeInfo::create_vector(
+                            arena.string_pool,
+                            create_or_get_info_ref(
+                                TypeInfo::create_primitive(
+                                    arena.string_pool,
+                                    TypeInfo::BuiltinPrimitive::Int
+                                )
+                            ),
+                            type.get<TypeInfo::Vector>().size
+                        )
+                    ) };
+                }
             }
         } else if (unary.op == Expr::UnaryOp::Not) {
             if (type.is<TypeInfo::Array>() || type.is<TypeInfo::Matrix>() ||
