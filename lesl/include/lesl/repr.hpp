@@ -209,6 +209,8 @@ struct TypeInfo {
             case BuiltinPrimitive::Float:
                 return "float";
         }
+
+        assert(false);
     }
 
     template <typename T> bool is() const {

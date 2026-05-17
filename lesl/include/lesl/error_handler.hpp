@@ -184,6 +184,7 @@ struct Error {
                 break;
             case ErrorType::InvalidUnaryOperation:
                 out << "Invalid unary operation";
+                break;
             case ErrorType::InvalidAccess:
                 out << "Invalid access to a composite type";
                 break;

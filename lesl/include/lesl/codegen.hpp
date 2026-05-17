@@ -1607,6 +1607,7 @@ class CodeGenerator final {
                             left->load(spv),
                             right->load(spv, left->type)
                         );
+                        break;
                     default:
                         assert(false);
                         break;

@@ -1149,6 +1149,8 @@ struct Validator {
                 return { create_or_get_info_ref(std::move(result_type)) };
             }
         }
+
+        assert(false);
     }
 
     ExprValidationResult validate_unary(
@@ -1179,33 +1181,8 @@ struct Validator {
             TypeInfo::BuiltinPrimitive primitive = type.get_underlying_primitive().primitive;
 
             if (!(primitive == TypeInfo::BuiltinPrimitive::Float ||
-                  primitive == TypeInfo::BuiltinPrimitive::Int ||
-                  primitive == TypeInfo::BuiltinPrimitive::Uint)) {
+                  primitive == TypeInfo::BuiltinPrimitive::Int)) {
                 error_handler.error(ErrorType::IncompatibleTypes, unary.expr->get_location());
-            }
-
-            if (primitive == TypeInfo::BuiltinPrimitive::Uint) {
-                if (type.is<TypeInfo::Primitive>()) {
-                    return { create_or_get_info_ref(
-                        TypeInfo::create_primitive(
-                            arena.string_pool,
-                            TypeInfo::BuiltinPrimitive::Int
-                        )
-                    ) };
-                } else if (type.is<TypeInfo::Vector>()) {
-                    return { create_or_get_info_ref(
-                        TypeInfo::create_vector(
-                            arena.string_pool,
-                            create_or_get_info_ref(
-                                TypeInfo::create_primitive(
-                                    arena.string_pool,
-                                    TypeInfo::BuiltinPrimitive::Int
-                                )
-                            ),
-                            type.get<TypeInfo::Vector>().size
-                        )
-                    ) };
-                }
             }
         } else if (unary.op == Expr::UnaryOp::Not) {
             if (type.is<TypeInfo::Array>() || type.is<TypeInfo::Matrix>() ||
@@ -1833,11 +1810,11 @@ struct Validator {
                                 return { create_or_get_info_ref(std::move(result_type)) };
                             }
 
-                            assert(false);
                             return { arg_types[0] }; // shut up warning
                         case BuiltinOutputKind::Inherited:
                             return { arg_types[0] };
                     }
+                    assert(false);
                 },
             },
             func

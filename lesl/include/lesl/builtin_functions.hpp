@@ -273,6 +273,9 @@ inline static uint32_t primitive_converter(
                 case TypeInfo::BuiltinPrimitive::Float:
                     spv.ConvertFToS(res_type_info.id, res, args[0]);
                     break;
+                case TypeInfo::BuiltinPrimitive::Uint:
+                    spv.SatConvertUToS(res_type_info.id, res, args[0]);
+                    break;
                 default:
                     assert(false);
             }
@@ -281,6 +284,9 @@ inline static uint32_t primitive_converter(
             switch (source_primitive) {
                 case TypeInfo::BuiltinPrimitive::Float:
                     spv.ConvertFToU(res_type_info.id, res, args[0]);
+                    break;
+                case TypeInfo::BuiltinPrimitive::Int:
+                    spv.SatConvertSToU(res_type_info.id, res, args[0]);
                     break;
                 default:
                     assert(false);
@@ -693,6 +699,7 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
         .with_static_input(
             {
                 { "float" },
+                { "uint" },
             }
         )
         .with_static_output("int")
@@ -700,6 +707,7 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
     BuiltinFunction("uint")
         .with_static_input(
             {
+                { "int" },
                 { "float" },
             }
         )

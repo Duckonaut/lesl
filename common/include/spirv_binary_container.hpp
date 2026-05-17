@@ -28,14 +28,14 @@ public:
     void clear() { words.clear(); }
     void insert(std::vector<uint32_t> new_words, uint32_t start) {
         std::vector<uint32_t> carry;
-        for (int i = start; i < words.size(); i++) {
+        for (size_t i = start; i < words.size(); i++) {
             carry.push_back(words[i]);
         }
         words.resize(start);
-        for (int i = 0; i < new_words.size(); i++) {
+        for (size_t i = 0; i < new_words.size(); i++) {
             words.push_back(new_words[i]);
         }
-        for (int i = 0; i < carry.size(); i++) {
+        for (size_t i = 0; i < carry.size(); i++) {
             words.push_back(carry[i]);
         }
     }
