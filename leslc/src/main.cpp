@@ -1,5 +1,7 @@
 #include "lesl/arena.hpp"
+#include "lesl/binding_manager.hpp"
 #include "lesl/colorize.hpp"
+#include "lesl/sdl.hpp"
 #include "lesl/unit.hpp"
 #include "lesl/error_handler.hpp"
 #include "lesl/tokenizer.hpp"
@@ -23,12 +25,82 @@
 #include <fcntl.h>
 #endif
 
+enum class BindingManagerType {
+    SDL3,
+    Simple,
+    Dictionary,
+};
+
 struct Args {
     std::optional<std::string> input;
     std::optional<std::string> output;
     std::optional<std::string> pipeline;
+    std::optional<BindingManagerType> binding_manager;
+    std::vector<lesl::DictionaryBindingManager::InterfaceBinding> dict_binds;
     bool verbose = false;
 };
+
+static std::vector<std::string> split(std::string s, const std::string& delimiter) {
+    std::vector<std::string> tokens;
+    size_t pos = 0;
+    std::string token;
+    while ((pos = s.find(delimiter)) != std::string::npos) {
+        token = s.substr(0, pos);
+        tokens.push_back(token);
+        s.erase(0, pos + delimiter.length());
+    }
+    tokens.push_back(s);
+
+    return tokens;
+}
+
+static std::optional<lesl::DictionaryBindingManager::InterfaceBinding>
+parse_bind(std::string b) {
+    // format NAME:STAGE:STORAGE_CLASS:SET:SLOT
+
+    std::vector<std::string> parts = split(b, ":");
+
+    if (parts.size() != 5)
+        return std::nullopt;
+
+    std::string name = parts[0];
+
+    std::string stage_s = parts[1];
+    lesl::PipelineStage stage = lesl::PipelineStage::Vertex;
+    if (stage_s == "vertex" || stage_s == "vert") {
+        stage = lesl::PipelineStage::Vertex;
+    } else if (stage_s == "fragment" || stage_s == "frag") {
+        stage = lesl::PipelineStage::Fragment;
+    } else {
+        return std::nullopt;
+    }
+
+    std::string storage_s = parts[2];
+    lesl::StorageClass storage = lesl::StorageClass::Input;
+    if (storage_s == "input") {
+        storage = lesl::StorageClass::Input;
+    } else if (storage_s == "output") {
+        storage = lesl::StorageClass::Output;
+    } else if (storage_s == "uniform") {
+        storage = lesl::StorageClass::Uniform;
+    } else if (storage_s == "image" || storage_s == "sampler") {
+        storage = lesl::StorageClass::ImageSampler;
+    } else if (storage_s == "storage") {
+        storage = lesl::StorageClass::StorageBuffer;
+    } else {
+        return std::nullopt;
+    }
+    try {
+        uint32_t set = std::stoi(parts[3]);
+        uint32_t slot = std::stoi(parts[4]);
+
+        return lesl::DictionaryBindingManager::InterfaceBinding{
+            name, stage, storage, set, slot,
+        };
+    } catch (...) {
+        return std::nullopt;
+    }
+}
 
 static Args parse_args(int argc, char* argv[]) {
     Args args;
@@ -56,6 +128,39 @@ static Args parse_args(int argc, char* argv[]) {
                 i++;
             } else {
                 std::cerr << "error: --pipeline requires an argument" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "--bind-style" || arg == "-B") {
+            if (i + 1 < argc) {
+                std::string type = argv[i + 1];
+                if (type == "sdl") {
+                    args.binding_manager = BindingManagerType::SDL3;
+                } else if (type == "simple") {
+                    args.binding_manager = BindingManagerType::Simple;
+                } else if (type == "dictionary") {
+                    args.binding_manager = BindingManagerType::Dictionary;
+                } else {
+                    std::cerr << "error: unknown binding type" << std::endl;
+                    exit(1);
+                }
+                i++;
+            } else {
+                std::cerr << "error: --bind-style requires an argument" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "--bind" || arg == "-b") {
+            if (i + 1 < argc) {
+                std::string bind = argv[i + 1];
+                auto res = parse_bind(bind);
+                if (res) {
+                    args.dict_binds.push_back(*res);
+                } else {
+                    std::cerr << "error: bad --bind syntax" << std::endl;
+                    exit(1);
+                }
+                i++;
+            } else {
+                std::cerr << "error: --bind-style requires an argument" << std::endl;
                 exit(1);
             }
         } else {
@@ -146,11 +251,21 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    lesl::SDL3BindingManager binding_manager(
-        lesl::SDL3BindingManager::BindingAllocationMode::SingleInputMultipleUniform
-    );
+    lesl::BindingManagerInterface* binding_manager = nullptr;
 
-    lesl::CodeGenerator codegen(arena, binding_manager, args.pipeline);
+    if (!args.binding_manager.has_value() || args.binding_manager == BindingManagerType::SDL3) {
+        binding_manager = new lesl::sdl::SDL3BindingManager(
+            lesl::sdl::SDL3BindingManager::BindingAllocationMode::SingleInputMultipleUniform
+        );
+    } else if (args.binding_manager == BindingManagerType::Simple) {
+        binding_manager = new lesl::SimpleBindingManager(
+            lesl::SimpleBindingManager::BindingAllocationMode::SingleInputMultipleUniform
+        );
+    } else if (args.binding_manager == BindingManagerType::Dictionary) {
+        binding_manager = new lesl::DictionaryBindingManager(args.dict_binds);
+    }
+
+    lesl::CodeGenerator codegen(arena, *binding_manager, args.pipeline);
 
     codegen.generate();
 
@@ -165,6 +280,8 @@ int main(int argc, char* argv[]) {
     }
 
     codegen.flush(*out);
+
+    delete binding_manager;
 
     arena.clear();
 

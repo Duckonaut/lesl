@@ -84,7 +84,7 @@ struct CompilationResult {
 };
 
 static inline CompilationResult
-compile(const char* program, const char* pipeline, std::ostream* error_output = nullptr) {
+compile(const char* program, const char* pipeline, BindingManagerInterface&& binding_manager, std::ostream* error_output = nullptr) {
     arena.clear();
 
     ErrorHandler error_handler;
@@ -115,10 +115,6 @@ compile(const char* program, const char* pipeline, std::ostream* error_output = 
         return CompilationResult::failure();
     }
 
-    SDL3BindingManager binding_manager(
-        SDL3BindingManager::BindingAllocationMode::SingleInputMultipleUniform
-    );
-
     CodeGenerator codegen(arena, binding_manager, pipeline);
 
     codegen.generate();
@@ -142,8 +138,6 @@ compile(const char* program, const char* pipeline, std::ostream* error_output = 
     for (auto& pparam : p.params) {
         pparams[pparam.name.name.to_string()] = pparam.value.name.to_string();
     }
-
-    GlobalTrackingAllocator::print_stats();
 
     return CompilationResult::success(std::move(c), std::move(pparams), binding_manager);
 }
