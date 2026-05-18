@@ -142,16 +142,6 @@ struct ExprResult {
         ) {
             return spv.ConvertFToSNew(expected_type_id, value);
         } else if (
-            current == TypeInfo::BuiltinPrimitive::Int &&
-            expected == TypeInfo::BuiltinPrimitive::Uint
-        ) {
-            return spv.SatConvertSToUNew(expected_type_id, value);
-        } else if (
-            current == TypeInfo::BuiltinPrimitive::Uint &&
-            expected == TypeInfo::BuiltinPrimitive::Int
-        ) {
-            return spv.SatConvertUToSNew(expected_type_id, value);
-        } else if (
             current == TypeInfo::BuiltinPrimitive::Float &&
             expected == TypeInfo::BuiltinPrimitive::Uint
         ) {

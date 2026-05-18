@@ -537,6 +537,17 @@ struct Validator {
         }
     }
 
+    bool arithmetic_compatible(TypeInfo::BuiltinPrimitive lp, TypeInfo::BuiltinPrimitive rp) {
+        return lp == rp || ((lp == TypeInfo::BuiltinPrimitive::Float &&
+                             rp == TypeInfo::BuiltinPrimitive::Int) ||
+                            (lp == TypeInfo::BuiltinPrimitive::Float &&
+                             rp == TypeInfo::BuiltinPrimitive::Uint) ||
+                            (lp == TypeInfo::BuiltinPrimitive::Int &&
+                             rp == TypeInfo::BuiltinPrimitive::Float) ||
+                            (lp == TypeInfo::BuiltinPrimitive::Uint &&
+                             rp == TypeInfo::BuiltinPrimitive::Float));
+    }
+
     ExprValidationResult validate_binary(
         Expr::Binary& binary,
         Opt<Ref<TypeInfo>> expected_type = std::nullopt,
@@ -610,18 +621,13 @@ struct Validator {
                     );
                 }
 
-                const TypeInfo::BuiltinPrimitive left_primitive =
+                const TypeInfo::BuiltinPrimitive lp =
                     left_type.get_underlying_primitive().primitive;
-                const TypeInfo::BuiltinPrimitive right_primitive =
+                const TypeInfo::BuiltinPrimitive rp =
                     right_type.get_underlying_primitive().primitive;
 
                 // only allow arithmetic for arithmetic-compatible primitives
-                if (!(left_primitive == TypeInfo::BuiltinPrimitive::Float ||
-                      left_primitive == TypeInfo::BuiltinPrimitive::Int ||
-                      left_primitive == TypeInfo::BuiltinPrimitive::Uint) ||
-                    !(right_primitive == TypeInfo::BuiltinPrimitive::Float ||
-                      right_primitive == TypeInfo::BuiltinPrimitive::Int ||
-                      right_primitive == TypeInfo::BuiltinPrimitive::Uint)) {
+                if (!arithmetic_compatible(lp, rp)) {
                     error_handler.error(
                         ErrorType::IncompatibleTypes,
                         binary.lhs->get_location()
@@ -674,12 +680,7 @@ struct Validator {
                     right_type.get_underlying_primitive().primitive;
 
                 // only allow multiplication for arithmetic-compatible primitives
-                if (!(left_primitive == TypeInfo::BuiltinPrimitive::Float ||
-                      left_primitive == TypeInfo::BuiltinPrimitive::Int ||
-                      left_primitive == TypeInfo::BuiltinPrimitive::Uint) ||
-                    !(right_primitive == TypeInfo::BuiltinPrimitive::Float ||
-                      right_primitive == TypeInfo::BuiltinPrimitive::Int ||
-                      right_primitive == TypeInfo::BuiltinPrimitive::Uint)) {
+                if (!arithmetic_compatible(left_primitive, right_primitive)) {
                     error_handler.error(
                         ErrorType::IncompatibleTypes,
                         binary.lhs->get_location()

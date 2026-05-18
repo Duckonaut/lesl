@@ -699,7 +699,6 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
         .with_static_input(
             {
                 { "float" },
-                { "uint" },
             }
         )
         .with_static_output("int")
@@ -707,7 +706,6 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
     BuiltinFunction("uint")
         .with_static_input(
             {
-                { "int" },
                 { "float" },
             }
         )
