@@ -16,7 +16,7 @@
 
 namespace lesl {
 
-static inline CompilationArena arena;
+static inline CompilationArena g_arena;
 
 enum class CompilationResultType {
     Success,
@@ -83,9 +83,17 @@ struct CompilationResult {
     }
 };
 
-static inline CompilationResult
-compile(const char* program, const char* pipeline, BindingManagerInterface&& binding_manager, std::ostream* error_output = nullptr) {
-    arena.clear();
+static inline CompilationResult compile(
+    const char* program,
+    const char* pipeline,
+    BindingManagerInterface&& binding_manager,
+    CompilationArena* arena = nullptr,
+    std::ostream* error_output = nullptr
+) {
+    if (arena == nullptr) {
+        arena = &g_arena;
+    }
+    arena->clear();
 
     ErrorHandler error_handler;
     std::ostream* error_out = error_output == nullptr ? &std::cerr : error_output;
@@ -95,9 +103,9 @@ compile(const char* program, const char* pipeline, BindingManagerInterface&& bin
 
     Unit unit(in);
 
-    Tokenizer tokenizer(arena, unit, error_handler);
+    Tokenizer tokenizer(*arena, unit, error_handler);
 
-    Parser parser(arena, tokenizer, error_handler);
+    Parser parser(*arena, tokenizer, error_handler);
 
     parser.parse();
 
@@ -106,7 +114,7 @@ compile(const char* program, const char* pipeline, BindingManagerInterface&& bin
         return CompilationResult::failure();
     }
 
-    Validator validator(arena, error_handler);
+    Validator validator(*arena, error_handler);
 
     validator.validate();
 
@@ -115,7 +123,7 @@ compile(const char* program, const char* pipeline, BindingManagerInterface&& bin
         return CompilationResult::failure();
     }
 
-    CodeGenerator codegen(arena, binding_manager, pipeline);
+    CodeGenerator codegen(*arena, binding_manager, pipeline);
 
     codegen.generate();
 
@@ -131,7 +139,7 @@ compile(const char* program, const char* pipeline, BindingManagerInterface&& bin
     std::unordered_map<std::string, std::string> pparams;
 
     Decl::Pipeline p =
-        (*std::find_if(arena.decls.begin(), arena.decls.end(), [&pipeline](Ref<Decl> d) {
+        (*std::find_if(arena->decls.begin(), arena->decls.end(), [&pipeline](Ref<Decl> d) {
             return d->is<Decl::Pipeline>() && d->get<Decl::Pipeline>().name.name == pipeline;
         }))->get<Decl::Pipeline>();
 
