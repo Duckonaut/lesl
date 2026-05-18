@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lesl/arena.hpp"
+#include "lesl/codegen_helpers.hpp"
 #include "lesl/ref_container.hpp"
 #include "lesl/repr.hpp"
 #include "lesl/repr_walker.hpp"
@@ -28,7 +29,7 @@ struct Validator {
     std::vector<std::vector<Variable>> variables;
 
     int32_t loop_depth = 0;
-    bool in_entry_point = false;
+    Opt<PipelineStage> in_entry_point = std::nullopt;
 
     Validator(CompilationArena& arena, ErrorHandler& error_handler)
         : arena(arena), error_handler(error_handler) {}
@@ -281,11 +282,6 @@ struct Validator {
             );
         }
 
-        open_scope();
-
-        // add builtin variables
-        add_builtin_variables();
-
         // full validation
         for (Ref<Decl> decl : arena.decls) {
             if (decl->is<Decl::Function>()) {
@@ -298,42 +294,55 @@ struct Validator {
                 assert(false);
             }
         }
-        close_scope();
     }
 
-    void add_builtin_variables() {
-        add_variable(
-            arena.string_pool.add("POSITION"),
-            create_or_get_info_ref(
-                TypeInfo::create_vector(
-                    arena.string_pool,
-                    create_or_get_info_ref(
-                        TypeInfo::create_primitive(
-                            arena.string_pool,
-                            TypeInfo::BuiltinPrimitive::Float
-                        )
-                    ),
-                    4
-                )
-            ),
-            StorageClass::Output
-        );
+    void add_builtin_variables(PipelineStage stage) {
+        if (stage == PipelineStage::Vertex) {
+            add_variable(
+                arena.string_pool.add("POSITION"),
+                create_or_get_info_ref(
+                    TypeInfo::create_vector(
+                        arena.string_pool,
+                        create_or_get_info_ref(
+                            TypeInfo::create_primitive(
+                                arena.string_pool,
+                                TypeInfo::BuiltinPrimitive::Float
+                            )
+                        ),
+                        4
+                    )
+                ),
+                StorageClass::Output
+            );
+        }
     }
 
     void validate_function(Decl::Function& f) {
         open_scope();
-        in_entry_point = std::any_of(arena.decls.begin(), arena.decls.end(), [&f](Ref<Decl> d) {
+        in_entry_point = std::nullopt;
+        for (auto d : arena.decls) {
             if (!d->is<Decl::Pipeline>())
-                return false;
+                continue;
             Decl::Pipeline& p = d->get<Decl::Pipeline>();
-            if (std::any_of(p.params.begin(), p.params.end(), [&f](PipelineParameter pp) {
-                    return (pp.name.name == "Vertex" || pp.name.name == "Fragment") &&
-                           pp.value.name == f.name.name;
-                })) {
-                return true;
+            for (auto pp : p.params) {
+                if (pp.value.name == f.name.name) {
+                    if (pp.name.name == "Vertex") {
+                        in_entry_point = PipelineStage::Vertex;
+                        break;
+                    } else if (pp.name.name == "Fragment") {
+                        in_entry_point = PipelineStage::Fragment;
+                        break;
+                    }
+                }
             }
-            return false;
-        });
+
+            if (in_entry_point)
+                break;
+        }
+
+        if (in_entry_point) {
+            add_builtin_variables(in_entry_point.value());
+        }
         for (TypedIdentifier& param : f.params) {
             validate_type(param.type);
 
