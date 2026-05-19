@@ -26,6 +26,9 @@ struct PoolStr final {
     bool operator!=(const char* other) const;
     bool operator==(const std::string& other) const;
     bool operator!=(const std::string& other) const;
+
+    // Used for std::set
+    bool operator<(const PoolStr& other) const;
 };
 
 /// <summary>

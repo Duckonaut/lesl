@@ -17,6 +17,7 @@
 #include <bit>
 #include <iostream>
 #include <ostream>
+#include <set>
 #include <unordered_map>
 #include <variant>
 
@@ -216,8 +217,8 @@ class CodeGenerator final {
     }
 
     void generate_entry_points() {
-        std::vector<PoolStr> fragment_entry_points;
-        std::vector<PoolStr> vertex_entry_points;
+        std::set<PoolStr> fragment_entry_points;
+        std::set<PoolStr> vertex_entry_points;
 
         for (Ref<Decl> decl : arena.decls) {
             if (decl->is<Decl::Pipeline>()) {
@@ -232,7 +233,7 @@ class CodeGenerator final {
                                 vertex_entry_points.end(),
                                 param.value.name
                             ) == vertex_entry_points.end()) {
-                            vertex_entry_points.push_back(param.value.name);
+                            vertex_entry_points.insert(param.value.name);
                         }
                     } else if (param.name.name == "Fragment") {
                         if (std::find(
@@ -240,14 +241,14 @@ class CodeGenerator final {
                                 fragment_entry_points.end(),
                                 param.value.name
                             ) == fragment_entry_points.end()) {
-                            fragment_entry_points.push_back(param.value.name);
+                            fragment_entry_points.insert(param.value.name);
                         }
                     }
                 }
             }
         }
 
-        for (PoolStr& name : vertex_entry_points) {
+        for (const PoolStr& name : vertex_entry_points) {
             Decl::Function& f = find_function(name);
 
             std::vector<uint32_t> ops;
@@ -278,7 +279,7 @@ class CodeGenerator final {
             );
         }
 
-        for (PoolStr& name : fragment_entry_points) {
+        for (const PoolStr& name : fragment_entry_points) {
             Decl::Function& f = find_function(name);
 
             std::vector<uint32_t> ops;
