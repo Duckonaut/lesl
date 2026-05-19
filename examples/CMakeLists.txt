@@ -38,7 +38,6 @@ endfunction()
 define_sdl3_example(triangle)
 
 build_lesl_shader(triangle)
-build_lesl_shader(unistruct)
 
 target_sources(sdl3-triangle PRIVATE
     ${triangle_LESL_SPIRV}

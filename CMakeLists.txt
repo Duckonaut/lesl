@@ -11,6 +11,8 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE INTERNAL "")
 # Declare the project
 project(lesl VERSION 0.1.0 LANGUAGES CXX)
 
+include(FetchContent)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
 
@@ -18,6 +20,7 @@ option(LESL_ENABLE_EXAMPLES "Enable examples" ON)
 option(LESL_ENABLE_LESLC "Enable the LESL compiler" ON)
 option(LESL_ENABLE_SDL3 "Build SDL3 integration. Enabled if building examples" OFF)
 option(LESL_BUILD_SDL3 "Build a local SDL3 copy" OFF)
+option(LESL_ENABLE_OPT "Enable SPIR-V optimization" ON)
 
 cmake_policy(SET CMP0135 NEW)
 
@@ -51,6 +54,21 @@ if (LESL_ENABLE_SDL3)
     else()
         find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3-shared)
     endif()
+endif()
+
+if (LESL_ENABLE_OPT)
+    set(SKIP_SPIRV_TOOLS_INSTALL ON)
+    set(SPIRV_SKIP_EXECUTABLES ON)
+    set(SPIRV_TOOLS_BUILD_STATIC ON)
+    set(SPIRV_TOOLS_BUILD_SHARED OFF)
+    FetchContent_Declare(
+        spirv-tools 
+        GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Tools.git
+        GIT_TAG v2026.1
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+    )
+    FetchContent_MakeAvailable(spirv-tools)
 endif()
 
 function(define_library_target target_name)
@@ -210,8 +228,6 @@ if (LESL_ENABLE_EXAMPLES)
     set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT FALSE)
     set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT FALSE)
     set(ASSIMP_BUILD_GLTF_IMPORTER TRUE)
-
-    include(FetchContent)
 
     FetchContent_Declare(
         glm
