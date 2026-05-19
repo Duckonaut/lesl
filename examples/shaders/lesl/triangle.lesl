@@ -20,7 +20,7 @@ function fragment (ShaderLink i) -> (FsOut o) {
     o.color = i.color
 }
 
-pipeline Basic {
+pipeline Triangle {
     Vertex = vertex,
     Fragment = fragment,
 }
