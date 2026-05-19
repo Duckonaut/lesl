@@ -175,7 +175,7 @@ static Args parse_args(int argc, char* argv[]) {
     return args;
 }
 
-void print_formatted(const spv_binary::BinaryContainer& spv) {
+void print_formatted(const spvbc::BinaryContainer& spv) {
     uint32_t i = 5;
     uint32_t opn = 0;
     while (i < spv.words.size()) {
@@ -279,7 +279,29 @@ int main(int argc, char* argv[]) {
         print_formatted(codegen.spv);
     }
 
+#if LESL_ENABLE_OPT
+    spvtools::Optimizer optimizer{ spv_target_env::SPV_ENV_VULKAN_1_0 };
+    spvtools::OptimizerOptions options;
+    options.set_run_validator(true);
+    options.set_preserve_bindings(true);
+
+    optimizer.RegisterPerformancePasses();
+
+    std::vector<uint32_t> optimized;
+    bool ok =
+        optimizer.Run(codegen.spv.words.data(), codegen.spv.words.size(), &optimized, options);
+
+    if (!ok) {
+        std::cout << "Optimization failed." << std::endl;
+        return 1;
+    }
+
+    for (unsigned i = 0; i < optimized.size(); i++) {
+        out->write(reinterpret_cast<const char*>(&optimized[i]), sizeof(uint32_t));
+    }
+#else
     codegen.flush(*out);
+#endif
 
     delete binding_manager;
 

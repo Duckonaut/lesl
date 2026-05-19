@@ -14,6 +14,11 @@
 #include <sstream>
 #include <string>
 
+#if LESL_ENABLE_OPT
+#include <spirv-tools/libspirv.hpp>
+#include <spirv-tools/optimizer.hpp>
+#endif
+
 namespace lesl {
 
 static inline CompilationArena g_arena;
@@ -133,8 +138,30 @@ static inline CompilationResult compile(
     }
 
     std::vector<char> c;
+#if LESL_ENABLE_OPT
+    spvtools::Optimizer optimizer{ spv_target_env::SPV_ENV_VULKAN_1_0 };
+    spvtools::OptimizerOptions options;
+    options.set_run_validator(true);
+    options.set_preserve_bindings(true);
 
+    optimizer.RegisterPerformancePasses();
+
+    std::vector<uint32_t> optimized;
+    bool ok =
+        optimizer.Run(codegen.spv.words.data(), codegen.spv.words.size(), &optimized, options);
+
+    if (!ok) {
+        return CompilationResult::failure();
+    }
+
+    for (unsigned i = 0; i < optimized.size(); i++) {
+        for (unsigned j = 0; j < sizeof(uint32_t); j++) {
+            c.push_back(reinterpret_cast<const char*>(&optimized[i])[j]);
+        }
+    }
+#else
     codegen.flush(c);
+#endif
 
     std::unordered_map<std::string, std::string> pparams;
 

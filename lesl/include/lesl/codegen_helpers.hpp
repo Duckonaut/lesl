@@ -128,7 +128,7 @@ struct ExprResult {
     Ref<TypeInfo> type;
 
     uint32_t primitive_cast(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         TypeInfo::BuiltinPrimitive current,
         TypeInfo::BuiltinPrimitive expected,
         uint32_t expected_type_id,
@@ -161,10 +161,8 @@ struct ExprResult {
         }
     }
 
-    uint32_t load(
-        spv_binary::BinaryContainer& spv,
-        Opt<Ref<TypeInfo>> expected_type = std::nullopt
-    ) const {
+    uint32_t
+    load(spvbc::BinaryContainer& spv, Opt<Ref<TypeInfo>> expected_type = std::nullopt) const {
         uint32_t loaded_id = 0;
         if (std::holds_alternative<uint32_t>(data)) {
             loaded_id = std::get<uint32_t>(data);
@@ -288,7 +286,7 @@ struct ExprResult {
         return 0;
     }
 
-    void store(spv_binary::BinaryContainer& spv, uint32_t value) const {
+    void store(spvbc::BinaryContainer& spv, uint32_t value) const {
         if (std::holds_alternative<uint32_t>(data)) {
             assert(false); // Cannot store to a raw ID, this should not happen
         } else if (std::holds_alternative<VariableInstance>(data)) {

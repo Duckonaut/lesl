@@ -38,7 +38,7 @@ enum class BuiltinEncoding {
 };
 
 using CustomEncoderFunction = std::function<uint32_t(
-    spv_binary::BinaryContainer& spv,
+    spvbc::BinaryContainer& spv,
     const TypeInfo& res_type_info,
     const PoolStr& name,
     uint32_t glsl_std_opcode,
@@ -211,7 +211,7 @@ matrix_input(CompilationArena& arena, const std::vector<Ref<TypeInfo>>& types) {
 }
 
 inline static uint32_t composite_constructor(
-    spv_binary::BinaryContainer& spv,
+    spvbc::BinaryContainer& spv,
     const TypeInfo& res_type_info,
     const PoolStr& name,
     uint32_t,
@@ -236,7 +236,7 @@ inline static uint32_t composite_constructor(
 }
 
 inline static uint32_t primitive_converter(
-    spv_binary::BinaryContainer& spv,
+    spvbc::BinaryContainer& spv,
     const TypeInfo& res_type_info,
     const PoolStr&,
     uint32_t,
@@ -461,7 +461,7 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
             }
         )
         .with_static_output("float")
-        .with_custom_encoding([](spv_binary::BinaryContainer& spv,
+        .with_custom_encoding([](spvbc::BinaryContainer& spv,
                                  const TypeInfo& res_type_info,
                                  const PoolStr&,
                                  uint32_t,
@@ -536,7 +536,7 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
     BuiltinFunction("transpose")
         .with_custom_input(matrix_input)
         .with_inherited_output()
-        .with_custom_encoding([](spv_binary::BinaryContainer& spv,
+        .with_custom_encoding([](spvbc::BinaryContainer& spv,
                                  const TypeInfo& res_type_info,
                                  const PoolStr&,
                                  uint32_t,
@@ -719,7 +719,7 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
             }
         )
         .with_static_output("float4")
-        .with_custom_encoding([](spv_binary::BinaryContainer& spv,
+        .with_custom_encoding([](spvbc::BinaryContainer& spv,
                                  const TypeInfo& res_type_info,
                                  const PoolStr&,
                                  uint32_t,
@@ -731,7 +731,7 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
 };
 
 inline static uint32_t builtin_function(
-    spv_binary::BinaryContainer& spv,
+    spvbc::BinaryContainer& spv,
     const TypeInfo& res_type_info,
     const PoolStr& name,
     uint32_t glsl_std_id,

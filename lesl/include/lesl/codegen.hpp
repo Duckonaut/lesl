@@ -25,7 +25,7 @@ namespace lesl {
 class CodeGenerator final {
   public:
     CompilationArena& arena;
-    spv_binary::BinaryContainer spv;
+    spvbc::BinaryContainer spv;
 
     Opt<std::string> pipeline;
 
@@ -310,7 +310,6 @@ class CodeGenerator final {
     }
 
     void generate_debug_info() {
-        spv.Source(0, 0);
         for (Ref<Decl> decl : arena.decls) {
             if (decl->is<Decl::Struct>()) {
                 generate_struct_debug_info(decl->get<Decl::Struct>());
@@ -2458,6 +2457,10 @@ class CodeGenerator final {
                 out.push_back(reinterpret_cast<const char*>(&spv.words[i])[j]);
             }
         }
+    }
+    void flush(std::vector<uint32_t>& out) {
+        out.reserve(spv.words.size() * 4);
+        out.insert(out.end(), spv.words.begin(), spv.words.end());
     }
 };
 } // namespace lesl

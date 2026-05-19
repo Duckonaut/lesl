@@ -9,7 +9,7 @@
 #include <cstring>
 #include <vector>
 
-namespace spv_binary {
+namespace spvbc {
 
 class BinaryContainer {
 public:
@@ -7765,4 +7765,4 @@ public:
 
 };
 
-} // namespace spv_binary
+} // namespace spvbc

@@ -162,7 +162,7 @@ class SPIRVBinaryContainerGenerator:
         output.write("#include <cstdint>\n")
         output.write("#include <cstring>\n")
         output.write("#include <vector>\n\n")
-        output.write("namespace spv_binary {\n\n")
+        output.write("namespace spvbc {\n\n")
 
         output.write("class BinaryContainer {\n")
         output.write("public:\n")
@@ -201,7 +201,7 @@ class SPIRVBinaryContainerGenerator:
 
         output.write("};\n\n")
 
-        output.write("} // namespace spv_binary\n")
+        output.write("} // namespace spvbc\n")
 
 
 if __name__ == '__main__':

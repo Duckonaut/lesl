@@ -32,7 +32,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
 
     SDL3BindingManager(BindingAllocationMode mode) : mode(mode) {}
 
-    void try_decorate_block(spv_binary::BinaryContainer& spv, uint32_t struct_id) {
+    void try_decorate_block(spvbc::BinaryContainer& spv, uint32_t struct_id) {
         if (std::find(
                 already_decorated_block.begin(),
                 already_decorated_block.end(),
@@ -44,7 +44,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
     }
 
     virtual void decorate_struct(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         PipelineStage context,
         const Decl::Struct& s,
         uint32_t struct_id,
@@ -75,7 +75,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
     }
 
     void decorate_as_input(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         PipelineStage context,
         const Decl::Struct& s,
         uint32_t struct_id
@@ -111,7 +111,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
     }
 
     void decorate_as_output(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         PipelineStage context,
         const Decl::Struct& s,
         uint32_t struct_id
@@ -145,12 +145,12 @@ struct SDL3BindingManager : public BindingManagerInterface {
         }
     }
 
-    void decorate_as_uniform(spv_binary::BinaryContainer& spv, uint32_t struct_id) {
+    void decorate_as_uniform(spvbc::BinaryContainer& spv, uint32_t struct_id) {
         try_decorate_block(spv, struct_id);
     }
 
     virtual void decorate_interfaces(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         std::vector<GlobalInterface>& interfaces
     ) override {
         for (GlobalInterface& gi : interfaces) {
@@ -162,7 +162,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
         }
     }
 
-    void allocate_as_uniform(spv_binary::BinaryContainer& spv, const GlobalInterface& gi) {
+    void allocate_as_uniform(spvbc::BinaryContainer& spv, const GlobalInterface& gi) {
         if (gi.storage_class == StorageClass::Uniform) {
             if (gi.pipeline_stage == PipelineStage::Fragment) {
                 uint32_t set = 3;
@@ -210,7 +210,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
     }
 
     void
-    allocate_as_image_sampler(spv_binary::BinaryContainer& spv, const GlobalInterface& gi) {
+    allocate_as_image_sampler(spvbc::BinaryContainer& spv, const GlobalInterface& gi) {
         if (gi.storage_class == StorageClass::ImageSampler) {
             if (gi.pipeline_stage == PipelineStage::Fragment) {
                 uint32_t set = 2;
@@ -258,7 +258,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
     }
 
     virtual void allocate_interface_variables(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         std::vector<GlobalInterface>& gis
     ) override {
         for (GlobalInterface& gi : gis) {

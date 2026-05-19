@@ -39,7 +39,7 @@ struct BindingManagerInterface {
     /// The main method that decorates input/output/uniform/storage structs with the appropriate
     /// decorations based on the pipeline stage and whether it's an input or output.
     virtual void decorate_struct(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         PipelineStage context,
         const Decl::Struct& s,
         uint32_t struct_id,
@@ -48,13 +48,13 @@ struct BindingManagerInterface {
 
     /// Allocates bindings for the provided global interfaces in the SPIR-V binary.
     virtual void decorate_interfaces(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         std::vector<GlobalInterface>& interfaces
     ) = 0;
 
     /// Allocates the variables for the provided global interfaces
     virtual void allocate_interface_variables(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         std::vector<GlobalInterface>& gi
     ) = 0;
 
@@ -89,7 +89,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
     SimpleBindingManager(BindingAllocationMode mode) : mode(mode) {}
 
     virtual void decorate_struct(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         PipelineStage context,
         const Decl::Struct& s,
         uint32_t struct_id,
@@ -119,7 +119,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
         }
     }
 
-    void try_decorate_block(spv_binary::BinaryContainer& spv, uint32_t struct_id) {
+    void try_decorate_block(spvbc::BinaryContainer& spv, uint32_t struct_id) {
         if (std::find(
                 already_decorated_block.begin(),
                 already_decorated_block.end(),
@@ -131,7 +131,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
     }
 
     void decorate_as_input(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         const Decl::Struct& s,
         uint32_t struct_id
     ) {
@@ -146,7 +146,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
     }
 
     void decorate_as_output(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         const Decl::Struct& s,
         uint32_t struct_id
     ) {
@@ -158,12 +158,12 @@ struct SimpleBindingManager : public BindingManagerInterface {
         }
     }
 
-    void decorate_as_uniform(spv_binary::BinaryContainer& spv, uint32_t struct_id) {
+    void decorate_as_uniform(spvbc::BinaryContainer& spv, uint32_t struct_id) {
         try_decorate_block(spv, struct_id);
     }
 
     virtual void decorate_interfaces(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         std::vector<GlobalInterface>& interfaces
     ) override {
         for (GlobalInterface& gi : interfaces) {
@@ -175,7 +175,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
         }
     }
 
-    void allocate_as_uniform(spv_binary::BinaryContainer& spv, const GlobalInterface& gi) {
+    void allocate_as_uniform(spvbc::BinaryContainer& spv, const GlobalInterface& gi) {
         if (gi.storage_class == StorageClass::Uniform) {
             uint32_t set = 0;
 
@@ -187,7 +187,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
     }
 
     void
-    allocate_as_image_sampler(spv_binary::BinaryContainer& spv, const GlobalInterface& gi) {
+    allocate_as_image_sampler(spvbc::BinaryContainer& spv, const GlobalInterface& gi) {
         if (gi.storage_class == StorageClass::ImageSampler) {
             uint32_t set = 0;
 
@@ -199,7 +199,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
     }
 
     virtual void allocate_interface_variables(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         std::vector<GlobalInterface>& gis
     ) override {
         for (GlobalInterface& gi : gis) {
@@ -273,7 +273,7 @@ struct DictionaryBindingManager : public BindingManagerInterface {
     }
 
     virtual void decorate_struct(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         PipelineStage,
         const Decl::Struct& s,
         uint32_t struct_id,
@@ -299,7 +299,7 @@ struct DictionaryBindingManager : public BindingManagerInterface {
     }
 
     virtual void decorate_interfaces(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         std::vector<GlobalInterface>& interfaces
     ) override {
         for (GlobalInterface& gi : interfaces) {
@@ -322,7 +322,7 @@ struct DictionaryBindingManager : public BindingManagerInterface {
     }
 
     virtual void allocate_interface_variables(
-        spv_binary::BinaryContainer& spv,
+        spvbc::BinaryContainer& spv,
         std::vector<GlobalInterface>& gi
     ) override {
         for (GlobalInterface& gi : gi) {
