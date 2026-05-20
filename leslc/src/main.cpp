@@ -242,6 +242,30 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    uint32_t pipeline_count = 0;
+    lesl::Opt<std::string> single_pipeline_name;
+    for (auto d : arena.decls) {
+        if (d->is<lesl::Decl::Pipeline>()) {
+            if (!single_pipeline_name.has_value()) {
+                single_pipeline_name = d->get<lesl::Decl::Pipeline>().name.name.to_string();
+            }
+            pipeline_count += 1;
+        }
+    }
+
+    if (pipeline_count == 0) {
+        std::cout << "File contains no pipelines!" << std::endl;
+        return 1;
+    }
+
+    if (pipeline_count > 1 && !args.pipeline) {
+        std::cout << "File contains multiple pipelines, select one using --pipeline"
+                  << std::endl;
+        return 1;
+    } else if (args.pipeline) {
+        single_pipeline_name = args.pipeline;
+    }
+
     lesl::Validator validator(arena, error_handler);
 
     validator.validate();
@@ -265,7 +289,7 @@ int main(int argc, char* argv[]) {
         binding_manager = new lesl::DictionaryBindingManager(args.dict_binds);
     }
 
-    lesl::CodeGenerator codegen(arena, *binding_manager, args.pipeline);
+    lesl::CodeGenerator codegen(arena, *binding_manager, single_pipeline_name);
 
     codegen.generate();
 

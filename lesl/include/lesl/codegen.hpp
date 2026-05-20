@@ -27,7 +27,8 @@ class CodeGenerator final {
     CompilationArena& arena;
     spvbc::BinaryContainer spv;
 
-    Opt<std::string> pipeline;
+    Opt<std::string> selected_pipeline_name;
+    Opt<Ref<Decl>> selected_pipeline;
 
     uint32_t constants_insert_point;
     uint32_t glsl_ext;
@@ -52,7 +53,18 @@ class CodeGenerator final {
         BindingManagerInterface& binding_manager,
         Opt<std::string> pipeline
     )
-        : arena(arena), pipeline(pipeline), binding_manager(binding_manager) {}
+        : arena(arena), selected_pipeline_name(pipeline), binding_manager(binding_manager) {
+        if (pipeline) {
+            for (Ref<Decl> decl : arena.decls) {
+                if (decl->is<Decl::Pipeline>()) {
+                    Decl::Pipeline& p = decl->get<Decl::Pipeline>();
+                    if (p.name.name == selected_pipeline_name.value()) {
+                        selected_pipeline = decl;
+                    }
+                }
+            }
+        }
+    }
 
     void generate() {
         generate_prelude();
@@ -87,33 +99,16 @@ class CodeGenerator final {
     }
 
     void preallocate_interface_ids() {
-        std::vector<PoolStr> fragment_entry_points;
-        std::vector<PoolStr> vertex_entry_points;
+        PoolStr fragment_entry_point;
+        PoolStr vertex_entry_point;
 
-        for (Ref<Decl> decl : arena.decls) {
-            if (decl->is<Decl::Pipeline>()) {
-                Decl::Pipeline& p = decl->get<Decl::Pipeline>();
-                if (pipeline && p.name.name != pipeline.value()) {
-                    continue;
-                }
-                for (PipelineParameter& param : p.params) {
-                    if (param.name.name == "Vertex") {
-                        if (std::find(
-                                vertex_entry_points.begin(),
-                                vertex_entry_points.end(),
-                                param.value.name
-                            ) == vertex_entry_points.end()) {
-                            vertex_entry_points.push_back(param.value.name);
-                        }
-                    } else if (param.name.name == "Fragment") {
-                        if (std::find(
-                                fragment_entry_points.begin(),
-                                fragment_entry_points.end(),
-                                param.value.name
-                            ) == fragment_entry_points.end()) {
-                            fragment_entry_points.push_back(param.value.name);
-                        }
-                    }
+        if (selected_pipeline) {
+            Decl::Pipeline& p = selected_pipeline.value()->get<Decl::Pipeline>();
+            for (PipelineParameter& param : p.params) {
+                if (param.name.name == "Vertex") {
+                    vertex_entry_point = param.value.name;
+                } else if (param.name.name == "Fragment") {
+                    fragment_entry_point = param.value.name;
                 }
             }
         }
@@ -123,25 +118,21 @@ class CodeGenerator final {
         std::vector<TypedIdentifier> fragment_inputs;
         std::vector<TypedIdentifier> fragment_outputs;
 
-        for (PoolStr& name : vertex_entry_points) {
-            Decl::Function& f = find_function(name);
+        Decl::Function& vf = find_function(vertex_entry_point);
 
-            for (TypedIdentifier& param : f.params) {
-                vertex_inputs.push_back(param);
-            }
-
-            vertex_outputs.push_back(f.ret);
+        for (TypedIdentifier& param : vf.params) {
+            vertex_inputs.push_back(param);
         }
 
-        for (PoolStr& name : fragment_entry_points) {
-            Decl::Function& f = find_function(name);
+        vertex_outputs.push_back(vf.ret);
 
-            for (TypedIdentifier& param : f.params) {
-                fragment_inputs.push_back(param);
-            }
+        Decl::Function& ff = find_function(fragment_entry_point);
 
-            fragment_outputs.push_back(f.ret);
+        for (TypedIdentifier& param : ff.params) {
+            fragment_inputs.push_back(param);
         }
+
+        fragment_outputs.push_back(ff.ret);
 
         for (TypedIdentifier& type : vertex_inputs) {
             uint32_t id = spv.get_id();
@@ -223,7 +214,7 @@ class CodeGenerator final {
         for (Ref<Decl> decl : arena.decls) {
             if (decl->is<Decl::Pipeline>()) {
                 Decl::Pipeline& p = decl->get<Decl::Pipeline>();
-                if (pipeline && p.name.name != pipeline.value()) {
+                if (selected_pipeline_name && p.name.name != selected_pipeline_name.value()) {
                     continue;
                 }
                 for (PipelineParameter& param : p.params) {
@@ -825,13 +816,14 @@ class CodeGenerator final {
 
         bool is_entry_point = is_vertex_entry_point || is_fragment_entry_point;
 
-        // if it's an entry point, check if it's a part of the currently selected pipeline
-        if (pipeline && is_entry_point) {
+        // if it's an entry point, check if it's a part of the currently selected
+        // pipeline
+        if (selected_pipeline_name && is_entry_point) {
             bool found = false;
             for (Ref<Decl> decl : arena.decls) {
                 if (decl->is<Decl::Pipeline>()) {
                     Decl::Pipeline& p = decl->get<Decl::Pipeline>();
-                    if (p.name.name == pipeline.value()) {
+                    if (p.name.name == selected_pipeline_name.value()) {
                         for (PipelineParameter& param : p.params) {
                             if ((param.name.name == "Vertex" ||
                                  param.name.name == "Fragment") &&
