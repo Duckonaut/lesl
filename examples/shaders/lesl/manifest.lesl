@@ -1,8 +1,0 @@
-attributes VsIn {
-	vec4 position;
-	vec4 color;
-}
-
-attributes FsOut {
-	vec4 color;
-}
