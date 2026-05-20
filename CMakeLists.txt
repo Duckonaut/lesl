@@ -17,6 +17,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
 
 option(LESL_ENABLE_EXAMPLES "Enable examples" ON)
+option(LESL_ENABLE_TESTS "Enable tests" ON)
 option(LESL_ENABLE_LESLC "Enable the LESL compiler" ON)
 option(LESL_ENABLE_SDL3 "Build SDL3 integration. Enabled if building examples" OFF)
 option(LESL_BUILD_SDL3 "Build a local SDL3 copy" OFF)
@@ -61,6 +62,7 @@ if (LESL_ENABLE_OPT)
     set(SPIRV_SKIP_EXECUTABLES ON)
     set(SPIRV_TOOLS_BUILD_STATIC ON)
     set(SPIRV_TOOLS_BUILD_SHARED OFF)
+    set(SPIRV_WERROR OFF)
     FetchContent_Declare(
         spirv-tools 
         GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Tools.git
@@ -244,6 +246,10 @@ if (LESL_ENABLE_EXAMPLES)
     FetchContent_MakeAvailable(assimp)
 
     add_subdirectory(examples)
+endif()
+
+if (LESL_ENABLE_TESTS)
+    add_subdirectory(tests)
 endif()
 
 # on Visual Studio, set our app as the default project

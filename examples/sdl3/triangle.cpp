@@ -28,17 +28,6 @@ class Triangle : public Example {
         SDL_GPUTextureFormat swapchain_format =
             SDL_GetGPUSwapchainTextureFormat(device, window);
 
-        for (int i = 0; i < 200; i++) {
-            auto binding_manager = lesl::sdl::SDL3BindingManager(
-                lesl::sdl::SDL3BindingManager::BindingAllocationMode::SingleInputMultipleUniform
-            );
-
-            auto cr_ = lesl::compile(
-                (const char*)unified_shader.data,
-                "Triangle",
-                std::move(binding_manager)
-            );
-        }
         auto binding_manager = lesl::sdl::SDL3BindingManager(
             lesl::sdl::SDL3BindingManager::BindingAllocationMode::SingleInputMultipleUniform
         );
