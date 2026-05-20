@@ -818,22 +818,14 @@ class CodeGenerator final {
 
         // if it's an entry point, check if it's a part of the currently selected
         // pipeline
-        if (selected_pipeline_name && is_entry_point) {
+        if (selected_pipeline && is_entry_point) {
             bool found = false;
-            for (Ref<Decl> decl : arena.decls) {
-                if (decl->is<Decl::Pipeline>()) {
-                    Decl::Pipeline& p = decl->get<Decl::Pipeline>();
-                    if (p.name.name == selected_pipeline_name.value()) {
-                        for (PipelineParameter& param : p.params) {
-                            if ((param.name.name == "Vertex" ||
-                                 param.name.name == "Fragment") &&
-                                param.value.name == f.name.name) {
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (found) {
+            Decl::Pipeline& p = selected_pipeline.value()->get<Decl::Pipeline>();
+            if (p.name.name == selected_pipeline_name.value()) {
+                for (PipelineParameter& param : p.params) {
+                    if ((param.name.name == "Vertex" || param.name.name == "Fragment") &&
+                        param.value.name == f.name.name) {
+                        found = true;
                         break;
                     }
                 }
