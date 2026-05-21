@@ -189,9 +189,9 @@ if (LESL_ENABLE_LESLC)
     add_subdirectory(leslc)
 
     if (WIN32)
-        set(LESLC ${CMAKE_BINARY_DIR}/Debug/leslc.exe)
+        set(LESLC ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/leslc.exe)
     else ()
-        set(LESLC ${CMAKE_BINARY_DIR}/Debug/leslc)
+        set(LESLC ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}/leslc)
     endif()
 
     function(build_lesl_shader shader_name)

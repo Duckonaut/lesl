@@ -141,7 +141,7 @@ static inline CompilationResult compile(
 #if LESL_ENABLE_OPT
     spvtools::Optimizer optimizer{ spv_target_env::SPV_ENV_VULKAN_1_0 };
     spvtools::OptimizerOptions options;
-    options.set_run_validator(true);
+    options.set_run_validator(false);
     options.set_preserve_bindings(true);
 
     optimizer.RegisterPerformancePasses();
