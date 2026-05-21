@@ -1175,11 +1175,6 @@ class CodeGenerator final {
                 subscope_index = close_scope();
 
                 spv.Label(merge_label);
-
-                uint32_t next_block_label = spv.get_id();
-
-                spv.Branch(next_block_label);
-                spv.Label(next_block_label);
             } else if (stmt->is<Stmt::For>()) {
                 const Stmt::For& for_stmt = stmt->get<Stmt::For>();
 
