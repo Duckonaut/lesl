@@ -38,6 +38,8 @@ if (LESL_ENABLE_EXAMPLES)
     set(LESL_ENABLE_SDL3 ON)
 endif()
 
+add_subdirectory(external/SPIRV-Headers)
+
 if (LESL_ENABLE_SDL3)
     if (LESL_BUILD_SDL3)
         set(SDL_SHARED TRUE "Build a SDL shared library (if available)")
@@ -69,6 +71,7 @@ if (LESL_ENABLE_OPT)
         GIT_TAG v2026.1
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE
+        GIT_SUBMODULES_RECURSE TRUE
     )
     FetchContent_MakeAvailable(spirv-tools)
 endif()
@@ -185,7 +188,6 @@ endfunction()
 add_subdirectory(lesl)
 
 if (LESL_ENABLE_LESLC)
-    add_subdirectory(external/SPIRV-Headers)
     add_subdirectory(leslc)
 
     if (WIN32)
