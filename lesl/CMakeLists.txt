@@ -6,6 +6,7 @@ target_sources(lesl PRIVATE
     src/lib.cpp
     src/parser.cpp
     src/stringpool.cpp
+    ../external/json/jsoncpp.cpp
 )
 
 if (LESL_ENABLE_SDL3)
@@ -21,4 +22,9 @@ if (LESL_ENABLE_OPT)
     target_link_libraries(lesl PUBLIC "SPIRV-Tools-static" "SPIRV-Tools-opt")
 endif()
 
-target_include_directories(lesl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${SPIRV-Headers_SOURCE_DIR}/include)
+target_include_directories(lesl PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${SPIRV-Headers_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../external/
+)
+

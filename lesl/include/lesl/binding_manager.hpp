@@ -16,6 +16,22 @@ enum class BindType {
     Sampler,
     Uniform,
 };
+
+inline const char* bind_type_to_str(BindType bt) {
+    switch (bt) {
+        case BindType::Input:
+            return "input";
+        case BindType::Output:
+            return "output";
+        case BindType::Sampler:
+            return "sampler";
+        case BindType::Uniform:
+            return "uniform";
+    }
+
+    return "unknown";
+}
+
 struct Binding {
     PipelineStage stage;
     BindType type;

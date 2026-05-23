@@ -9,7 +9,9 @@
 #include "lesl/validator.hpp"
 #include "lesl/codegen.hpp"
 #include <algorithm>
+#include <fstream>
 #include <iostream>
+#include <json/writer.h>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -18,6 +20,8 @@
 #include <spirv-tools/libspirv.hpp>
 #include <spirv-tools/optimizer.hpp>
 #endif
+
+#include <json/json.h>
 
 namespace lesl {
 
@@ -40,8 +44,8 @@ struct CompilationResult {
     std::vector<char> compiled_program;
     std::unordered_map<std::string, std::string> pipeline_parameters;
 
-    StageBinds vertex_binds;
-    StageBinds fragment_binds;
+    StageBinds vertex;
+    StageBinds fragment;
 
     static CompilationResult failure() {
         return { CompilationResultType::Failure, {}, {}, {}, {} };
@@ -85,6 +89,73 @@ struct CompilationResult {
 
     bool is_ok() const {
         return type == CompilationResultType::Success;
+    }
+
+    bool write_metadata(const char* path) {
+        if (!is_ok()) {
+            return false;
+        }
+
+        Json::Value root;
+        root["pipeline_parameters"] = Json::Value(Json::objectValue);
+
+        for (const auto& pp : pipeline_parameters) {
+            root["pipeline_parameters"][pp.first] = pp.second;
+        }
+
+        root["vertex"] = Json::Value(Json::objectValue);
+
+        root["vertex"]["num_samplers"] = vertex.num_samplers;
+        root["vertex"]["num_uniform_buffers"] = vertex.num_uniform_buffers;
+
+        root["vertex"]["bindings"] = Json::Value(Json::arrayValue);
+        for (const auto& b : vertex.binds) {
+            Json::Value jb{Json::objectValue};
+
+            jb["binding_type"] = b.binding_type;
+            jb["name"] = b.name;
+            jb["type"] = bind_type_to_str(b.type);
+            jb["set"] = b.set;
+            jb["slot"] = b.slot;
+            jb["size"] = b.size;
+            jb["alignment"] = b.alignment;
+            jb["stage"] = "vertex";
+
+            root["vertex"]["bindings"].append(jb);
+        }
+
+
+        root["fragment"] = Json::Value(Json::objectValue);
+
+        root["fragment"]["num_samplers"] = fragment.num_samplers;
+        root["fragment"]["num_uniform_buffers"] = fragment.num_uniform_buffers;
+
+        root["fragment"]["bindings"] = Json::Value(Json::arrayValue);
+        for (const auto& b : fragment.binds) {
+            Json::Value jb{Json::objectValue};
+
+            jb["binding_type"] = b.binding_type;
+            jb["name"] = b.name;
+            jb["type"] = bind_type_to_str(b.type);
+            jb["set"] = b.set;
+            jb["slot"] = b.slot;
+            jb["size"] = b.size;
+            jb["alignment"] = b.alignment;
+            jb["stage"] = "fragment";
+
+            root["fragment"]["bindings"].append(jb);
+        }
+        Json::FastWriter writer;
+        std::string s = writer.write(root);
+        
+        std::ofstream of{path};
+        if (!of.good()) {
+            return false;
+        }
+
+        of << s;
+
+        return true;
     }
 };
 

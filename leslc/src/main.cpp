@@ -34,6 +34,7 @@ enum class BindingManagerType {
 struct Args {
     std::optional<std::string> input;
     std::optional<std::string> output;
+    std::optional<std::string> metadata_output;
     std::optional<std::string> pipeline;
     std::optional<BindingManagerType> binding_manager;
     std::vector<lesl::DictionaryBindingManager::InterfaceBinding> dict_binds;
@@ -113,7 +114,11 @@ static Args parse_args(int argc, char* argv[]) {
         std::string arg = argv[i];
 
         if (arg == "-h" || arg == "--help") {
-            std::cout << "Usage: " << argv[0] << " [-o output] [input]" << std::endl;
+            std::cout << "Usage: " << argv[0]
+                      << " [-o/--output output] [-m/--metadata-output metadata-output] "
+                         "[-v/--verbose] [-B/--bind-style sdl3/simple/dict] [--bind/-b "
+                         "NAME:STAGE:STORAGE_CLASS:SET:SLOT]... [input]"
+                      << std::endl;
             exit(0);
         } else if (arg == "-v" || arg == "--verbose") {
             args.verbose = true;
@@ -121,6 +126,17 @@ static Args parse_args(int argc, char* argv[]) {
             if (i + 1 < argc) {
                 args.output = argv[i + 1];
                 i++;
+            } else {
+                std::cerr << "error: --output requires an argument" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "-m" || arg == "--metadata-output") {
+            if (i + 1 < argc) {
+                args.metadata_output = argv[i + 1];
+                i++;
+            } else {
+                std::cerr << "error: --metadata-output requires an argument" << std::endl;
+                exit(1);
             }
         } else if (arg == "--pipeline" || arg == "-p") {
             if (i + 1 < argc) {
@@ -326,6 +342,31 @@ int main(int argc, char* argv[]) {
 #else
     codegen.flush(*out);
 #endif
+
+    if (args.metadata_output) {
+        std::unordered_map<std::string, std::string> pparams;
+
+        lesl::Decl::Pipeline p =
+            (*std::find_if(
+                 arena.decls.begin(),
+                 arena.decls.end(),
+                 [&single_pipeline_name](lesl::Ref<lesl::Decl> d) {
+                     return d->is<lesl::Decl::Pipeline>() &&
+                            d->get<lesl::Decl::Pipeline>().name.name == single_pipeline_name;
+                 }
+             ))->get<lesl::Decl::Pipeline>();
+
+        for (auto& pparam : p.params) {
+            pparams[pparam.name.name.to_string()] = pparam.value.name.to_string();
+        }
+
+        // NOTE: empty code bc we only want metadata output
+        auto cr = lesl::CompilationResult::success({}, std::move(pparams), *binding_manager);
+
+        if (!cr.write_metadata(args.metadata_output.value().c_str())) {
+            std::cout << "Metadata output failed" << std::endl;
+        }
+    }
 
     delete binding_manager;
 

@@ -301,10 +301,10 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
         .entrypoint = entry_point_vertex,
         .format = SDL_GPU_SHADERFORMAT_SPIRV,
         .stage = SDL_GPU_SHADERSTAGE_VERTEX,
-        .num_samplers = cr.vertex_binds.num_samplers,
+        .num_samplers = cr.vertex.num_samplers,
         .num_storage_textures = 0,
         .num_storage_buffers = 0,
-        .num_uniform_buffers = cr.vertex_binds.num_uniform_buffers,
+        .num_uniform_buffers = cr.vertex.num_uniform_buffers,
         .props = 0,
     };
 
@@ -312,8 +312,8 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
 
     shaderCreateInfo.entrypoint = entry_point_fragment;
     shaderCreateInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
-    shaderCreateInfo.num_samplers = cr.fragment_binds.num_samplers;
-    shaderCreateInfo.num_uniform_buffers = cr.fragment_binds.num_uniform_buffers;
+    shaderCreateInfo.num_samplers = cr.fragment.num_samplers;
+    shaderCreateInfo.num_uniform_buffers = cr.fragment.num_uniform_buffers;
 
     SDL_GPUShader* fragment_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
 
@@ -336,7 +336,7 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
         uint32_t last_set = 0;
         uint32_t max_alignment = 0;
 
-        for (auto& b : cr.vertex_binds.binds) {
+        for (auto& b : cr.vertex.binds) {
             if (b.type == BindType::Input) {
                 if (last_size != 0) {
                     offset += std::max(last_size, b.alignment);
