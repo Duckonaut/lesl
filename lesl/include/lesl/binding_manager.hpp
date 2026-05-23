@@ -6,8 +6,11 @@
 
 #include "lesl/repr.hpp"
 
+#include <json/json.h>
+
 #include "codegen_helpers.hpp"
 #include <algorithm>
+#include <fstream>
 
 namespace lesl {
 enum class BindType {
@@ -146,11 +149,8 @@ struct SimpleBindingManager : public BindingManagerInterface {
         }
     }
 
-    void decorate_as_input(
-        spvbc::BinaryContainer& spv,
-        const Decl::Struct& s,
-        uint32_t struct_id
-    ) {
+    void
+    decorate_as_input(spvbc::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
         uint32_t location = 0;
 
         try_decorate_block(spv, struct_id);
@@ -161,11 +161,8 @@ struct SimpleBindingManager : public BindingManagerInterface {
         }
     }
 
-    void decorate_as_output(
-        spvbc::BinaryContainer& spv,
-        const Decl::Struct& s,
-        uint32_t struct_id
-    ) {
+    void
+    decorate_as_output(spvbc::BinaryContainer& spv, const Decl::Struct& s, uint32_t struct_id) {
         uint32_t location = 0;
         try_decorate_block(spv, struct_id);
         for (uint32_t i = 0; i < s.members.size(); i++) {
@@ -202,8 +199,7 @@ struct SimpleBindingManager : public BindingManagerInterface {
         }
     }
 
-    void
-    allocate_as_image_sampler(spvbc::BinaryContainer& spv, const GlobalInterface& gi) {
+    void allocate_as_image_sampler(spvbc::BinaryContainer& spv, const GlobalInterface& gi) {
         if (gi.storage_class == StorageClass::ImageSampler) {
             uint32_t set = 0;
 
@@ -275,6 +271,56 @@ struct DictionaryBindingManager : public BindingManagerInterface {
 
     std::vector<Binding> bindings;
 
+    DictionaryBindingManager(const char* metadata_path) : dict({}) {
+        std::ifstream ifs{ metadata_path };
+
+        if (!ifs.good()) {
+            return;
+        }
+
+        Json::Value root;
+
+        Json::CharReaderBuilder builder;
+        JSONCPP_STRING errs;
+        if (!Json::parseFromStream(builder, ifs, &root, &errs)) {
+            return;
+        }
+
+        // check format
+        if (!root["vertex"].isObject())
+            return;
+        if (!root["vertex"]["bindings"].isArray())
+            return;
+        if (!root["fragment"].isObject())
+            return;
+        if (!root["fragment"]["bindings"].isObject())
+            return;
+
+        for (Json::Value v : root["vertex"]["bindings"]) {
+            InterfaceBinding ib;
+            ib.name = v["name"].asString();
+            ib.set = v["set"].asInt();
+            ib.slot = v["slot"].asInt();
+
+            ib.stage = PipelineStage::Vertex;
+
+            std::string bind_type = v["type"].asString();
+
+            if (bind_type == "uniform") {
+                ib.storage_class = StorageClass::Uniform;
+            } else if (bind_type == "input") {
+                ib.storage_class = StorageClass::Input;
+            } else if (bind_type == "output") {
+                ib.storage_class = StorageClass::Output;
+            } else if (bind_type == "sampler") {
+                ib.storage_class = StorageClass::ImageSampler;
+            } else if (bind_type == "storage") {
+                ib.storage_class = StorageClass::StorageBuffer;
+            }
+
+            dict.push_back(ib);
+        }
+    }
     DictionaryBindingManager(const std::vector<InterfaceBinding>& dict) : dict(dict) {}
 
     Opt<InterfaceBinding> get_binding(PoolStr b) {

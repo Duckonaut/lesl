@@ -35,6 +35,7 @@ struct Args {
     std::optional<std::string> input;
     std::optional<std::string> output;
     std::optional<std::string> metadata_output;
+    std::optional<std::string> metadata_input;
     std::optional<std::string> pipeline;
     std::optional<BindingManagerType> binding_manager;
     std::vector<lesl::DictionaryBindingManager::InterfaceBinding> dict_binds;
@@ -136,6 +137,14 @@ static Args parse_args(int argc, char* argv[]) {
                 i++;
             } else {
                 std::cerr << "error: --metadata-output requires an argument" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "-M" || arg == "--metadata-input") {
+            if (i + 1 < argc) {
+                args.metadata_input = argv[i + 1];
+                i++;
+            } else {
+                std::cerr << "error: --metadata-input requires an argument" << std::endl;
                 exit(1);
             }
         } else if (arg == "--pipeline" || arg == "-p") {
@@ -302,7 +311,11 @@ int main(int argc, char* argv[]) {
             lesl::SimpleBindingManager::BindingAllocationMode::SingleInputMultipleUniform
         );
     } else if (args.binding_manager == BindingManagerType::Dictionary) {
-        binding_manager = new lesl::DictionaryBindingManager(args.dict_binds);
+        if (args.metadata_input) {
+            binding_manager = new lesl::DictionaryBindingManager(args.metadata_input->c_str());
+        } else {
+            binding_manager = new lesl::DictionaryBindingManager(args.dict_binds);
+        }
     }
 
     lesl::CodeGenerator codegen(arena, *binding_manager, single_pipeline_name);
