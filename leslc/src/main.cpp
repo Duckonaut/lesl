@@ -116,7 +116,8 @@ static Args parse_args(int argc, char* argv[]) {
 
         if (arg == "-h" || arg == "--help") {
             std::cout << "Usage: " << argv[0]
-                      << " [-o/--output output] [-m/--metadata-output metadata-output] "
+                      << " [-o/--output output] [-m/--metadata-output metadata-output-path] "
+                         "[-M/--metadata-input metadata-input-path]"
                          "[-v/--verbose] [-B/--bind-style sdl3/simple/dict] [--bind/-b "
                          "NAME:STAGE:STORAGE_CLASS:SET:SLOT]... [input]"
                       << std::endl;
