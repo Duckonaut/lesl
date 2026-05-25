@@ -23,3 +23,12 @@ target_sources(lesl-glslang-comparer PRIVATE
 )
 
 target_link_libraries(lesl-glslang-comparer PRIVATE lesl glslang glslang-default-resource-limits)
+
+function(define_test target_name target_group)
+    define_executable_target("test-${target_name}")
+    target_link_libraries("test-${target_name}" PRIVATE gtest_main lesl)
+    gtest_discover_tests("test-${target_name}")
+endfunction()
+
+define_test(basic captures)
+target_sources(test-basic PRIVATE captures/basic.cpp)
