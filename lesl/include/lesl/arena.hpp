@@ -4,12 +4,18 @@
 #include "stringpool.hpp"
 #include "lesl/repr.hpp"
 
+#if __cplusplus >= 202002L
 #include <concepts>
+#endif
 
 namespace lesl {
+#if __cplusplus >= 202002L
 template <typename T>
 concept ArenaType = std::same_as<T, Decl> || std::same_as<T, Stmt> || std::same_as<T, Expr> ||
                     std::same_as<T, TypeInfo>;
+#else
+#define ArenaType typename
+#endif
 
 /// The CompilationArena is a container for all the objects that are created during the
 /// compilation process. As of right now, it contains the following objects:
