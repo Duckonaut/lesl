@@ -124,7 +124,9 @@ class CodeGenerator final {
             vertex_inputs.push_back(param);
         }
 
-        vertex_outputs.push_back(vf.ret);
+        if (vf.ret.type.name.name != "void") {
+            vertex_outputs.push_back(vf.ret);
+        }
 
         Decl::Function& ff = find_function(fragment_entry_point);
 
@@ -132,7 +134,9 @@ class CodeGenerator final {
             fragment_inputs.push_back(param);
         }
 
-        fragment_outputs.push_back(ff.ret);
+        if (ff.ret.type.name.name != "void") {
+            fragment_outputs.push_back(ff.ret);
+        }
 
         for (TypedIdentifier& type : vertex_inputs) {
             uint32_t id = spv.get_id();
