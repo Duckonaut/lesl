@@ -30,9 +30,10 @@ struct Validator {
 
     int32_t loop_depth = 0;
     Opt<PipelineStage> in_entry_point = std::nullopt;
+    std::string pipeline_to_compile;
 
-    Validator(CompilationArena& arena, ErrorHandler& error_handler)
-        : arena(arena), error_handler(error_handler) {}
+    Validator(CompilationArena& arena, const char* pipeline, ErrorHandler& error_handler)
+        : arena(arena), error_handler(error_handler), pipeline_to_compile(pipeline) {}
 
     void open_scope() {
         variables.push_back({});
@@ -114,6 +115,24 @@ struct Validator {
                     filler.visit(decl);
                 },
                 decl->data
+            );
+        }
+
+        // check if there even is a pipeline
+        bool pipeline_found = false;
+        for (auto decl : arena.decls) {
+            if (decl->is<Decl::Pipeline>() &&
+                decl->get<Decl::Pipeline>().name.name == pipeline_to_compile) {
+                pipeline_found = true;
+                break;
+            }
+        }
+
+        if (!pipeline_found) {
+            error_handler.error(
+                ErrorType::NoPipeline,
+                arena.string_pool.add(pipeline_to_compile),
+                { 0, 0 }
             );
         }
 

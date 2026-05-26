@@ -292,7 +292,7 @@ int main(int argc, char* argv[]) {
         single_pipeline_name = args.pipeline;
     }
 
-    lesl::Validator validator(arena, error_handler);
+    lesl::Validator validator(arena, single_pipeline_name->c_str(), error_handler);
 
     validator.validate();
 

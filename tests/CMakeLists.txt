@@ -25,10 +25,15 @@ target_sources(lesl-glslang-comparer PRIVATE
 target_link_libraries(lesl-glslang-comparer PRIVATE lesl glslang glslang-default-resource-limits)
 
 function(define_test target_name target_group)
-    define_executable_target("test-${target_name}")
-    target_link_libraries("test-${target_name}" PRIVATE gtest_main lesl)
-    gtest_discover_tests("test-${target_name}")
+    define_executable_target("test-${target_group}-${target_name}")
+    target_link_libraries("test-${target_group}-${target_name}" PRIVATE gtest_main lesl)
+    gtest_discover_tests("test-${target_group}-${target_name}")
 endfunction()
 
 define_test(basic captures)
-target_sources(test-basic PRIVATE captures/basic.cpp)
+target_sources(test-captures-basic PRIVATE captures/basic.cpp)
+
+
+define_test(basic compilation)
+target_sources(test-compilation-basic PRIVATE compilation/basic.cpp)
+target_link_libraries(test-compilation-basic PRIVATE "SPIRV-Tools-static")

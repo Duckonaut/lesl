@@ -41,14 +41,16 @@ struct StageBinds {
 struct CompilationResult {
     CompilationResultType type;
 
+    std::vector<lesl::Error> errors;
+
     std::vector<char> compiled_program;
     std::unordered_map<std::string, std::string> pipeline_parameters;
 
     StageBinds vertex;
     StageBinds fragment;
 
-    static CompilationResult failure() {
-        return { CompilationResultType::Failure, {}, {}, {}, {} };
+    static CompilationResult failure(const ErrorHandler& error_handler) {
+        return { CompilationResultType::Failure, error_handler.errors, {}, {}, {}, {} };
     }
     static CompilationResult success(
         std::vector<char>&& p,
@@ -80,6 +82,7 @@ struct CompilationResult {
 
         return {
             CompilationResultType::Success,
+            {},
             std::move(p),
             std::move(pp),
             std::move(vertex_binds),
@@ -187,16 +190,16 @@ static inline CompilationResult compile(
 
     if (error_handler.has_errors()) {
         error_handler.dump(*error_out);
-        return CompilationResult::failure();
+        return CompilationResult::failure(error_handler);
     }
 
-    Validator validator(*arena, error_handler);
+    Validator validator(*arena, pipeline, error_handler);
 
     validator.validate();
 
     if (error_handler.has_errors()) {
         error_handler.dump(*error_out);
-        return CompilationResult::failure();
+        return CompilationResult::failure(error_handler);
     }
 
     CodeGenerator codegen(*arena, binding_manager, pipeline);
@@ -205,7 +208,7 @@ static inline CompilationResult compile(
 
     if (error_handler.has_errors()) {
         error_handler.dump(*error_out);
-        return CompilationResult::failure();
+        return CompilationResult::failure(error_handler);
     }
 
     std::vector<char> c;
@@ -222,7 +225,7 @@ static inline CompilationResult compile(
         optimizer.Run(codegen.spv.words.data(), codegen.spv.words.size(), &optimized, options);
 
     if (!ok) {
-        return CompilationResult::failure();
+        return CompilationResult::failure(error_handler);
     }
 
     for (unsigned i = 0; i < optimized.size(); i++) {

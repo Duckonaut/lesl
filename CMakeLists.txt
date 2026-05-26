@@ -23,6 +23,15 @@ option(LESL_ENABLE_SDL3 "Build SDL3 integration. Enabled if building examples" O
 option(LESL_BUILD_SDL3 "Build a local SDL3 copy" OFF)
 option(LESL_ENABLE_OPT "Enable SPIR-V optimization" ON)
 
+set(_LESL_USE_SPIRV_TOOLS OFF)
+if (LESL_ENABLE_OPT)
+    set(_LESL_USE_SPIRV_TOOLS ON)
+endif()
+
+if (LESL_ENABLE_TESTS)
+    set(_LESL_USE_SPIRV_TOOLS ON)
+endif()
+
 cmake_policy(SET CMP0135 NEW)
 
 execute_process(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT_HASH OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -59,7 +68,7 @@ if (LESL_ENABLE_SDL3)
     endif()
 endif()
 
-if (LESL_ENABLE_OPT)
+if (_LESL_USE_SPIRV_TOOLS)
     set(SKIP_SPIRV_TOOLS_INSTALL ON)
     set(SPIRV_SKIP_EXECUTABLES ON)
     set(SPIRV_TOOLS_BUILD_STATIC ON)
