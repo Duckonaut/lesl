@@ -38,7 +38,7 @@ struct Tokenizer final {
 
         char c = unit.peek();
         SourceLocation location = unit.location();
-        if (std::isalpha(unit.peek())) {
+        if (std::isalpha(unit.peek()) || c == '_') {
             token = read_keyword_or_identifier();
         } else if (std::isdigit(unit.peek())) {
             token = read_number();
