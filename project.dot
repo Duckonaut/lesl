@@ -1,0 +1,69 @@
+digraph "lesl" {
+node [
+  fontsize = "12"
+];
+edge [
+  minlen = 2;
+];
+graph [
+    compound = true
+];
+    "node2" [ label = "glslang", shape = octagon ];
+    "node3" [ label = "spirv-opt", shape = doubleoctagon ];
+    "node4" [ label = "SPIRV-Tools", shape = doubleoctagon ];
+    "node4" -> "node3" // SPIRV-Tools-opt -> SPIRV-Tools
+    "node3" -> "node2" [ style = bold ]  // glslang -> SPIRV-Tools-opt
+    "node10" [ label = "assimp", shape = octagon ];
+    "node13" [ label = "glm", shape = octagon ];
+    "node20" [ label = "Google Test", shape = octagon ];
+    "node23" [ label = "lesl", shape = octagon ];
+    "node25" [ label = "SDL3", shape = doubleoctagon ];
+    "node25" -> "node23" [ style = dotted ] // lesl -> SDL3::SDL3-shared
+    "node3" -> "node23" [ style = dotted ] // lesl -> SDL3::SDL3-shared
+    "node28" [ label = "lesl-benchmark", shape = rect ];
+    "node23" -> "node28" []  // lesl-benchmark -> lesl
+    "node29" [ label = "lesl-glslang-comparer", shape = rect ];
+    "node2" -> "node29" []  // lesl-glslang-comparer -> glslang
+    "node23" -> "node29" []  // lesl-glslang-comparer -> lesl
+    "node30" [ label = "leslc", shape = rect ];
+    "node23" -> "node30" [ style = bold ]  // leslc -> lesl
+
+    subgraph cluster_examples {
+        label = "Examples";
+        "node31" [ label = "sdl3-cube", shape = rect ];
+        "node32" [ label = "sdl3-if", shape = rect ];
+        "node33" [ label = "sdl3-matrices", shape = rect ];
+        "node34" [ label = "sdl3-multipipeline", shape = rect ];
+        "node35" [ label = "sdl3-outline", shape = rect ];
+        "node36" [ label = "sdl3-pbr", shape = rect ];
+        "node37" [ label = "sdl3-swizzles", shape = rect ];
+        "node38" [ label = "sdl3-texture", shape = rect ];
+        "node39" [ label = "sdl3-time", shape = rect ];
+        "node40" [ label = "sdl3-triangle", shape = rect ];
+
+        "node31" -> "node34" [ style = invisible, arrowsize=0 ];
+        "node31" -> "node35" [ style = invisible, arrowsize=0 ];
+        "node31" -> "node36" [ style = invisible, arrowsize=0 ];
+        "node31" -> "node37" [ style = invisible, arrowsize=0 ];
+
+
+        "node35" -> "node38" [ style = invisible, arrowsize=0 ];
+        "node35" -> "node39" [ style = invisible, arrowsize=0 ];
+        "node35" -> "node40" [ style = invisible, arrowsize=0 ];
+    }
+
+    "node25" -> "node31" [ lhead=cluster_examples ]  // sdl3-cube -> SDL3::SDL3-shared
+    "node10" -> "node31" [ lhead=cluster_examples ]  // sdl3-cube -> assimp
+    "node13" -> "node31" [ lhead=cluster_examples ]  // sdl3-cube -> glm
+    "node23" -> "node31" [ lhead=cluster_examples ]  // sdl3-cube -> lesl
+
+    subgraph cluster_tests {
+        label = "Tests"
+        "node41" [ label = "test-compilation", shape = rect ];
+        "node42" [ label = "test-capture", shape = rect ];
+    }
+
+    "node4" -> "node41" [ lhead=cluster_tests ]  // sdl3-cube -> glm
+    "node20" -> "node41" [ lhead=cluster_tests ]  // test-basic -> gtest
+    "node23" -> "node41" [ lhead=cluster_tests ]  // test-basic -> lesl
+}
