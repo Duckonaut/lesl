@@ -635,9 +635,8 @@ struct Validator {
         bool inherit_expected_type =
             expected_type.has_value() &&
             (binary.op == Expr::BinaryOp::Add || binary.op == Expr::BinaryOp::Sub ||
-             binary.op == Expr::BinaryOp::Mul || binary.op == Expr::BinaryOp::Div ||
-             binary.op == Expr::BinaryOp::Mod || binary.op == Expr::BinaryOp::AddAssign ||
-             binary.op == Expr::BinaryOp::SubAssign || binary.op == Expr::BinaryOp::MulAssign ||
+             binary.op == Expr::BinaryOp::Div || binary.op == Expr::BinaryOp::Mod ||
+             binary.op == Expr::BinaryOp::AddAssign || binary.op == Expr::BinaryOp::SubAssign ||
              binary.op == Expr::BinaryOp::DivAssign || binary.op == Expr::BinaryOp::ModAssign ||
              binary.op == Expr::BinaryOp::Assign);
 
@@ -650,7 +649,8 @@ struct Validator {
             will_lhs_be_assigned
         );
 
-        ExprValidationResult right = validate_expr(*binary.rhs, expect_same_rhs ? left.type : std::nullopt, false);
+        ExprValidationResult right =
+            validate_expr(*binary.rhs, expect_same_rhs ? left.type : std::nullopt, false);
 
         if (!left.type || !right.type) {
             return { std::nullopt };

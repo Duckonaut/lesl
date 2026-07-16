@@ -156,6 +156,16 @@ struct ExprResult {
             expected == TypeInfo::BuiltinPrimitive::Float
         ) {
             return spv.ConvertUToFNew(expected_type_id, value);
+        } else if (
+            current == TypeInfo::BuiltinPrimitive::Uint &&
+            expected == TypeInfo::BuiltinPrimitive::Int
+        ) {
+            return spv.BitcastNew(expected_type_id, value);
+        } else if (
+            current == TypeInfo::BuiltinPrimitive::Int &&
+            expected == TypeInfo::BuiltinPrimitive::Uint
+        ) {
+            return spv.BitcastNew(expected_type_id, value);
         } else {
             assert(false);
         }
@@ -169,7 +179,12 @@ struct ExprResult {
         } else if (std::holds_alternative<VariableInstance>(data)) {
             const VariableInstance& var = std::get<VariableInstance>(data);
             if (var.storage_class) {
-                loaded_id = spv.LoadNew((*var.type)->id, var.id);
+                if ((*var.type)->is<TypeInfo::Array>() &&
+                    !(*var.type)->get<TypeInfo::Array>().is_sized) {
+                    loaded_id = var.id;
+                } else {
+                    loaded_id = spv.LoadNew((*var.type)->id, var.id);
+                }
             } else {
                 loaded_id = var.id;
             }

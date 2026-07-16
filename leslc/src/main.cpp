@@ -222,6 +222,28 @@ void print_formatted(const spvbc::BinaryContainer& spv) {
     }
 }
 
+void CLIMessageConsumer(spv_message_level_t level, const char*,
+                        const spv_position_t& position, const char* message) {
+  switch (level) {
+    case SPV_MSG_FATAL:
+    case SPV_MSG_INTERNAL_ERROR:
+    case SPV_MSG_ERROR:
+      std::cerr << "error: line " << position.index << ": " << message
+                << std::endl;
+      break;
+    case SPV_MSG_WARNING:
+      std::cout << "warning: line " << position.index << ": " << message
+                << std::endl;
+      break;
+    case SPV_MSG_INFO:
+      std::cout << "info: line " << position.index << ": " << message
+                << std::endl;
+      break;
+    default:
+      break;
+  }
+}
+
 int main(int argc, char* argv[]) {
     Args args = parse_args(argc, argv);
 
@@ -340,6 +362,7 @@ int main(int argc, char* argv[]) {
     options.set_preserve_bindings(true);
 
     optimizer.RegisterPerformancePasses();
+    optimizer.SetMessageConsumer(CLIMessageConsumer);
 
     std::vector<uint32_t> optimized;
     bool ok =

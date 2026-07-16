@@ -3,6 +3,7 @@
 #include "lesl/ref_container.hpp"
 #include "spirv/1.0/spirv.hpp"
 
+#include "spirv/unified1/spirv.hpp"
 #include "spirv_binary_container.hpp"
 
 #include "lesl/repr.hpp"
@@ -80,6 +81,7 @@ class CodeGenerator final {
 
         preallocate_interface_ids();
         preallocate_builtins();
+
         generate_entry_points();
         generate_debug_info();
         generate_decorations();
@@ -94,6 +96,8 @@ class CodeGenerator final {
 
     void generate_prelude() {
         spv.Capability(spv::CapabilityShader);
+        spv.Capability(spv::CapabilityVariablePointersStorageBuffer);
+        spv.Extension("SPV_KHR_variable_pointers");
         glsl_ext = spv.ExtInstImportNew("GLSL.std.450");
         spv.MemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
     }
@@ -327,6 +331,15 @@ class CodeGenerator final {
             }
         }
 
+        for (Ref<TypeInfo> ti : arena.types) {
+            if (ti->is<TypeInfo::Array>()) {
+                const TypeInfo::Array& a = ti->get<TypeInfo::Array>();
+                uint32_t stride = a.element->size;
+
+                spv.Decorate(ti->id, spv::DecorationArrayStride, &stride, 1);
+            }
+        }
+
         binding_manager.decorate_interfaces(spv, global_interfaces);
 
         BuiltinInfo& position = builtins[arena.string_pool.add("POSITION")];
@@ -474,6 +487,10 @@ class CodeGenerator final {
                         try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                         try_add_storage_class_pointer(type_info, spv::StorageClassOutput);
                         try_add_storage_class_pointer(type_info, spv::StorageClassUniform);
+                        try_add_storage_class_pointer(
+                            type_info,
+                            spv::StorageClassStorageBuffer
+                        );
                     }
                 },
                 [&](const TypeInfo::Vector& v) {
@@ -488,6 +505,7 @@ class CodeGenerator final {
                     try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                     try_add_storage_class_pointer(type_info, spv::StorageClassOutput);
                     try_add_storage_class_pointer(type_info, spv::StorageClassUniform);
+                    try_add_storage_class_pointer(type_info, spv::StorageClassStorageBuffer);
                 },
                 [&](const TypeInfo::Matrix& m) {
                     uint32_t underlying_type_id = resolve_type(m.vector_element->name);
@@ -499,6 +517,7 @@ class CodeGenerator final {
                     try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                     try_add_storage_class_pointer(type_info, spv::StorageClassOutput);
                     try_add_storage_class_pointer(type_info, spv::StorageClassUniform);
+                    try_add_storage_class_pointer(type_info, spv::StorageClassStorageBuffer);
                 },
                 [&](const TypeInfo::Struct& s) {
                     generate_struct(type_info.name, s);
@@ -509,6 +528,7 @@ class CodeGenerator final {
                     try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                     try_add_storage_class_pointer(type_info, spv::StorageClassOutput);
                     try_add_storage_class_pointer(type_info, spv::StorageClassUniform);
+                    try_add_storage_class_pointer(type_info, spv::StorageClassStorageBuffer);
                 },
                 [&](const TypeInfo::Array& a) {
                     uint32_t underlying_type_id = resolve_type(a.element->name);
@@ -523,6 +543,10 @@ class CodeGenerator final {
                         try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                         try_add_storage_class_pointer(type_info, spv::StorageClassOutput);
                         try_add_storage_class_pointer(type_info, spv::StorageClassUniform);
+                        try_add_storage_class_pointer(
+                            type_info,
+                            spv::StorageClassStorageBuffer
+                        );
                     } else {
                         uint32_t type_id = spv.TypeRuntimeArrayNew(underlying_type_id);
                         decl_ids[type_info.name] = type_id;
@@ -531,6 +555,10 @@ class CodeGenerator final {
 
                         try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                         try_add_storage_class_pointer(type_info, spv::StorageClassUniform);
+                        try_add_storage_class_pointer(
+                            type_info,
+                            spv::StorageClassStorageBuffer
+                        );
                     }
                 },
                 [&](const TypeInfo::ImageSampler&) {
@@ -2017,6 +2045,20 @@ class CodeGenerator final {
                             right->load(spv, left->type)
                         );
                         break;
+                    case OpFamily::VectorScalar: {
+                        uint32_t inv_right = spv.FDivNew(
+                            right->type->id,
+                            get_constant_float(1.0f),
+                            right->load(spv)
+                        );
+                        spv.VectorTimesScalar(
+                            left->type->id,
+                            div_res,
+                            left->load(spv),
+                            inv_right
+                        );
+                        break;
+                    }
                     default:
                         assert(false);
                         break;
@@ -2239,10 +2281,55 @@ class CodeGenerator final {
         Ref<ExprResult> index = generate_expression(*la.index, &**get_type_info("int"));
         uint32_t res = spv.get_id();
         uint32_t index_id = index->load(spv, get_type_info("int"));
-        spv.AccessChain(list->type->id, res, list->load(spv), &index_id, 1);
-        assert(list->type->is<TypeInfo::Array>());
-        TypeInfo::Array& array = list->type->get<TypeInfo::Array>();
-        return expr_ref({ res, array.element });
+
+        assert(
+            std::holds_alternative<VariableInstance>(list->data) &&
+            "Indexing into some weird object!"
+        );
+        VariableInstance vi = std::get<VariableInstance>(list->data);
+
+        if (list->type->is<TypeInfo::Array>()) {
+            TypeInfo::Array& array = list->type->get<TypeInfo::Array>();
+            spv.AccessChain(
+                array.element->get_pointer_type(list->get_storage_class()),
+                res,
+                vi.id,
+                &index_id,
+                1
+            );
+            return expr_ref(
+                { VariableInstance{ res, array.element, list->get_storage_class() },
+                  array.element }
+            );
+        } else if (list->type->is<TypeInfo::Vector>()) {
+            TypeInfo::Vector& vector = list->type->get<TypeInfo::Vector>();
+            spv.AccessChain(
+                vector.element->get_pointer_type(list->get_storage_class()),
+                res,
+                vi.id,
+                &index_id,
+                1
+            );
+            return expr_ref(
+                { VariableInstance{ res, vector.element, list->get_storage_class() },
+                  vector.element }
+            );
+        } else if (list->type->is<TypeInfo::Matrix>()) {
+            TypeInfo::Matrix& matrix = list->type->get<TypeInfo::Matrix>();
+            spv.AccessChain(
+                matrix.vector_element->get_pointer_type(list->get_storage_class()),
+                res,
+                vi.id,
+                &index_id,
+                1
+            );
+            return expr_ref(
+                { VariableInstance{ res, matrix.vector_element, list->get_storage_class() },
+                  matrix.vector_element }
+            );
+        }
+
+        assert(false);
     }
 
     uint32_t component_from_char(char c) {
