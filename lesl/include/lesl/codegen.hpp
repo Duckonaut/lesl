@@ -209,6 +209,14 @@ class CodeGenerator final {
             0,
             spv::StorageClassOutput,
         };
+
+        id = spv.get_id();
+        builtins[arena.string_pool.add("INSTANCE")] = {
+            id,
+            0,
+            0,
+            spv::StorageClassInput,
+        };
     }
 
     void generate_entry_points() {
@@ -324,6 +332,10 @@ class CodeGenerator final {
         BuiltinInfo& position = builtins[arena.string_pool.add("POSITION")];
         uint32_t builtin = spv::BuiltInPosition;
         spv.Decorate(position.id, spv::DecorationBuiltIn, &builtin, 1);
+
+        BuiltinInfo& instance = builtins[arena.string_pool.add("INSTANCE")];
+        builtin = spv::BuiltInInstanceId;
+        spv.Decorate(instance.id, spv::DecorationBuiltIn, &builtin, 1);
     }
 
     void generate_builtins() {
@@ -334,13 +346,19 @@ class CodeGenerator final {
         decl_ids[arena.string_pool.add("float")] = spv.TypeFloatNew(32);
 
         Opt<Ref<TypeInfo>> float4_type_info_ref;
+        Opt<Ref<TypeInfo>> uint_type_info_ref;
 
         for (Ref<TypeInfo> type : arena.types) {
             if (type->is<TypeInfo::Vector>()) {
                 TypeInfo::Vector& v = type->get<TypeInfo::Vector>();
                 if (v.size == 4 && v.element->name == "float") {
                     float4_type_info_ref = type;
-                    break;
+                }
+            }
+            if (type->is<TypeInfo::Primitive>()) {
+                TypeInfo::Primitive& p = type->get<TypeInfo::Primitive>();
+                if (p.primitive == TypeInfo::BuiltinPrimitive::Uint) {
+                    uint_type_info_ref = type;
                 }
             }
         }
@@ -350,17 +368,28 @@ class CodeGenerator final {
         uint32_t float4_id = spv.TypeVectorNew(decl_ids[arena.string_pool.add("float")], 4);
         decl_ids[arena.string_pool.add("float4")] = float4_id;
 
+        uint32_t uint_id = decl_ids[arena.string_pool.add("uint")];
+
         uint32_t float4_output_ptr = spv.TypePointerNew(spv::StorageClassOutput, float4_id);
         float4_type_info_ref.value()->add_pointer_type(
             spv::StorageClassOutput,
             float4_output_ptr
         );
 
+        uint32_t uint_input_ptr = spv.TypePointerNew(spv::StorageClassInput, uint_id);
+        uint_type_info_ref.value()->add_pointer_type(spv::StorageClassInput, uint_input_ptr);
+
         BuiltinInfo& position = builtins[arena.string_pool.add("POSITION")];
         spv.Variable(float4_output_ptr, position.id, spv::StorageClassOutput);
         position.type_id = float4_id;
         position.pointer_type_id = float4_output_ptr;
         position.storage_class = spv::StorageClassOutput;
+
+        BuiltinInfo& instance = builtins[arena.string_pool.add("INSTANCE")];
+        spv.Variable(uint_input_ptr, instance.id, spv::StorageClassInput);
+        instance.type_id = uint_id;
+        instance.pointer_type_id = uint_input_ptr;
+        instance.storage_class = spv::StorageClassInput;
     }
 
     void constant_encode(uint32_t id_result_type, uint32_t id_result, uint32_t value) {
@@ -904,18 +933,18 @@ class CodeGenerator final {
             }
 
             for (auto& builtin : builtins) {
-                Opt<Ref<TypeInfo>> float4_type;
+                Opt<Ref<TypeInfo>> bi_type;
 
                 for (Ref<TypeInfo> ti : arena.types) {
                     if (ti->id == builtin.second.type_id) {
-                        float4_type = ti;
+                        bi_type = ti;
                     }
                 }
 
                 add_variable(
                     builtin.first,
                     builtin.second.id,
-                    *float4_type,
+                    *bi_type,
                     builtin.second.storage_class
                 );
             }

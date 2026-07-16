@@ -168,6 +168,16 @@ struct Validator {
                 ),
                 StorageClass::Output
             );
+            add_variable(
+                arena.string_pool.add("INSTANCE"),
+                create_or_get_info_ref(
+                    TypeInfo::create_primitive(
+                        arena.string_pool,
+                        TypeInfo::BuiltinPrimitive::Uint
+                    )
+                ),
+                StorageClass::Input
+            );
         }
     }
 
