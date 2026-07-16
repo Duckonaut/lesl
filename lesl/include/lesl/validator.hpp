@@ -31,6 +31,7 @@ struct Validator {
     int32_t loop_depth = 0;
     Opt<PipelineStage> in_entry_point = std::nullopt;
     std::string pipeline_to_compile;
+    Opt<Ref<Decl>> compiled_pipeline;
 
     Validator(CompilationArena& arena, const char* pipeline, ErrorHandler& error_handler)
         : arena(arena), error_handler(error_handler), pipeline_to_compile(pipeline) {}
@@ -124,6 +125,7 @@ struct Validator {
             if (decl->is<Decl::Pipeline>() &&
                 decl->get<Decl::Pipeline>().name.name == pipeline_to_compile) {
                 pipeline_found = true;
+                compiled_pipeline = decl;
                 break;
             }
         }
@@ -136,6 +138,8 @@ struct Validator {
             );
         }
 
+        mark_interface_structs();
+
         // full validation
         for (Ref<Decl> decl : arena.decls) {
             if (decl->is<Decl::Function>()) {
@@ -146,6 +150,43 @@ struct Validator {
                 validate_pipeline(decl->get<Decl::Pipeline>());
             } else {
                 assert(false);
+            }
+        }
+    }
+
+    void mark_interface_structs() {
+        if (!compiled_pipeline) {
+            return;
+        }
+
+        Decl::Pipeline& p = (*compiled_pipeline)->get<Decl::Pipeline>();
+        PoolStr p_v;
+        PoolStr p_f;
+
+        for (auto pp : p.params) {
+            if (pp.name.name == "Vertex") {
+                p_v = pp.value.name;
+            } else if (pp.name.name == "Fragment") {
+                p_f = pp.value.name;
+            }
+        }
+
+        for (Ref<Decl> decl : arena.decls) {
+            if (decl->is<Decl::Function>()) {
+                Decl::Function& f = decl->get<Decl::Function>();
+                if (f.name.name == p_v || f.name.name == p_f) {
+                    for (auto ti : f.params) {
+                        for (Ref<Decl> decl : arena.decls) {
+                            if (decl->is<Decl::Struct>()) {
+                                auto& s = decl->get<Decl::Struct>();
+                                if (s.resolved_type == ti.type.resolved_type) {
+                                    s.is_interface = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
