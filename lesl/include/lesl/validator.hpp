@@ -641,13 +641,16 @@ struct Validator {
              binary.op == Expr::BinaryOp::DivAssign || binary.op == Expr::BinaryOp::ModAssign ||
              binary.op == Expr::BinaryOp::Assign);
 
+        bool expect_same_rhs =
+            (binary.op != Expr::BinaryOp::Mul && binary.op != Expr::BinaryOp::MulAssign);
+
         ExprValidationResult left = validate_expr(
             *binary.lhs,
             inherit_expected_type ? expected_type : std::nullopt,
             will_lhs_be_assigned
         );
 
-        ExprValidationResult right = validate_expr(*binary.rhs, left.type, false);
+        ExprValidationResult right = validate_expr(*binary.rhs, expect_same_rhs ? left.type : std::nullopt, false);
 
         if (!left.type || !right.type) {
             return { std::nullopt };
@@ -1741,7 +1744,7 @@ struct Validator {
         Opt<Ref<TypeInfo>> expected_type = std::nullopt,
         bool = false
     ) {
-        ExprValidationResult base = validate_expr(*list_access.list, expected_type, false);
+        ExprValidationResult base = validate_expr(*list_access.list, std::nullopt, false);
         if (!base.type) {
             return { std::nullopt };
         }
@@ -1759,8 +1762,10 @@ struct Validator {
         }
 
         if (!(*index.type)->is<TypeInfo::Primitive>() ||
-            (*index.type)->get_underlying_primitive().primitive !=
-                TypeInfo::BuiltinPrimitive::Int) {
+            !((*index.type)->get_underlying_primitive().primitive ==
+                  TypeInfo::BuiltinPrimitive::Int ||
+              (*index.type)->get_underlying_primitive().primitive ==
+                  TypeInfo::BuiltinPrimitive::Uint)) {
             error_handler.error(
                 ErrorType::InvalidArrayIndex,
                 list_access.index->get_location()

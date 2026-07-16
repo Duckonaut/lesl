@@ -410,8 +410,15 @@ inline static const std::vector<BuiltinFunction> builtin_functions = {
         .with_glsl_std450_encoding(GLSLstd450Atanh),
     // exponential functions
     BuiltinFunction("pow")
-        .with_static_input({ { "float", "float" } })
-        .with_static_output("float")
+        .with_static_input(
+            {
+                { "float", "float" },
+                { "float2", "float2" },
+                { "float3", "float3" },
+                { "float4", "float4" },
+            }
+        )
+        .with_inherited_output()
         .with_glsl_std450_encoding(GLSLstd450Pow),
     BuiltinFunction("exp")
         .with_vectorized_input({ TypeInfo::BuiltinPrimitive::Float }, 1, 4)
