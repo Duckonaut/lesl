@@ -303,7 +303,7 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
         .stage = SDL_GPU_SHADERSTAGE_VERTEX,
         .num_samplers = cr.vertex.num_samplers,
         .num_storage_textures = 0,
-        .num_storage_buffers = 0,
+        .num_storage_buffers = cr.vertex.num_storage_buffers,
         .num_uniform_buffers = cr.vertex.num_uniform_buffers,
         .props = 0,
     };
@@ -313,6 +313,7 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
     shaderCreateInfo.entrypoint = entry_point_fragment;
     shaderCreateInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
     shaderCreateInfo.num_samplers = cr.fragment.num_samplers;
+    shaderCreateInfo.num_storage_buffers = cr.fragment.num_storage_buffers;
     shaderCreateInfo.num_uniform_buffers = cr.fragment.num_uniform_buffers;
 
     SDL_GPUShader* fragment_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
