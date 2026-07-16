@@ -36,6 +36,7 @@ struct StageBinds {
     std::vector<Binding> binds;
     uint32_t num_samplers = 0;
     uint32_t num_uniform_buffers = 0;
+    uint32_t num_storage_buffers = 0;
 };
 
 struct CompilationResult {
@@ -70,12 +71,18 @@ struct CompilationResult {
                 } else if (b.type == BindType::Uniform) {
                     vertex_binds.num_uniform_buffers++;
                 }
+                else if (b.type == BindType::Storage) {
+                    vertex_binds.num_storage_buffers++;
+                }
             } else if (b.stage == PipelineStage::Fragment) {
                 fragment_binds.binds.push_back(b);
                 if (b.type == BindType::Sampler) {
                     fragment_binds.num_samplers++;
                 } else if (b.type == BindType::Uniform) {
                     fragment_binds.num_uniform_buffers++;
+                }
+                else if (b.type == BindType::Storage) {
+                    fragment_binds.num_storage_buffers++;
                 }
             }
         }

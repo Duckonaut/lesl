@@ -18,6 +18,7 @@ enum class BindType {
     Output,
     Sampler,
     Uniform,
+    Storage,
 };
 
 inline const char* bind_type_to_str(BindType bt) {
@@ -30,6 +31,8 @@ inline const char* bind_type_to_str(BindType bt) {
             return "sampler";
         case BindType::Uniform:
             return "uniform";
+        case BindType::Storage:
+            return "storage";
     }
 
     return "unknown";
