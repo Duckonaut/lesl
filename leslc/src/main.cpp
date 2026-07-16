@@ -9,6 +9,7 @@
 #include "lesl/parser.hpp"
 #include "lesl/validator.hpp"
 #include "lesl/codegen.hpp"
+#include "spirv-tools/libspirv.hpp"
 
 #include <fstream>
 #include <istream>
@@ -357,9 +358,12 @@ int main(int argc, char* argv[]) {
 
 #if LESL_ENABLE_OPT
     spvtools::Optimizer optimizer{ spv_target_env::SPV_ENV_VULKAN_1_0 };
+    spvtools::ValidatorOptions val_options{};
+    val_options.SetUniformBufferStandardLayout(true);
     spvtools::OptimizerOptions options;
     options.set_run_validator(true);
     options.set_preserve_bindings(true);
+    options.set_validator_options(val_options);
 
     optimizer.RegisterPerformancePasses();
     optimizer.SetMessageConsumer(CLIMessageConsumer);

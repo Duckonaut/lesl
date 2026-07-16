@@ -79,6 +79,12 @@ class CodeGenerator final {
             }
         }
 
+        // preallocate type ids
+        for (Ref<TypeInfo> ti : arena.types) {
+            ti->id = spv.get_id();
+            decl_ids[ti->name] = ti->id;
+        }
+
         preallocate_interface_ids();
         preallocate_builtins();
 
@@ -347,16 +353,16 @@ class CodeGenerator final {
         spv.Decorate(position.id, spv::DecorationBuiltIn, &builtin, 1);
 
         BuiltinInfo& instance = builtins[arena.string_pool.add("INSTANCE")];
-        builtin = spv::BuiltInInstanceId;
+        builtin = spv::BuiltInInstanceIndex;
         spv.Decorate(instance.id, spv::DecorationBuiltIn, &builtin, 1);
     }
 
     void generate_builtins() {
-        decl_ids[arena.string_pool.add("void")] = spv.TypeVoidNew();
-        decl_ids[arena.string_pool.add("bool")] = spv.TypeBoolNew();
-        decl_ids[arena.string_pool.add("int")] = spv.TypeIntNew(32, 1);
-        decl_ids[arena.string_pool.add("uint")] = spv.TypeIntNew(32, 0);
-        decl_ids[arena.string_pool.add("float")] = spv.TypeFloatNew(32);
+        spv.TypeVoid(decl_ids[arena.string_pool.add("void")]);
+        spv.TypeBool(decl_ids[arena.string_pool.add("bool")]);
+        spv.TypeInt(decl_ids[arena.string_pool.add("int")], 32, 1);
+        spv.TypeInt(decl_ids[arena.string_pool.add("uint")], 32, 0);
+        spv.TypeFloat(decl_ids[arena.string_pool.add("float")], 32);
 
         Opt<Ref<TypeInfo>> float4_type_info_ref;
         Opt<Ref<TypeInfo>> uint_type_info_ref;
@@ -378,8 +384,8 @@ class CodeGenerator final {
 
         assert(float4_type_info_ref.has_value());
 
-        uint32_t float4_id = spv.TypeVectorNew(decl_ids[arena.string_pool.add("float")], 4);
-        decl_ids[arena.string_pool.add("float4")] = float4_id;
+        uint32_t float4_id = decl_ids[arena.string_pool.add("float4")];
+        spv.TypeVector(float4_id, decl_ids[arena.string_pool.add("float")], 4);
 
         uint32_t uint_id = decl_ids[arena.string_pool.add("uint")];
 
@@ -481,7 +487,6 @@ class CodeGenerator final {
         std::visit(
             overloaded{
                 [&](const TypeInfo::Primitive& p) {
-                    type_info.id = decl_ids[type_info.name];
                     if (p.primitive != TypeInfo::BuiltinPrimitive::Void) {
                         try_add_storage_class_pointer(type_info, spv::StorageClassFunction);
                         try_add_storage_class_pointer(type_info, spv::StorageClassInput);
@@ -497,10 +502,8 @@ class CodeGenerator final {
                     uint32_t underlying_type_id = resolve_type(v.element->name);
 
                     if (!(v.size == 4 && v.element->name == "float")) {
-                        uint32_t type_id = spv.TypeVectorNew(underlying_type_id, v.size);
-                        decl_ids[type_info.name] = type_id;
+                        spv.TypeVector(type_info.id, underlying_type_id, v.size);
                     }
-                    type_info.id = decl_ids[type_info.name];
                     try_add_storage_class_pointer(type_info, spv::StorageClassFunction);
                     try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                     try_add_storage_class_pointer(type_info, spv::StorageClassOutput);
@@ -509,10 +512,8 @@ class CodeGenerator final {
                 },
                 [&](const TypeInfo::Matrix& m) {
                     uint32_t underlying_type_id = resolve_type(m.vector_element->name);
-                    uint32_t type_id = spv.TypeMatrixNew(underlying_type_id, m.columns);
-                    decl_ids[type_info.name] = type_id;
+                    spv.TypeMatrix(type_info.id, underlying_type_id, m.columns);
 
-                    type_info.id = decl_ids[type_info.name];
                     try_add_storage_class_pointer(type_info, spv::StorageClassFunction);
                     try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                     try_add_storage_class_pointer(type_info, spv::StorageClassOutput);
@@ -521,8 +522,6 @@ class CodeGenerator final {
                 },
                 [&](const TypeInfo::Struct& s) {
                     generate_struct(type_info.name, s);
-
-                    type_info.id = decl_ids[type_info.name];
 
                     try_add_storage_class_pointer(type_info, spv::StorageClassFunction);
                     try_add_storage_class_pointer(type_info, spv::StorageClassInput);
@@ -533,11 +532,11 @@ class CodeGenerator final {
                 [&](const TypeInfo::Array& a) {
                     uint32_t underlying_type_id = resolve_type(a.element->name);
                     if (a.is_sized) {
-                        uint32_t type_id =
-                            spv.TypeArrayNew(underlying_type_id, get_constant_int(a.size));
-                        decl_ids[type_info.name] = type_id;
-
-                        type_info.id = decl_ids[type_info.name];
+                        spv.TypeArray(
+                            type_info.id,
+                            underlying_type_id,
+                            get_constant_int(a.size)
+                        );
 
                         try_add_storage_class_pointer(type_info, spv::StorageClassFunction);
                         try_add_storage_class_pointer(type_info, spv::StorageClassInput);
@@ -548,10 +547,7 @@ class CodeGenerator final {
                             spv::StorageClassStorageBuffer
                         );
                     } else {
-                        uint32_t type_id = spv.TypeRuntimeArrayNew(underlying_type_id);
-                        decl_ids[type_info.name] = type_id;
-
-                        type_info.id = decl_ids[type_info.name];
+                        spv.TypeRuntimeArray(type_info.id, underlying_type_id);
 
                         try_add_storage_class_pointer(type_info, spv::StorageClassInput);
                         try_add_storage_class_pointer(type_info, spv::StorageClassUniform);
@@ -572,11 +568,7 @@ class CodeGenerator final {
                         spv::ImageFormatUnknown
                     );
 
-                    uint32_t sampled_type_id = spv.TypeSampledImageNew(type_id);
-
-                    decl_ids[type_info.name] = sampled_type_id;
-
-                    type_info.id = decl_ids[type_info.name];
+                    spv.TypeSampledImage(type_info.id, type_id);
 
                     try_add_storage_class_pointer(type_info, spv::StorageClassUniformConstant);
                 },
