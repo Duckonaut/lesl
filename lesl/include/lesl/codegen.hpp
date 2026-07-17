@@ -670,6 +670,27 @@ class CodeGenerator final {
                     &stride,
                     1
                 );
+            } else if (member_type_info.is<TypeInfo::Array>()) {
+                const TypeInfo::Array& a = member_type_info.get<TypeInfo::Array>();
+                if (a.element->is<TypeInfo::Matrix>()) {
+                    spv.MemberDecorate(
+                        decl_ids[s.name.name],
+                        n_ops,
+                        spv::DecorationColMajor,
+                        nullptr,
+                        0
+                    );
+
+                    uint32_t stride = 16; // required for Vulkan uniform buffer layout
+
+                    spv.MemberDecorate(
+                        decl_ids[s.name.name],
+                        n_ops,
+                        spv::DecorationMatrixStride,
+                        &stride,
+                        1
+                    );
+                }
             }
 
             offset += get_type_size_offset(offset, **member.type.resolved_type);
