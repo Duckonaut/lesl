@@ -707,7 +707,7 @@ class CodeGenerator final {
             binding_manager
                 .decorate_struct(spv, PipelineStage::Vertex, s, decl_ids[s.name.name], false);
         }
-        if (is_fragment_input_interface && !is_vertex_output_interface) {
+        if (is_fragment_input_interface) {
             binding_manager
                 .decorate_struct(spv, PipelineStage::Fragment, s, decl_ids[s.name.name], true);
         }

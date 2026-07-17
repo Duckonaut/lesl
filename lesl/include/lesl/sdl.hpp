@@ -27,6 +27,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
     bool fragment_input_decorated = false;
 
     std::vector<uint32_t> already_decorated_block;
+    std::vector<uint32_t> already_decorated_locations;
 
     std::vector<Binding> bindings;
 
@@ -40,6 +41,23 @@ struct SDL3BindingManager : public BindingManagerInterface {
             ) == already_decorated_block.end()) {
             spv.Decorate(struct_id, spv::DecorationBlock, NULL, 0);
             already_decorated_block.push_back(struct_id);
+        }
+    }
+
+    void try_decorate_locations(
+        spvbc::BinaryContainer& spv,
+        const lesl::Decl::Struct& s,
+        uint32_t struct_id
+    ) {
+        if (std::find(
+                already_decorated_locations.begin(),
+                already_decorated_locations.end(),
+                struct_id
+            ) == already_decorated_locations.end()) {
+            for (uint32_t i = 0; i < s.members.size(); i++) {
+                spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &i, 1);
+            }
+            already_decorated_locations.push_back(struct_id);
         }
     }
 
@@ -80,12 +98,10 @@ struct SDL3BindingManager : public BindingManagerInterface {
         const Decl::Struct& s,
         uint32_t struct_id
     ) {
-        uint32_t location = 0;
-
         try_decorate_block(spv, struct_id);
+        try_decorate_locations(spv, s, struct_id);
 
         for (uint32_t i = 0; i < s.members.size(); i++) {
-            spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
             auto& rt = *s.members[i].type.resolved_type;
             bindings.push_back(
                 Binding{
@@ -94,13 +110,12 @@ struct SDL3BindingManager : public BindingManagerInterface {
                     .name = s.name.name.to_string() + "::" + s.members[i].name.name.c_str(),
                     .set = context == PipelineStage::Vertex ? vertex_input_binding
                                                             : fragment_input_binding,
-                    .slot = location,
+                    .slot = i,
                     .size = rt->size,
                     .alignment = rt->alignment,
                     .binding_type = rt->name.to_string(),
                 }
             );
-            location++;
         }
 
         if (context == PipelineStage::Vertex) {
@@ -116,11 +131,9 @@ struct SDL3BindingManager : public BindingManagerInterface {
         const Decl::Struct& s,
         uint32_t struct_id
     ) {
-        uint32_t location = 0;
         try_decorate_block(spv, struct_id);
+        try_decorate_locations(spv, s, struct_id);
         for (uint32_t i = 0; i < s.members.size(); i++) {
-            spv.MemberDecorate(struct_id, i, spv::DecorationLocation, &location, 1);
-
             auto& rt = *s.members[i].type.resolved_type;
             bindings.push_back(
                 Binding{
@@ -129,13 +142,12 @@ struct SDL3BindingManager : public BindingManagerInterface {
                     .name = s.name.name.to_string() + "::" + s.members[i].name.name.c_str(),
                     .set = context == PipelineStage::Vertex ? vertex_output_binding
                                                             : fragment_output_binding,
-                    .slot = location,
+                    .slot = i,
                     .size = rt->size,
                     .alignment = rt->alignment,
                     .binding_type = rt->name.to_string(),
                 }
             );
-            location++;
         }
 
         if (context == PipelineStage::Vertex) {
@@ -209,8 +221,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
         }
     }
 
-    void
-    allocate_as_image_sampler(spvbc::BinaryContainer& spv, const GlobalInterface& gi) {
+    void allocate_as_image_sampler(spvbc::BinaryContainer& spv, const GlobalInterface& gi) {
         if (gi.storage_class == StorageClass::ImageSampler) {
             if (gi.pipeline_stage == PipelineStage::Fragment) {
                 uint32_t set = 2;
@@ -313,4 +324,4 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
     std::vector<SDL_GPUVertexAttribute>* vertex_attributes = nullptr,
     std::vector<SDL_GPUVertexBufferDescription>* vertex_buffer_descriptions = nullptr
 );
-}
+} // namespace lesl::sdl
