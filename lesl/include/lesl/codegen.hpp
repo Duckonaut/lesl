@@ -102,8 +102,6 @@ class CodeGenerator final {
 
     void generate_prelude() {
         spv.Capability(spv::CapabilityShader);
-        spv.Capability(spv::CapabilityVariablePointersStorageBuffer);
-        spv.Extension("SPV_KHR_variable_pointers");
         glsl_ext = spv.ExtInstImportNew("GLSL.std.450");
         spv.MemoryModel(spv::AddressingModelLogical, spv::MemoryModelGLSL450);
     }
