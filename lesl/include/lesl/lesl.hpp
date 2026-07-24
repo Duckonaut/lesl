@@ -200,6 +200,25 @@ static inline CompilationResult compile(
         return CompilationResult::failure(error_handler);
     }
 
+    uint32_t pipeline_count = 0;
+    lesl::Opt<std::string> single_pipeline_name;
+    for (auto d : arena->decls) {
+        if (d->is<lesl::Decl::Pipeline>()) {
+            if (!single_pipeline_name.has_value()) {
+                single_pipeline_name = d->get<lesl::Decl::Pipeline>().name.name.to_string();
+            }
+            pipeline_count += 1;
+        }
+    }
+
+    if (pipeline == nullptr) {
+        if (pipeline_count == 1) {
+            pipeline = single_pipeline_name->c_str();
+        } else {
+            return CompilationResult::failure(error_handler);
+        }
+    }
+
     Validator validator(*arena, pipeline, error_handler);
 
     validator.validate();
