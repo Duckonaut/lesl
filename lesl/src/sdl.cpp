@@ -1,6 +1,7 @@
 #include <SDL3/SDL.h>
 
 #include <SDL3/SDL_gpu.h>
+#include <SDL3/SDL_properties.h>
 #include <cmath>
 #include <functional>
 #include <lesl/lesl.hpp>
@@ -275,6 +276,7 @@ SDL_GPUColorTargetDescription build_color_target_description(
 
 SDL_GPUGraphicsPipeline* create_graphics_pipeline(
     SDL_GPUDevice* device,
+    const char* pipeline_name,
     CompilationResult cr,
     std::vector<SDL_GPUTextureFormat> color_target_formats,
     std::optional<SDL_GPUTextureFormat> depth_stencil_target_format = std::nullopt,
@@ -456,6 +458,15 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
     multisample_state.enable_alpha_to_coverage =
         parse_bool(cr.pipeline_parameters[CONVENTION_MSAA_ALPHA_TO_COVERAGE].c_str(), false);
 
+    SDL_PropertiesID pipeline_props = SDL_CreateProperties();
+    if (pipeline_name != nullptr) {
+        SDL_SetStringProperty(
+            pipeline_props,
+            SDL_PROP_GPU_GRAPHICSPIPELINE_CREATE_NAME_STRING,
+            pipeline_name
+        );
+    }
+
     SDL_GPUGraphicsPipelineCreateInfo createInfo = {
             .vertex_shader = vertex_shader,
             .fragment_shader = fragment_shader,
@@ -478,10 +489,12 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
                 .padding2 = 0,
                 .padding3 = 0,
             },
-            .props = 0,
+            .props = pipeline_props,
         };
 
     auto p = SDL_CreateGPUGraphicsPipeline(device, &createInfo);
+
+    SDL_DestroyProperties(pipeline_props);
 
     SDL_ReleaseGPUShader(device, vertex_shader);
     SDL_ReleaseGPUShader(device, fragment_shader);

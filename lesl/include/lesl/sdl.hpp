@@ -318,6 +318,7 @@ struct SDL3BindingManager : public BindingManagerInterface {
 
 SDL_GPUGraphicsPipeline* create_graphics_pipeline(
     SDL_GPUDevice* device,
+    const char* pipeline_name,
     CompilationResult cr,
     std::vector<SDL_GPUTextureFormat> color_target_formats,
     std::optional<SDL_GPUTextureFormat> depth_stencil_target_format = std::nullopt,
