@@ -623,13 +623,45 @@ class CodeGenerator final {
     }
 
     void generate_struct_decorations(const Decl::Struct& s) {
-        int32_t n_ops = 0;
+        bool is_vertex_input_interface = false;
+        bool is_fragment_input_interface = false;
+        bool is_vertex_output_interface = false;
+        bool is_fragment_output_interface = false;
 
+        for (const auto& intf : global_interfaces) {
+            if (intf.type == s.resolved_type && intf.pipeline_stage == PipelineStage::Vertex) {
+                if (intf.storage_class == StorageClass::Output) {
+                    is_vertex_output_interface = true;
+                } else {
+                    is_vertex_input_interface = true;
+                }
+            } else if (
+                intf.type == s.resolved_type && intf.pipeline_stage == PipelineStage::Fragment
+            ) {
+                if (intf.storage_class == StorageClass::Output) {
+                    is_fragment_output_interface = true;
+                } else {
+                    is_fragment_input_interface = true;
+                }
+            }
+        }
+
+        int32_t n_ops = 0;
         uint32_t offset = 0;
+
+        bool generate_offsets = !is_vertex_output_interface && !is_fragment_output_interface;
 
         for (size_t i = 0; i < s.members.size(); i++) {
             const Decl::StructMember& member = s.members[i];
-            spv.MemberDecorate(decl_ids[s.name.name], n_ops, spv::DecorationOffset, &offset, 1);
+            if (generate_offsets) {
+                spv.MemberDecorate(
+                    decl_ids[s.name.name],
+                    n_ops,
+                    spv::DecorationOffset,
+                    &offset,
+                    1
+                );
+            }
             if (member.interpolation != TypeInfo::InterpolationQualifier::None) {
                 spv::Decoration decor = spv::DecorationFlat;
                 switch (member.interpolation) {
@@ -693,32 +725,13 @@ class CodeGenerator final {
             }
 
             if (i < s.members.size() - 1) {
-                offset += get_type_size_offset(offset, **member.type.resolved_type, **s.members[i + 1].type.resolved_type);
+                offset += get_type_size_offset(
+                    offset,
+                    **member.type.resolved_type,
+                    **s.members[i + 1].type.resolved_type
+                );
             }
             n_ops++;
-        }
-
-        bool is_vertex_input_interface = false;
-        bool is_fragment_input_interface = false;
-        bool is_vertex_output_interface = false;
-        bool is_fragment_output_interface = false;
-
-        for (const auto& intf : global_interfaces) {
-            if (intf.type == s.resolved_type && intf.pipeline_stage == PipelineStage::Vertex) {
-                if (intf.storage_class == StorageClass::Output) {
-                    is_vertex_output_interface = true;
-                } else {
-                    is_vertex_input_interface = true;
-                }
-            } else if (
-                intf.type == s.resolved_type && intf.pipeline_stage == PipelineStage::Fragment
-            ) {
-                if (intf.storage_class == StorageClass::Output) {
-                    is_fragment_output_interface = true;
-                } else {
-                    is_fragment_input_interface = true;
-                }
-            }
         }
 
         if (is_vertex_input_interface) {
