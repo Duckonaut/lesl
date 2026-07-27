@@ -611,9 +611,9 @@ class CodeGenerator final {
         spv.Name(decl_ids[s.name.name], s.name.name.c_str());
     }
 
-    uint32_t get_type_size_offset(uint32_t, const TypeInfo& type_info) {
-        uint32_t size = type_info.size;
-        uint32_t alignment = type_info.alignment;
+    uint32_t get_type_size_offset(uint32_t, const TypeInfo& last, const TypeInfo& next) {
+        uint32_t size = last.size;
+        uint32_t alignment = next.alignment;
 
         if (size % alignment != 0) {
             size += alignment - (size % alignment);
@@ -627,7 +627,8 @@ class CodeGenerator final {
 
         uint32_t offset = 0;
 
-        for (const Decl::StructMember& member : s.members) {
+        for (size_t i = 0; i < s.members.size(); i++) {
+            const Decl::StructMember& member = s.members[i];
             spv.MemberDecorate(decl_ids[s.name.name], n_ops, spv::DecorationOffset, &offset, 1);
             if (member.interpolation != TypeInfo::InterpolationQualifier::None) {
                 spv::Decoration decor = spv::DecorationFlat;
@@ -691,7 +692,9 @@ class CodeGenerator final {
                 }
             }
 
-            offset += get_type_size_offset(offset, **member.type.resolved_type);
+            if (i < s.members.size() - 1) {
+                offset += get_type_size_offset(offset, **member.type.resolved_type, **s.members[i + 1].type.resolved_type);
+            }
             n_ops++;
         }
 
