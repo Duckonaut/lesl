@@ -649,7 +649,7 @@ class CodeGenerator final {
         int32_t n_ops = 0;
         uint32_t offset = 0;
 
-        bool generate_offsets = !is_vertex_output_interface && !is_fragment_output_interface;
+        bool generate_offsets = !is_fragment_output_interface;
 
         for (size_t i = 0; i < s.members.size(); i++) {
             const Decl::StructMember& member = s.members[i];
