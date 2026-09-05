@@ -64,6 +64,9 @@ constexpr const char* CONVENTION_MSAA_ENABLE_MASK = "MSAAEnableMask";
 constexpr const char* CONVENTION_MSAA_SAMPLE_MASK = "MSAASampleMask";
 constexpr const char* CONVENTION_MSAA_ALPHA_TO_COVERAGE = "MSAAAlphaToCoverage";
 
+constexpr const char* CONVENTION_COLOR_MASK_ENABLE = "ColorMaskEnable";
+constexpr const char* CONVENTION_COLOR_MASK = "ColorMask";
+
 constexpr const char* CONVENTION_BLEND = "Blend";
 constexpr const char* CONVENTION_BLEND_OP = "BlendOp";
 constexpr const char* CONVENTION_BLEND_ALPHA_OP = "BlendAlphaOp";

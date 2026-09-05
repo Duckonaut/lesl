@@ -197,6 +197,29 @@ SDL_GPUBlendFactor parse_blend_factor(const char* s, SDL_GPUBlendFactor default_
     return v;
 }
 
+SDL_GPUColorComponentFlags parse_color_components(const char* s, SDL_GPUColorComponentFlags components) {
+    SDL_GPUColorComponentFlags c = components;
+    std::string ss = s;
+    if (ss == "None") {
+        return 0;
+    }
+    for (auto c : ss) {
+        if (c == 'r' || c == 'R') {
+            c |= SDL_GPU_COLORCOMPONENT_R;
+        }
+        if (c == 'g' || c == 'G') {
+            c |= SDL_GPU_COLORCOMPONENT_G;
+        }
+        if (c == 'b' || c == 'B') {
+            c |= SDL_GPU_COLORCOMPONENT_B;
+        }
+        if (c == 'a' || c == 'A') {
+            c |= SDL_GPU_COLORCOMPONENT_A;
+        }
+    }
+    return c;
+}
+
 template <typename T>
 T try_specific_key(
     std::unordered_map<std::string, std::string>& pparams,
@@ -222,6 +245,7 @@ SDL_GPUColorTargetDescription build_color_target_description(
     std::function<SDL_GPUBlendOp(const char*, SDL_GPUBlendOp)> op_parser = parse_blend_op;
     std::function<SDL_GPUBlendFactor(const char*, SDL_GPUBlendFactor)> factor_parser =
         parse_blend_factor;
+    std::function<SDL_GPUColorComponentFlags(const char*, SDL_GPUColorComponentFlags)> color_component_parser = parse_color_components;
 
     blend_state.enable_blend =
         try_specific_key(pparams, CONVENTION_BLEND, slot, false, bool_parser);
@@ -267,6 +291,11 @@ SDL_GPUColorTargetDescription build_color_target_description(
         SDL_GPU_BLENDFACTOR_ZERO,
         factor_parser
     );
+
+    blend_state.enable_color_write_mask =
+        try_specific_key(pparams, CONVENTION_COLOR_MASK_ENABLE, slot, false, bool_parser);
+    blend_state.color_write_mask =
+        try_specific_key(pparams, CONVENTION_COLOR_MASK, slot, (SDL_GPUColorComponentFlags)0, color_component_parser);
 
     return {
         .format = target_format,
