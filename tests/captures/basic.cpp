@@ -57,6 +57,7 @@ TEST(Captures, Triangle) {
 
     SDL_GPUGraphicsPipeline* p = lesl::sdl::create_graphics_pipeline(
         device,
+        "white",
         cr,
         { SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB }
     );
@@ -188,6 +189,7 @@ TEST(Captures, Texture) {
 
     SDL_GPUGraphicsPipeline* p = lesl::sdl::create_graphics_pipeline(
         device,
+        "tex",
         cr,
         { SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB }
     );
@@ -255,12 +257,10 @@ TEST(Captures, Texture) {
 
     with_cmd(
         device,
-        [p,
-         tex,
-         screen_buffer,
-         noise_tex,
-         sampler,
-         &transfer_buffer](SDL_GPUDevice* device, SDL_GPUCommandBuffer* cmd) {
+        [p, tex, screen_buffer, noise_tex, sampler, &transfer_buffer](
+            SDL_GPUDevice* device,
+            SDL_GPUCommandBuffer* cmd
+        ) {
             SDL_GPUColorTargetInfo ctarget_info;
             ctarget_info.cycle = false;
             ctarget_info.texture = tex;
@@ -279,7 +279,6 @@ TEST(Captures, Texture) {
             binding.buffer = screen_buffer;
             binding.offset = 0;
             SDL_BindGPUVertexBuffers(pass, 0, &binding, 1);
-
 
             SDL_GPUTextureSamplerBinding sampler_binding;
             sampler_binding.sampler = sampler;

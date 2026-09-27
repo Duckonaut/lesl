@@ -42,7 +42,7 @@ class Triangle : public Example {
             assert(false && "Pipeline compilation failed");
         }
 
-        pipeline = lesl::sdl::create_graphics_pipeline(device, cr, { swapchain_format });
+        pipeline = lesl::sdl::create_graphics_pipeline(device, "triangle", cr, { swapchain_format });
 
         if (!pipeline) {
             assert(false && "Pipeline creation failed");

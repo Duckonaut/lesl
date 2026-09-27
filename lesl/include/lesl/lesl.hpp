@@ -11,7 +11,6 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <json/writer.h>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -21,7 +20,7 @@
 #include <spirv-tools/optimizer.hpp>
 #endif
 
-#include <json/json.h>
+#include "json/json.h"
 
 namespace lesl {
 
@@ -239,7 +238,7 @@ static inline CompilationResult compile(
 
     std::vector<char> c;
 #if LESL_ENABLE_OPT
-    spvtools::Optimizer optimizer{ spv_target_env::SPV_ENV_VULKAN_1_0 };
+    spvtools::Optimizer optimizer{ spv_target_env::SPV_ENV_VULKAN_1_1 };
     spvtools::OptimizerOptions options;
     options.set_run_validator(false);
     options.set_preserve_bindings(true);

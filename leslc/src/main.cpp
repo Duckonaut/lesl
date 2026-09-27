@@ -357,7 +357,7 @@ int main(int argc, char* argv[]) {
     }
 
 #if LESL_ENABLE_OPT
-    spvtools::Optimizer optimizer{ spv_target_env::SPV_ENV_VULKAN_1_0 };
+    spvtools::Optimizer optimizer{ spv_target_env::SPV_ENV_VULKAN_1_1 };
     spvtools::ValidatorOptions val_options{};
     val_options.SetUniformBufferStandardLayout(true);
     spvtools::OptimizerOptions options;
