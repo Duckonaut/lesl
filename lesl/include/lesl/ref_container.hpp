@@ -2,6 +2,7 @@
 
 #include "lesl/tracking_allocator.hpp"
 
+#include <iterator>
 #include <vector>
 #include <stdexcept>
 
@@ -39,8 +40,11 @@ template <typename T> struct RefContainer {
     }
 
     struct iterator {
-        using value_type = T;
         using iterator_category = std::forward_iterator_tag;
+        using value_type = T;
+        using difference_type = size_t;
+        using reference = Ref<T>;
+
         RefContainer* container;
         size_t index;
 
