@@ -40,6 +40,7 @@ template <typename T> struct RefContainer {
 
     struct iterator {
         using value_type = T;
+        using iterator_category = std::forward_iterator_tag;
         RefContainer* container;
         size_t index;
 
