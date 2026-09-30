@@ -10,6 +10,10 @@
 #include <stdint.h>
 #include <unordered_map>
 
+#ifdef LESL_ENABLE_SDL_GPU_SHADERCROSS
+#include "SDL_gpu_shadercross.h"
+#endif
+
 namespace lesl::sdl {
 
 SDL_GPUVertexElementFormat format_from_type(const char* t) {
@@ -347,15 +351,23 @@ SDL_GPUGraphicsPipeline* create_graphics_pipeline(
         .props = 0,
     };
 
+#if LESL_ENABLE_SDL_GPU_SHADERCROSS
+    SDL_GPUShader* vertex_shader = (SDL_GPUShader*)SDL_ShaderCross_CompileFromSPIRV(device, &shaderCreateInfo, false);
+#else
     SDL_GPUShader* vertex_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
-
+#endif
+        
     shaderCreateInfo.entrypoint = entry_point_fragment;
     shaderCreateInfo.stage = SDL_GPU_SHADERSTAGE_FRAGMENT;
     shaderCreateInfo.num_samplers = cr.fragment.num_samplers;
     shaderCreateInfo.num_storage_buffers = cr.fragment.num_storage_buffers;
     shaderCreateInfo.num_uniform_buffers = cr.fragment.num_uniform_buffers;
 
+#if LESL_ENABLE_SDL_GPU_SHADERCROSS
+    SDL_GPUShader* fragment_shader = (SDL_GPUShader*)SDL_ShaderCross_CompileFromSPIRV(device, &shaderCreateInfo, false);
+#else
     SDL_GPUShader* fragment_shader = SDL_CreateGPUShader(device, &shaderCreateInfo);
+#endif
 
     std::vector<SDL_GPUColorTargetDescription> color_target_descriptions;
 

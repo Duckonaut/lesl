@@ -12,6 +12,7 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}" CACHE INTERNAL "")
 project(lesl VERSION 0.1.0 LANGUAGES CXX)
 
 include(FetchContent)
+include(CheckLibraryExists)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
@@ -20,6 +21,7 @@ option(LESL_ENABLE_EXAMPLES "Enable examples" ON)
 option(LESL_ENABLE_TESTS "Enable tests" ON)
 option(LESL_ENABLE_LESLC "Enable the LESL compiler" ON)
 option(LESL_ENABLE_SDL3 "Build SDL3 integration. Enabled if building examples" OFF)
+option(LESL_ENABLE_SDL_GPU_SHADERCROSS "Enable SDL shadercross for cross-compilation to other formats in SDL integration" OFF)
 option(LESL_BUILD_SDL3 "Build a local SDL3 copy" OFF)
 option(LESL_ENABLE_OPT "Enable SPIR-V optimization" ON)
 
@@ -54,15 +56,15 @@ if (LESL_ENABLE_SDL3)
         set(SDL_SHARED TRUE "Build a SDL shared library (if available)")
         set(SDL_STATIC FALSE "Build a SDL static library (if available)")
         FetchContent_Declare(
-            SDL
+            SDL3
             GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-            GIT_TAG release-3.2.24
+            GIT_TAG release-3.4.16
             GIT_SHALLOW TRUE
             GIT_PROGRESS TRUE
         )
-        FetchContent_MakeAvailable(SDL)
+        FetchContent_MakeAvailable(SDL3)
 
-        set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
+        set_property(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl3-src" PROPERTY EXCLUDE_FROM_ALL TRUE)
     else()
         find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3-shared)
     endif()

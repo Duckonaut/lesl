@@ -15,6 +15,10 @@ if (LESL_ENABLE_SDL3)
     )
 
     target_link_libraries(lesl PUBLIC SDL3::SDL3)
+    if (LESL_ENABLE_SDL_GPU_SHADERCROSS)
+        target_include_directories(lesl PUBLIC ../external/SDL_gpu_shadercross)
+        target_compile_definitions(lesl PUBLIC LESL_ENABLE_SDL_GPU_SHADERCROSS)
+    endif()
 endif()
 
 if (LESL_ENABLE_OPT)
